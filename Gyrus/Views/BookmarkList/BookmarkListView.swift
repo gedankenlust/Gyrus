@@ -1,0 +1,315 @@
+import SwiftUI
+
+enum ListDisplayMode: String, CaseIterable {
+    case grid = "square.grid.2x2"
+    case table = "list.bullet"
+}
+
+struct BookmarkListView: View {
+    @Environment(AppStore.self) private var appStore
+    @Environment(BookmarkStore.self) private var bookmarkStore
+    @Environment(CollectionStore.self) private var collectionStore
+    @Environment(TagStore.self) private var tagStore
+    @Environment(UIStateStore.self) private var uiStateStore
+    @Binding var showAddBookmark: Bool
+    @AppStorage("defaultViewMode") private var defaultViewModeRaw = ListDisplayMode.grid.rawValue
+    private var displayMode: ListDisplayMode {
+        ListDisplayMode(rawValue: defaultViewModeRaw) ?? .grid
+    }
+    private var displayModeBinding: Binding<ListDisplayMode> {
+        Binding(
+            get: { displayMode },
+            set: { defaultViewModeRaw = $0.rawValue }
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Toolbar
+            HStack(spacing: 12) {
+                Picker("View Mode", selection: displayModeBinding) {
+                    ForEach(ListDisplayMode.allCases, id: \.self) { mode in
+                        Image(systemName: mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 80)
+
+                SearchField(text: Binding(
+                    get: { bookmarkStore.searchQuery },
+                    set: { appStore.scheduleSearch($0) }
+                ))
+                .frame(maxWidth: 320)
+
+                Spacer()
+
+                Button {
+                    Task { await appStore.selectAllInCurrentView() }
+                } label: {
+                    Image(systemName: "checklist")
+                }
+                .buttonStyle(.bordered)
+                .disabled(bookmarkStore.bookmarks.isEmpty)
+                .help("Select all (⌘A)")
+
+                Menu {
+                    Section("Sort by Name") {
+                        sortButton("Name (A-Z)", by: "title", order: "asc")
+                        sortButton("Name (Z-A)", by: "title", order: "desc")
+                    }
+                    Section("Sort by Date") {
+                        sortButton("Newest first", by: "created_at", order: "desc")
+                        sortButton("Oldest first", by: "created_at", order: "asc")
+                    }
+                    Section("Sort by Tag") {
+                        sortButton("Tag (A-Z)", by: "tag", order: "asc")
+                        sortButton("Tag (Z-A)", by: "tag", order: "desc")
+                    }
+                    Section("Sort by Site") {
+                        sortButton("Group by favicon", by: "favicon", order: "asc")
+                    }
+                } label: {
+                    Label("Sort", systemImage: "arrow.up.arrow.down")
+                }
+                .frame(width: 100)
+
+                Button {
+                    showAddBookmark = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .buttonStyle(.bordered)
+                .help("Add bookmark (⌘N)")
+
+                SettingsLink {
+                    Image(systemName: "gearshape")
+                }
+                .buttonStyle(.bordered)
+                .help("Settings (⌘,)")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.bar)
+
+            Divider()
+
+            // List Content
+            Group {
+                if bookmarkStore.bookmarks.isEmpty && !uiStateStore.isLoading {
+                    EmptyStateView()
+                } else {
+                    content
+                }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if !bookmarkStore.selectedIds.isEmpty {
+                SelectionStatusBar()
+            }
+        }
+        .navigationTitle(navigationTitle)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        ZStack {
+            if displayMode == .grid {
+                BookmarkGridView()
+            } else {
+                BookmarkTableView()
+            }
+
+            if uiStateStore.isLoading {
+                ZStack {
+                    Color(.windowBackgroundColor).opacity(0.4)
+                    VStack(spacing: 12) {
+                        ProgressView()
+                        Text("Loading bookmarks…")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func sortButton(_ label: String, by: String, order: String) -> some View {
+        Button {
+            Task { await appStore.setSort(by: by, order: order) }
+        } label: {
+            if bookmarkStore.sortBy == by && bookmarkStore.sortOrder == order {
+                Label(label, systemImage: "checkmark")
+            } else {
+                Text(label)
+            }
+        }
+    }
+
+    private var navigationTitle: String {
+        if !bookmarkStore.searchQuery.isEmpty {
+            return "Search: \"\(bookmarkStore.searchQuery)\""
+        }
+        if let tag = tagStore.selectedTagName {
+            return "#\(tag)"
+        }
+        return collectionStore.flatCollections.first(where: { $0.id == collectionStore.selectedCollectionId })?.name ?? "All Bookmarks"
+    }
+}
+
+/// A rounded search field for the list toolbar. Searches everything —
+/// titles, URLs, descriptions, notes and tags — via the backend.
+struct SearchField: View {
+    @Binding var text: String
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .font(.callout)
+
+            TextField("Search bookmarks & tags…", text: $text)
+                .textFieldStyle(.plain)
+                .focused($focused)
+                .onSubmit { focused = false }
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .help("Clear search")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color(.textBackgroundColor).opacity(0.6))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7)
+                .strokeBorder(focused ? Color.accentColor.opacity(0.6) : Color.secondary.opacity(0.25),
+                              lineWidth: 1)
+        )
+    }
+}
+
+struct SelectionStatusBar: View {
+    @Environment(AppStore.self) private var appStore
+    @Environment(BookmarkStore.self) private var bookmarkStore
+
+    var body: some View {
+        @Bindable var bookmarkStore = bookmarkStore
+        let count = bookmarkStore.selectedIds.count
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(Color.accentColor)
+            Text(count == 1 ? "1 bookmark selected" : "\(count) bookmarks selected")
+                .font(.callout.weight(.medium))
+
+            Spacer()
+
+            Button {
+                appStore.requestOpenInBrowser(ids: bookmarkStore.selectedIds)
+            } label: {
+                Label("Open", systemImage: "safari")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+
+            Button(role: .destructive) {
+                appStore.requestDeleteSelected()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .tint(.red)
+
+            Button {
+                bookmarkStore.selectedIds.removeAll()
+                bookmarkStore.selectedBookmark = nil
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Deselect all")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.bar)
+        .overlay(Divider(), alignment: .top)
+    }
+}
+
+private enum EmptyContext {
+    case search(String), collection, tag(String), deadLinks, all
+
+    var icon: String {
+        switch self {
+        case .search:    return "magnifyingglass"
+        case .collection: return "folder"
+        case .tag:       return "tag"
+        case .deadLinks: return "checkmark.shield"
+        case .all:       return "bookmark"
+        }
+    }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .search:         return "No results"
+        case .collection:     return "Empty folder"
+        case .tag(let name):  return "No bookmarks tagged \"\(name)\""
+        case .deadLinks:      return "No dead links"
+        case .all:            return "No bookmarks yet"
+        }
+    }
+
+    func subtitle(totalCount: Int) -> LocalizedStringKey {
+        switch self {
+        case .search(let q):  return "No bookmark matches \"\(q)\""
+        case .collection:     return "Drag bookmarks here or add new ones"
+        case .tag(let name):  return "Right-click a bookmark to assign the \"\(name)\" tag"
+        case .deadLinks:      return totalCount > 0 ? "All \(totalCount) links are reachable" : "Run a link check to find dead links"
+        case .all:            return "Add your first bookmark with ⌘N"
+        }
+    }
+}
+
+struct EmptyStateView: View {
+    @Environment(BookmarkStore.self) private var bookmarkStore
+    @Environment(CollectionStore.self) private var collectionStore
+    @Environment(TagStore.self) private var tagStore
+
+    private var context: EmptyContext {
+        if !bookmarkStore.searchQuery.isEmpty  { return .search(bookmarkStore.searchQuery) }
+        if collectionStore.showDeadOnly          { return .deadLinks }
+        if let tag = tagStore.selectedTagName { return .tag(tag) }
+        if collectionStore.selectedCollectionId != nil { return .collection }
+        return .all
+    }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: context.icon)
+                .font(.system(size: 40))
+                .foregroundStyle(.quaternary)
+            Text(context.title)
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            Text(context.subtitle(totalCount: bookmarkStore.totalBookmarkCount))
+                .font(.callout)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}

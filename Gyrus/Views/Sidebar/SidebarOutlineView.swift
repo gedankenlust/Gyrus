@@ -1,0 +1,571 @@
+import SwiftUI
+import AppKit
+
+/// One node in the unified source list. A reference type so NSOutlineView keeps
+/// stable identity (expansion/selection) across reloads; interned by `id`.
+final class SidebarNode: NSObject {
+    enum Kind {
+        case special(title: String, symbol: String, tint: NSColor)
+        case group(title: String, add: GroupAdd)
+        case folder(Collection)
+        case tag(Tag)
+    }
+    enum GroupAdd { case folder, tag, none }
+
+    let id: String
+    var kind: Kind
+    var count: Int
+    var children: [SidebarNode]
+
+    init(id: String, kind: Kind, count: Int = 0, children: [SidebarNode] = []) {
+        self.id = id; self.kind = kind; self.count = count; self.children = children
+    }
+}
+
+/// The full sidebar as a native macOS source list (one NSOutlineView), so every
+/// row — special items, folders, tags — shares the same selection pill, spacing
+/// and native drag. Bridged into SwiftUI.
+struct SidebarOutlineView: NSViewRepresentable {
+    @Binding var selection: Set<String>
+    let store: CollectionStore
+    let tagStore: TagStore
+    let bookmarkStore: BookmarkStore
+    var onExport: (Collection) -> Void = { _ in }
+    var onNewTag: () -> Void = {}
+    var onRecolorTag: (Tag) -> Void = { _ in }
+    var onRecolorFolder: (Collection) -> Void = { _ in }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let outline = NSOutlineView()
+        outline.headerView = nil
+        outline.rowHeight = 28
+        outline.style = .sourceList
+        outline.indentationPerLevel = 12
+        outline.floatsGroupRows = false
+        outline.allowsMultipleSelection = false
+        outline.backgroundColor = .clear
+
+        let column = NSTableColumn(identifier: .init("main"))
+        column.resizingMask = .autoresizingMask
+        outline.addTableColumn(column)
+        outline.outlineTableColumn = column
+
+        outline.dataSource = context.coordinator
+        outline.delegate = context.coordinator
+        outline.menu = context.coordinator.makeMenu()
+        outline.registerForDraggedTypes([.string])
+        outline.setDraggingSourceOperationMask(.move, forLocal: true)
+
+        context.coordinator.outlineView = outline
+        context.coordinator.rebuild()
+        outline.reloadData()
+        context.coordinator.expandGroups()
+
+        let scroll = NSScrollView()
+        scroll.documentView = outline
+        scroll.hasVerticalScroller = true   // the sidebar fills the column; scroll when full
+        scroll.drawsBackground = false
+        scroll.borderType = .noBorder
+        scroll.automaticallyAdjustsContentInsets = false
+        return scroll
+    }
+
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        context.coordinator.parent = self
+        guard !context.coordinator.isDragging else { return }
+        context.coordinator.reload()
+    }
+
+    // MARK: - Coordinator
+
+    final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
+        var parent: SidebarOutlineView
+        weak var outlineView: NSOutlineView?
+        var isDragging = false
+        private var updatingSelection = false
+
+        private var roots: [SidebarNode] = []
+        private var interned: [String: SidebarNode] = [:]
+        private var collectionsById: [String: Collection] = [:]
+
+        init(_ parent: SidebarOutlineView) { self.parent = parent }
+
+        // MARK: Build model
+
+        @MainActor
+        func rebuild() {
+            collectionsById.removeAll()
+            func indexCollections(_ list: [Collection]) {
+                for c in list { collectionsById[c.id] = c; indexCollections(c.children) }
+            }
+            indexCollections(parent.store.collections)
+
+            var newRoots: [SidebarNode] = []
+            newRoots.append(node(id: "__all__",
+                                 kind: .special(title: "All Bookmarks", symbol: "bookmark.fill", tint: .controlAccentColor),
+                                 count: parent.bookmarkStore.totalBookmarkCount))
+            if parent.bookmarkStore.deadBookmarkCount > 0 {
+                newRoots.append(node(id: "__dead__",
+                                     kind: .special(title: "Dead Links", symbol: "exclamationmark.triangle.fill", tint: .systemRed),
+                                     count: parent.bookmarkStore.deadBookmarkCount))
+            }
+            let folders = node(id: "group:folders", kind: .group(title: "Folders", add: .folder))
+            folders.children = folderNodes(parent.store.collections)
+            newRoots.append(folders)
+
+            let tags = node(id: "group:tags", kind: .group(title: "Tags", add: .tag))
+            tags.children = parent.tagStore.tags.map { tag in
+                node(id: "tag:\(tag.name)", kind: .tag(tag))
+            }
+            newRoots.append(tags)
+
+            roots = newRoots
+            // Drop interned nodes that no longer exist.
+            let live = Set(allIds(newRoots))
+            interned = interned.filter { live.contains($0.key) }
+        }
+
+        private func folderNodes(_ cols: [Collection]) -> [SidebarNode] {
+            cols.map { c in
+                let n = node(id: c.id, kind: .folder(c), count: c.bookmarkCount)
+                n.children = folderNodes(c.children)
+                return n
+            }
+        }
+
+        /// Intern by id so the same instance is reused (keeps expansion stable),
+        /// but refresh its payload each rebuild.
+        private func node(id: String, kind: SidebarNode.Kind, count: Int = 0) -> SidebarNode {
+            if let existing = interned[id] {
+                existing.kind = kind; existing.count = count; existing.children = []
+                return existing
+            }
+            let n = SidebarNode(id: id, kind: kind, count: count)
+            interned[id] = n
+            return n
+        }
+
+        private func allIds(_ nodes: [SidebarNode]) -> [String] {
+            nodes.flatMap { [$0.id] + allIds($0.children) }
+        }
+
+        // MARK: Data source
+
+        func outlineView(_ ov: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+            (item as? SidebarNode)?.children.count ?? roots.count
+        }
+        func outlineView(_ ov: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+            (item as? SidebarNode)?.children[index] ?? roots[index]
+        }
+        func outlineView(_ ov: NSOutlineView, isItemExpandable item: Any) -> Bool {
+            !((item as? SidebarNode)?.children.isEmpty ?? true)
+        }
+        func outlineView(_ ov: NSOutlineView, isGroupItem item: Any) -> Bool {
+            if case .group = (item as? SidebarNode)?.kind { return true }
+            return false
+        }
+        func outlineView(_ ov: NSOutlineView, shouldSelectItem item: Any) -> Bool {
+            if case .group = (item as? SidebarNode)?.kind { return false }
+            return true
+        }
+        /// Hide the disclosure triangle on the FOLDERS/TAGS headers. macOS shows
+        /// it on hover at the trailing edge — right where our "+" sits — so users
+        /// would click the collapse chevron instead of "Add". These sections are
+        /// always expanded, so the control is unnecessary anyway.
+        func outlineView(_ ov: NSOutlineView, shouldShowOutlineCellForItem item: Any) -> Bool {
+            if case .group = (item as? SidebarNode)?.kind { return false }
+            return true
+        }
+        func outlineView(_ ov: NSOutlineView, shouldCollapseItem item: Any) -> Bool {
+            if case .group = (item as? SidebarNode)?.kind { return false }
+            return true
+        }
+
+        // MARK: Cells
+
+        func outlineView(_ ov: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
+            guard let n = item as? SidebarNode else { return nil }
+            switch n.kind {
+            case .group(let title, let add):
+                let id = NSUserInterfaceItemIdentifier("Group")
+                let cell = (ov.makeView(withIdentifier: id, owner: self) as? GroupCellView) ?? {
+                    let c = GroupCellView(); c.identifier = id; return c
+                }()
+                cell.configure(title: title, showAdd: add != .none, target: self,
+                               action: add == .folder ? #selector(addFolderRoot) : #selector(addTag))
+                return cell
+            case .special(let title, let symbol, let tint):
+                return itemCell(ov, symbol: symbol, tint: tint, name: title, count: n.count)
+            case .folder(let c):
+                return itemCell(ov, symbol: "folder.fill", tint: nsColor(hex: c.color), name: c.name, count: n.count)
+            case .tag(let t):
+                let id = NSUserInterfaceItemIdentifier("Tag")
+                let cell = (ov.makeView(withIdentifier: id, owner: self) as? TagCellView) ?? {
+                    let c = TagCellView(); c.identifier = id; return c
+                }()
+                cell.configure(name: t.name, color: nsColor(hex: t.color))
+                return cell
+            }
+        }
+
+        private func itemCell(_ ov: NSOutlineView, symbol: String, tint: NSColor, name: String, count: Int) -> NSView {
+            let id = NSUserInterfaceItemIdentifier("Item")
+            let cell = (ov.makeView(withIdentifier: id, owner: self) as? ItemCellView) ?? {
+                let c = ItemCellView(); c.identifier = id; return c
+            }()
+            cell.configure(symbol: symbol, tint: tint, name: name, count: count)
+            return cell
+        }
+
+        // MARK: Selection
+
+        func outlineViewSelectionDidChange(_ notification: Notification) {
+            guard !updatingSelection, let ov = outlineView, ov.selectedRow >= 0,
+                  let n = ov.item(atRow: ov.selectedRow) as? SidebarNode else { return }
+            parent.selection = [n.id]
+        }
+
+        private func syncSelection(in ov: NSOutlineView) {
+            updatingSelection = true; defer { updatingSelection = false }
+            if let id = parent.selection.first, let n = interned[id] {
+                let row = ov.row(forItem: n)
+                if row >= 0 { ov.selectRowIndexes([row], byExtendingSelection: false); return }
+            }
+            ov.deselectAll(nil)
+        }
+
+        // MARK: Expansion + height
+
+        func expandGroups() {
+            guard let ov = outlineView else { return }
+            for n in roots { if case .group = n.kind { ov.expandItem(n) } }
+            // Expand folders that have children.
+            func expand(_ nodes: [SidebarNode]) {
+                for n in nodes where !n.children.isEmpty { ov.expandItem(n); expand(n.children) }
+            }
+            expand(roots)
+        }
+
+        @MainActor
+        func reload() {
+            guard let ov = outlineView else { return }
+            let expanded = Set(interned.values.filter { ov.isItemExpanded($0) }.map { $0.id })
+            rebuild()
+            ov.reloadData()
+            for id in expanded { if let n = interned[id] { ov.expandItem(n) } }
+            expandGroups()
+            syncSelection(in: ov)
+        }
+
+        // MARK: Drag & drop (folders only)
+
+        func outlineView(_ ov: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
+            guard let n = item as? SidebarNode, case .folder(let c) = n.kind else { return nil }
+            let p = NSPasteboardItem(); p.setString("col:\(c.id)", forType: .string); return p
+        }
+        func outlineView(_ ov: NSOutlineView, draggingSession session: NSDraggingSession,
+                         willBeginAt screenPoint: NSPoint, forItems draggedItems: [Any]) { isDragging = true }
+        func outlineView(_ ov: NSOutlineView, draggingSession session: NSDraggingSession,
+                         endedAt screenPoint: NSPoint, operation: NSDragOperation) { isDragging = false }
+
+        /// nil = not a valid folder target; otherwise the destination parent id
+        /// (nil-wrapped distinction handled by the Bool return).
+        private func folderTarget(_ item: Any?) -> (valid: Bool, parentId: String?) {
+            guard let n = item as? SidebarNode else { return (false, nil) }
+            switch n.kind {
+            case .folder(let c): return (true, c.id)
+            case .group(_, let add) where add == .folder: return (true, nil) // Folders group → root
+            default: return (false, nil)
+            }
+        }
+
+        func outlineView(_ ov: NSOutlineView, validateDrop info: NSDraggingInfo,
+                         proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation {
+            guard let str = info.draggingPasteboard.string(forType: .string) else { return [] }
+            let target = folderTarget(item)
+
+            if str.hasPrefix("col:") {
+                guard target.valid else { return [] }
+                let movedId = String(str.dropFirst(4))
+                if movedId == target.parentId { return [] }
+                if isDescendant(target.parentId, ofOrEqual: movedId) { return [] }
+                return .move
+            }
+            // Bookmarks: only onto a folder row.
+            if index == NSOutlineViewDropOnItemIndex, case .folder = (item as? SidebarNode)?.kind { return .move }
+            return []
+        }
+
+        func outlineView(_ ov: NSOutlineView, acceptDrop info: NSDraggingInfo,
+                         item: Any?, childIndex index: Int) -> Bool {
+            guard let str = info.draggingPasteboard.string(forType: .string) else { return false }
+            let target = folderTarget(item)
+            isDragging = false
+
+            if str.hasPrefix("col:") {
+                guard target.valid else { return false }
+                let movedId = String(str.dropFirst(4))
+                let idx = (index == NSOutlineViewDropOnItemIndex) ? -1 : index
+                let store = parent.store
+                Task { @MainActor in store.moveFolder(movedId, toParent: target.parentId, atIndex: idx); self.reload() }
+                return true
+            }
+            guard case .folder(let c)? = (item as? SidebarNode)?.kind else { return false }
+            let ids = Set(str.split(separator: "\n").map(String.init))
+            Task { @MainActor in
+                // Routes through AppStore so the current bookmark view reloads
+                // and the moved bookmarks leave the open folder immediately.
+                await AppStore.shared.moveBookmarks(ids: ids, to: c.id)
+                self.reload()
+            }
+            return true
+        }
+
+        private func isDescendant(_ ancestorId: String?, ofOrEqual nodeId: String) -> Bool {
+            var cursor = ancestorId
+            while let c = cursor {
+                if c == nodeId { return true }
+                cursor = collectionsById[c]?.parentId
+            }
+            return false
+        }
+
+        // MARK: Context menu + actions
+
+        func makeMenu() -> NSMenu { let m = NSMenu(); m.delegate = self; return m }
+
+        private func clickedNode() -> SidebarNode? {
+            guard let ov = outlineView, ov.clickedRow >= 0 else { return nil }
+            return ov.item(atRow: ov.clickedRow) as? SidebarNode
+        }
+        private func clickedFolder() -> Collection? {
+            if case .folder(let c)? = clickedNode()?.kind { return c }
+            return nil
+        }
+        private func clickedTag() -> Tag? {
+            if case .tag(let t)? = clickedNode()?.kind { return t }
+            return nil
+        }
+
+        @objc func addFolderRoot() {
+            if let name = promptText("New Folder", initial: "") {
+                let store = parent.store
+                Task { @MainActor in try? await store.createCollection(name: name, parentId: nil) }
+            }
+        }
+        @objc func addTag() { parent.onNewTag() }
+
+        @objc private func newSubfolder() {
+            guard let c = clickedFolder() else { return }
+            if let name = promptText("New Subfolder", initial: "") {
+                let store = parent.store
+                Task { @MainActor in try? await store.createCollection(name: name, parentId: c.id) }
+            }
+        }
+        @objc private func renameFolder() {
+            guard let c = clickedFolder() else { return }
+            if let name = promptText("Rename Folder", initial: c.name), name != c.name {
+                let store = parent.store
+                Task { @MainActor in try? await store.renameCollection(c.id, newName: name) }
+            }
+        }
+        @objc private func moveFolderToRoot() {
+            guard let c = clickedFolder() else { return }
+            let store = parent.store
+            Task { @MainActor in try? await store.moveCollection(c.id, toParent: nil) }
+        }
+        @objc private func exportFolder() {
+            guard let c = clickedFolder() else { return }
+            parent.onExport(c)
+        }
+        @objc private func recolorFolder() {
+            if let c = clickedFolder() { parent.onRecolorFolder(c) }
+        }
+        @objc private func deleteFolder() {
+            guard let c = clickedFolder() else { return }
+            if confirm("Delete \"\(c.name)\"?", "The bookmarks inside are kept — they just lose their folder assignment.") {
+                let store = parent.store
+                Task { @MainActor in _ = try? await store.deleteCollection(c.id) }
+            }
+        }
+        @objc private func recolorTag() {
+            if let t = clickedTag() { parent.onRecolorTag(t) }
+        }
+        @objc private func renameTag() {
+            guard let t = clickedTag() else { return }
+            if let name = promptText("Rename Tag", initial: t.name), name != t.name {
+                let ts = parent.tagStore
+                let bs = parent.bookmarkStore
+                Task { @MainActor in
+                    try? await ts.renameTag(t.id, newName: name)
+                    // Reflect the new name on any open bookmark chips immediately.
+                    bs.updateTagLocally(Tag(id: t.id, name: name, color: t.color, createdAt: t.createdAt))
+                }
+            }
+        }
+        @objc private func deleteTag() {
+            guard let t = clickedTag() else { return }
+            if confirm("Delete tag \"\(t.name)\"?", "Bookmarks keep their other tags.") {
+                let ts = parent.tagStore
+                let bs = parent.bookmarkStore
+                Task { @MainActor in
+                    try? await ts.deleteTag(t.id)
+                    // Drop the tag from any open bookmark chips immediately,
+                    // without waiting for a reload.
+                    bs.removeTagLocally(t.id)
+                }
+            }
+        }
+
+        private func promptText(_ title: String, initial: String) -> String? {
+            let alert = NSAlert()
+            alert.messageText = title
+            let tf = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+            tf.stringValue = initial
+            alert.accessoryView = tf
+            alert.addButton(withTitle: "OK"); alert.addButton(withTitle: "Cancel")
+            let ok = alert.runModal() == .alertFirstButtonReturn
+            let value = tf.stringValue.trimmingCharacters(in: .whitespaces)
+            return (ok && !value.isEmpty) ? value : nil
+        }
+        private func confirm(_ title: String, _ message: String) -> Bool {
+            let alert = NSAlert()
+            alert.messageText = title; alert.informativeText = message
+            alert.addButton(withTitle: "Delete"); alert.addButton(withTitle: "Cancel")
+            return alert.runModal() == .alertFirstButtonReturn
+        }
+
+        private func nsColor(hex: String?) -> NSColor {
+            if let hex, let c = Color(hex: hex) { return NSColor(c) }
+            return .controlAccentColor
+        }
+    }
+}
+
+extension SidebarOutlineView.Coordinator: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        guard let node = clickedNode() else { return }
+        switch node.kind {
+        case .folder(let c):
+            menu.addItem(withTitle: "New Subfolder", action: #selector(newSubfolder), keyEquivalent: "")
+            menu.addItem(withTitle: "Rename", action: #selector(renameFolder), keyEquivalent: "")
+            if c.parentId != nil {
+                menu.addItem(withTitle: "Move to Root", action: #selector(moveFolderToRoot), keyEquivalent: "")
+            }
+            menu.addItem(withTitle: "Change Color…", action: #selector(recolorFolder), keyEquivalent: "")
+            menu.addItem(withTitle: "Export Folder…", action: #selector(exportFolder), keyEquivalent: "")
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "Delete", action: #selector(deleteFolder), keyEquivalent: "")
+        case .tag:
+            menu.addItem(withTitle: "Rename", action: #selector(renameTag), keyEquivalent: "")
+            menu.addItem(withTitle: "Change Color…", action: #selector(recolorTag), keyEquivalent: "")
+            menu.addItem(.separator())
+            menu.addItem(withTitle: "Delete", action: #selector(deleteTag), keyEquivalent: "")
+        default:
+            return
+        }
+        for item in menu.items where item.action != nil { item.target = self }
+    }
+}
+
+// MARK: - Cells
+
+/// Section header: uppercase label + optional "+" button.
+final class GroupCellView: NSTableCellView {
+    private let label = NSTextField(labelWithString: "")
+    private let add = NSButton()
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        label.font = .systemFont(ofSize: 11, weight: .semibold)
+        label.textColor = .secondaryLabelColor
+        label.translatesAutoresizingMaskIntoConstraints = false
+        add.bezelStyle = .inline
+        add.isBordered = false
+        add.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "Add")
+        add.imagePosition = .imageOnly
+        add.contentTintColor = .secondaryLabelColor
+        add.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(label); addSubview(add)
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor),
+            add.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            add.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    func configure(title: String, showAdd: Bool, target: AnyObject, action: Selector) {
+        label.stringValue = title.uppercased()
+        add.isHidden = !showAdd
+        add.target = target; add.action = action
+    }
+}
+
+/// Item row: tinted symbol + name + trailing count.
+final class ItemCellView: NSTableCellView {
+    private let icon = NSImageView()
+    private let name = NSTextField(labelWithString: "")
+    private let count = NSTextField(labelWithString: "")
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        name.font = .systemFont(ofSize: 13)
+        name.lineBreakMode = .byTruncatingTail
+        name.translatesAutoresizingMaskIntoConstraints = false
+        count.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        count.textColor = .secondaryLabelColor
+        count.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(icon); addSubview(name); addSubview(count)
+        NSLayoutConstraint.activate([
+            icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
+            icon.centerYAnchor.constraint(equalTo: centerYAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 16),
+            name.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 6),
+            name.centerYAnchor.constraint(equalTo: centerYAnchor),
+            count.leadingAnchor.constraint(greaterThanOrEqualTo: name.trailingAnchor, constant: 6),
+            count.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            count.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+        name.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    func configure(symbol: String, tint: NSColor, name: String, count: Int) {
+        icon.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+        icon.contentTintColor = tint
+        self.name.stringValue = name
+        self.count.stringValue = count > 0 ? count.formatted() : ""
+    }
+}
+
+/// Tag row: color dot + name.
+final class TagCellView: NSTableCellView {
+    private let dot = NSView()
+    private let name = NSTextField(labelWithString: "")
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        dot.wantsLayer = true
+        dot.layer?.cornerRadius = 5
+        dot.translatesAutoresizingMaskIntoConstraints = false
+        name.font = .systemFont(ofSize: 13)
+        name.lineBreakMode = .byTruncatingTail
+        name.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(dot); addSubview(name)
+        NSLayoutConstraint.activate([
+            dot.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
+            dot.centerYAnchor.constraint(equalTo: centerYAnchor),
+            dot.widthAnchor.constraint(equalToConstant: 10),
+            dot.heightAnchor.constraint(equalToConstant: 10),
+            name.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 8),
+            name.centerYAnchor.constraint(equalTo: centerYAnchor),
+            name.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -6),
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    func configure(name: String, color: NSColor) {
+        self.name.stringValue = name
+        dot.layer?.backgroundColor = color.cgColor
+    }
+}

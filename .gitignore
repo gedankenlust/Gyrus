@@ -1,0 +1,44 @@
+# macOS
+.DS_Store
+
+# Claude / agent tooling
+.claude/
+.gstack/
+.claude-flow/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+build/
+build_output.txt
+DerivedData/
+
+# Python
+backend/venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Bundled self-contained Python runtime (built by build_python_runtime.sh,
+# ~140 MB — rebuilt locally, never committed)
+backend/python-runtime/
+
+# Local data / databases
+*.db
+*.db-wal
+*.db-shm
+
+# Planning / design material
+Bauplan/
+bauplan/
+
+# Stale Xcode project leftovers
+IntelDock.xcodeproj/
+
+# Local data
+Gyrus Brain/
+gyrus_brain/
+.gyrus/
+bauplan/
+docs/superpowers/
+*.dmg
