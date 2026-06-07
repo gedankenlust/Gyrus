@@ -2,7 +2,7 @@
 
 # Gyrus
 
-**The private, local-first bookmark manager for macOS.**
+**The open-source, private, and local-first bookmark manager for macOS.**
 
 Collect, organize, and rediscover your bookmarks on your own Mac.  
 No accounts required, no cloud sync, and zero telemetry.
