@@ -252,7 +252,7 @@ final class AppStore {
 
     // MARK: - Batch Actions & Undo
 
-    private let batchThreshold = 5
+    private let batchThreshold = 10
 
     func requestDeleteSelected() {
         let ids = bookmarksStore.selectedIds
@@ -394,7 +394,7 @@ final class AppStore {
 
         let count = deleteIds.count
         
-        // Only show Undo for more than 10 bookmarks.
+        // Only show Undo and require confirmation for more than 10 bookmarks.
         // For small deletions, we delete immediately on the server.
         if count <= 10 {
             uiStateStore.undoMessage = nil

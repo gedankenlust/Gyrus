@@ -3,7 +3,7 @@
   "name": "Gyrus Saver",
   "version": "0.1.0",
   "description": "Save bookmarks to Gyrus.",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": ["activeTab"],
   "host_permissions": ["http://127.0.0.1:8080/*"],
   "action": {
     "default_popup": "popup.html",

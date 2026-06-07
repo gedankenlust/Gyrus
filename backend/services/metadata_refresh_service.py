@@ -76,40 +76,42 @@ async def _run_refresh() -> None:
             _state["processed"] += 1
 
     tasks = [asyncio.create_task(refresh_one(i, u)) for i, u in rows]
-    await asyncio.gather(*tasks, return_exceptions=True)
-
-    # Batch-commit at the end (single short transaction). Overwrite cached
-    # values so a forced refresh actually replaces broken favicons / stale data.
-    db = SessionLocal()
-    updated = 0
     try:
-        for bm_id, meta in results:
-            bm = db.query(Bookmark).filter(Bookmark.id == bm_id).first()
-            if bm is None:
-                continue
-            changed = False
-            if meta.get("favicon_path"):
-                bm.favicon_path = meta["favicon_path"]
-                changed = True
-            if meta.get("og_image_url"):
-                bm.og_image_url = meta["og_image_url"]
-                changed = True
-            if meta.get("og_image_path"):
-                bm.og_image_path = meta["og_image_path"]
-                changed = True
-            if meta.get("description"):
-                bm.description = meta["description"]
-                changed = True
-            if changed:
-                updated += 1
-        db.commit()
-    finally:
-        db.close()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-    async with _lock:
-        _state["updated"] = updated
-        _state["running"] = False
-        _state["finished_at"] = datetime.now(timezone.utc).isoformat()
+        # Batch-commit at the end (single short transaction). Overwrite cached
+        # values so a forced refresh actually replaces broken favicons / stale data.
+        db = SessionLocal()
+        updated = 0
+        try:
+            for bm_id, meta in results:
+                bm = db.query(Bookmark).filter(Bookmark.id == bm_id).first()
+                if bm is None:
+                    continue
+                changed = False
+                if meta.get("favicon_path"):
+                    bm.favicon_path = meta["favicon_path"]
+                    changed = True
+                if meta.get("og_image_url"):
+                    bm.og_image_url = meta["og_image_url"]
+                    changed = True
+                if meta.get("og_image_path"):
+                    bm.og_image_path = meta["og_image_path"]
+                    changed = True
+                if meta.get("description"):
+                    bm.description = meta["description"]
+                    changed = True
+                if changed:
+                    updated += 1
+            db.commit()
+        finally:
+            db.close()
+    finally:
+        async with _lock:
+            if not _cancelled: # If not cancelled, update counts from successful run
+                _state["updated"] = updated
+            _state["running"] = False
+            _state["finished_at"] = datetime.now(timezone.utc).isoformat()
 
 
 async def start() -> dict:

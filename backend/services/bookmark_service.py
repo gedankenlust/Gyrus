@@ -251,7 +251,7 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
 
     bm = get_bookmark(db, bookmark_id)
     if not bm:
-        return None
+        raise HTTPException(status_code=404, detail="Bookmark not found")
         
     # 1. Get existing tags to give the LLM context
     all_tags = [t.name for t in db.query(Tag).all()]

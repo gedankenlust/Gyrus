@@ -93,33 +93,33 @@ async def _run_check() -> None:
     async with httpx.AsyncClient(
         headers={"User-Agent": "Gyrus/1.0 LinkCheck"}
     ) as client:
+        try:
+            async def check_one(bm_id: str, url: str) -> None:
+                async with sem:
+                    is_dead = await _check_url(client, url)
+                results.append((bm_id, is_dead))
+                async with _lock:
+                    _state["checked"] += 1
+                    if is_dead:
+                        _state["dead_found"] += 1
 
-        async def check_one(bm_id: str, url: str) -> None:
-            async with sem:
-                is_dead = await _check_url(client, url)
-            results.append((bm_id, is_dead))
+            tasks = [asyncio.create_task(check_one(i, u)) for i, u in rows]
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+            # 2) Batch-commit all results at the end (single short DB transaction)
+            db = SessionLocal()
+            try:
+                for bm_id, is_dead in results:
+                    bm = db.query(Bookmark).filter(Bookmark.id == bm_id).first()
+                    if bm is not None and bm.is_dead != is_dead:
+                        bm.is_dead = is_dead
+                db.commit()
+            finally:
+                db.close()
+        finally:
             async with _lock:
-                _state["checked"] += 1
-                if is_dead:
-                    _state["dead_found"] += 1
-
-        tasks = [asyncio.create_task(check_one(i, u)) for i, u in rows]
-        await asyncio.gather(*tasks, return_exceptions=True)
-
-    # 2) Batch-commit all results at the end (single short DB transaction)
-    db = SessionLocal()
-    try:
-        for bm_id, is_dead in results:
-            bm = db.query(Bookmark).filter(Bookmark.id == bm_id).first()
-            if bm is not None and bm.is_dead != is_dead:
-                bm.is_dead = is_dead
-        db.commit()
-    finally:
-        db.close()
-
-    async with _lock:
-        _state["running"] = False
-        _state["finished_at"] = datetime.now(timezone.utc).isoformat()
+                _state["running"] = False
+                _state["finished_at"] = datetime.now(timezone.utc).isoformat()
 
 
 async def start() -> dict:
