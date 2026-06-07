@@ -4,7 +4,7 @@
 
 **The private, local-first bookmark manager for macOS.**
 
-Collect, organize, and rediscover your bookmarks on your own Mac.
+Collect, organize, and rediscover your bookmarks on your own Mac.  
 No accounts required, no cloud sync, and zero telemetry.
 
 [![Platform](https://img.shields.io/badge/platform-macOS%2026%2B-black?logo=apple)](#requirements)
