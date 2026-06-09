@@ -26,6 +26,7 @@ struct Bookmark: Identifiable, Codable, Hashable {
     var ogImagePath: String?
     var source: String
     var isDead: Bool
+    var isRead: Bool
     var collectionId: String?
     var tags: [Tag]
     let createdAt: Date
@@ -44,9 +45,44 @@ struct Bookmark: Identifiable, Codable, Hashable {
         case ogImageUrl = "og_image_url"
         case ogImagePath = "og_image_path"
         case isDead = "is_dead"
+        case isRead = "is_read"
         case collectionId = "collection_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        url = try c.decode(String.self, forKey: .url)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        bookmarkNotes = try c.decodeIfPresent([BookmarkNote].self, forKey: .bookmarkNotes) ?? []
+        faviconPath = try c.decodeIfPresent(String.self, forKey: .faviconPath)
+        ogImageUrl = try c.decodeIfPresent(String.self, forKey: .ogImageUrl)
+        ogImagePath = try c.decodeIfPresent(String.self, forKey: .ogImagePath)
+        source = try c.decode(String.self, forKey: .source)
+        isDead = try c.decodeIfPresent(Bool.self, forKey: .isDead) ?? false
+        // Tolerate responses without is_read (defaults to unread) for safety.
+        isRead = try c.decodeIfPresent(Bool.self, forKey: .isRead) ?? false
+        collectionId = try c.decodeIfPresent(String.self, forKey: .collectionId)
+        tags = try c.decodeIfPresent([Tag].self, forKey: .tags) ?? []
+        createdAt = try c.decode(Date.self, forKey: .createdAt)
+        updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+    }
+
+    // Memberwise initializer (kept available after adding init(from:)).
+    init(id: String, title: String, url: String, description: String?, notes: String?,
+         bookmarkNotes: [BookmarkNote], faviconPath: String?, ogImageUrl: String?,
+         ogImagePath: String?, source: String, isDead: Bool, isRead: Bool = false,
+         collectionId: String?, tags: [Tag], createdAt: Date, updatedAt: Date) {
+        self.id = id; self.title = title; self.url = url
+        self.description = description; self.notes = notes; self.bookmarkNotes = bookmarkNotes
+        self.faviconPath = faviconPath; self.ogImageUrl = ogImageUrl; self.ogImagePath = ogImagePath
+        self.source = source; self.isDead = isDead; self.isRead = isRead
+        self.collectionId = collectionId; self.tags = tags
+        self.createdAt = createdAt; self.updatedAt = updatedAt
     }
 }
 
@@ -74,12 +110,14 @@ struct BookmarkUpdate: Encodable {
     var collectionId: String? = nil
     var tagIds: [String]? = nil
     var isDead: Bool? = nil
+    var isRead: Bool? = nil
 
     enum CodingKeys: String, CodingKey {
         case title, url, description, notes
         case collectionId = "collection_id"
         case tagIds = "tag_ids"
         case isDead = "is_dead"
+        case isRead = "is_read"
     }
 
     // Only encode fields that were explicitly set — prevents overwriting unrelated fields with null
@@ -92,5 +130,6 @@ struct BookmarkUpdate: Encodable {
         if let v = collectionId { try c.encode(v, forKey: .collectionId) }
         if let v = tagIds      { try c.encode(v, forKey: .tagIds) }
         if let v = isDead      { try c.encode(v, forKey: .isDead) }
+        if let v = isRead      { try c.encode(v, forKey: .isRead) }
     }
 }

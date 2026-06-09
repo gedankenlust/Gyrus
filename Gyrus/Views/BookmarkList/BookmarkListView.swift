@@ -74,6 +74,18 @@ struct BookmarkListView: View {
                 }
                 .frame(width: 100)
 
+                if collectionStore.showTrash {
+                    Button(role: .destructive) {
+                        Task { await appStore.emptyTrash() }
+                    } label: {
+                        Label("Empty Trash", systemImage: "trash.slash")
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+                    .disabled(bookmarkStore.bookmarks.isEmpty)
+                    .help("Permanently delete everything in the Trash")
+                }
+
                 Button {
                     showAddBookmark = true
                 } label: {
@@ -151,6 +163,9 @@ struct BookmarkListView: View {
         if !bookmarkStore.searchQuery.isEmpty {
             return "Search: \"\(bookmarkStore.searchQuery)\""
         }
+        if collectionStore.showTrash { return "Trash" }
+        if collectionStore.showUnreadOnly { return "Unread" }
+        if collectionStore.showDeadOnly { return "Dead Links" }
         if let tag = tagStore.selectedTagName {
             return "#\(tag)"
         }
@@ -203,6 +218,7 @@ struct SearchField: View {
 struct SelectionStatusBar: View {
     @Environment(AppStore.self) private var appStore
     @Environment(BookmarkStore.self) private var bookmarkStore
+    @Environment(CollectionStore.self) private var collectionStore
 
     var body: some View {
         @Bindable var bookmarkStore = bookmarkStore
@@ -215,22 +231,43 @@ struct SelectionStatusBar: View {
 
             Spacer()
 
-            Button {
-                appStore.requestOpenInBrowser(ids: bookmarkStore.selectedIds)
-            } label: {
-                Label("Open", systemImage: "safari")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            if collectionStore.showTrash {
+                Button {
+                    let ids = bookmarkStore.selectedIds
+                    Task { await appStore.restoreFromTrash(ids: ids) }
+                } label: {
+                    Label("Restore", systemImage: "arrow.uturn.backward")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
 
-            Button(role: .destructive) {
-                appStore.requestDeleteSelected()
-            } label: {
-                Label("Delete", systemImage: "trash")
+                Button(role: .destructive) {
+                    let ids = bookmarkStore.selectedIds
+                    Task { await appStore.purgeFromTrash(ids: ids) }
+                } label: {
+                    Label("Delete Permanently", systemImage: "trash.slash")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(.red)
+            } else {
+                Button {
+                    appStore.requestOpenInBrowser(ids: bookmarkStore.selectedIds)
+                } label: {
+                    Label("Open", systemImage: "safari")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+
+                Button(role: .destructive) {
+                    appStore.requestDeleteSelected()
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(.red)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .tint(.red)
 
             Button {
                 bookmarkStore.selectedIds.removeAll()
@@ -250,7 +287,7 @@ struct SelectionStatusBar: View {
 }
 
 private enum EmptyContext {
-    case search(String), collection, tag(String), deadLinks, all
+    case search(String), collection, tag(String), deadLinks, unread, trash, all
 
     var icon: String {
         switch self {
@@ -258,6 +295,8 @@ private enum EmptyContext {
         case .collection: return "folder"
         case .tag:       return "tag"
         case .deadLinks: return "checkmark.shield"
+        case .unread:    return "envelope.open"
+        case .trash:     return "trash"
         case .all:       return "bookmark"
         }
     }
@@ -268,6 +307,8 @@ private enum EmptyContext {
         case .collection:     return "Empty folder"
         case .tag(let name):  return "No bookmarks tagged \"\(name)\""
         case .deadLinks:      return "No dead links"
+        case .unread:         return "All caught up"
+        case .trash:          return "Trash is empty"
         case .all:            return "No bookmarks yet"
         }
     }
@@ -278,6 +319,8 @@ private enum EmptyContext {
         case .collection:     return "Drag bookmarks here or add new ones"
         case .tag(let name):  return "Right-click a bookmark to assign the \"\(name)\" tag"
         case .deadLinks:      return totalCount > 0 ? "All \(totalCount) links are reachable" : "Run a link check to find dead links"
+        case .unread:         return "You've read everything. Nice."
+        case .trash:          return "Deleted bookmarks appear here for 30 days before they're removed for good"
         case .all:            return "Add your first bookmark with ⌘N"
         }
     }
@@ -290,6 +333,8 @@ struct EmptyStateView: View {
 
     private var context: EmptyContext {
         if !bookmarkStore.searchQuery.isEmpty  { return .search(bookmarkStore.searchQuery) }
+        if collectionStore.showTrash             { return .trash }
+        if collectionStore.showUnreadOnly        { return .unread }
         if collectionStore.showDeadOnly          { return .deadLinks }
         if let tag = tagStore.selectedTagName { return .tag(tag) }
         if collectionStore.selectedCollectionId != nil { return .collection }

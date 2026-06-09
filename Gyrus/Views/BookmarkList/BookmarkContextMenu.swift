@@ -95,19 +95,46 @@ struct BookmarkContextMenu: View {
                 Label(single ? "Tags" : "Tags for \(count)", systemImage: "tag")
             }
 
-            Divider()
-
-            // Delete
-            Button(role: .destructive) {
-                if single, let bm = firstBookmark {
-                    Task { await appStore.deleteBookmark(bm) }
-                } else {
-                    bookmarkStore.selectedIds = ids
-                    appStore.requestDeleteSelected()
+            if collectionStore.showTrash {
+                Divider()
+                // Trash view: restore or permanently delete.
+                Button {
+                    Task { await appStore.restoreFromTrash(ids: ids) }
+                } label: {
+                    Label(single ? "Restore" : "Restore \(count)", systemImage: "arrow.uturn.backward")
                 }
-            } label: {
-                Label(single ? "Delete" : "Delete \(count) Bookmarks",
-                      systemImage: "trash")
+                Button(role: .destructive) {
+                    Task { await appStore.purgeFromTrash(ids: ids) }
+                } label: {
+                    Label(single ? "Delete Permanently" : "Delete \(count) Permanently",
+                          systemImage: "trash.slash")
+                }
+            } else {
+                // Mark read / unread
+                let anyUnread = bookmarks.filter { ids.contains($0.id) }.contains { !$0.isRead }
+                Button {
+                    Task { await appStore.setRead(ids: ids, isRead: anyUnread) }
+                } label: {
+                    Label(anyUnread
+                          ? (single ? "Mark as Read" : "Mark \(count) as Read")
+                          : (single ? "Mark as Unread" : "Mark \(count) as Unread"),
+                          systemImage: anyUnread ? "envelope.open" : "envelope.badge")
+                }
+
+                Divider()
+
+                // Delete (moves to Trash)
+                Button(role: .destructive) {
+                    if single, let bm = firstBookmark {
+                        Task { await appStore.deleteBookmark(bm) }
+                    } else {
+                        bookmarkStore.selectedIds = ids
+                        appStore.requestDeleteSelected()
+                    }
+                } label: {
+                    Label(single ? "Delete" : "Delete \(count) Bookmarks",
+                          systemImage: "trash")
+                }
             }
         }
     }

@@ -17,6 +17,7 @@ enum APIError: LocalizedError {
     case decodingError(Error)
     case networkError(Error)
     case duplicate
+    case serverMessage(String)
 
     var errorDescription: String? {
         switch self {
@@ -25,6 +26,7 @@ enum APIError: LocalizedError {
         case .duplicate: return "Bookmark already exists"
         case .decodingError(let e): return "Decode error: \(e)"
         case .networkError(let e): return "Network error: \(e.localizedDescription)"
+        case .serverMessage(let m): return m
         }
     }
 }
@@ -68,6 +70,7 @@ final class APIClient {
         collectionId: String? = nil,
         tag: String? = nil,
         deadOnly: Bool = false,
+        unreadOnly: Bool = false,
         limit: Int = 100,
         offset: Int = 0,
         sortBy: String = "created_at",
@@ -83,6 +86,7 @@ final class APIClient {
         if let cid = collectionId { items.append(.init(name: "collection_id", value: cid)) }
         if let t = tag { items.append(.init(name: "tag", value: t)) }
         if deadOnly { items.append(.init(name: "dead_only", value: "true")) }
+        if unreadOnly { items.append(.init(name: "unread_only", value: "true")) }
         components.queryItems = items
         return try await get(components.url!)
     }
@@ -91,6 +95,7 @@ final class APIClient {
         collectionId: String? = nil,
         tag: String? = nil,
         deadOnly: Bool = false,
+        unreadOnly: Bool = false,
         query: String? = nil
     ) async throws -> [String] {
         var components = URLComponents(url: base.appending(path: "/api/bookmarks/ids"), resolvingAgainstBaseURL: false)!
@@ -98,6 +103,7 @@ final class APIClient {
         if let cid = collectionId { items.append(.init(name: "collection_id", value: cid)) }
         if let t = tag { items.append(.init(name: "tag", value: t)) }
         if deadOnly { items.append(.init(name: "dead_only", value: "true")) }
+        if unreadOnly { items.append(.init(name: "unread_only", value: "true")) }
         if let q = query { items.append(.init(name: "q", value: q)) }
         components.queryItems = items.isEmpty ? nil : items
         return try await get(components.url!)
@@ -128,6 +134,42 @@ final class APIClient {
         try await get(base.appending(path: "/api/bookmarks/count-dead"))
     }
 
+    func unreadBookmarkCount() async throws -> Int {
+        try await get(base.appending(path: "/api/bookmarks/count-unread"))
+    }
+
+    // MARK: - Trash
+
+    func trashedBookmarks(limit: Int = 200, offset: Int = 0) async throws -> [Bookmark] {
+        var components = URLComponents(url: base.appending(path: "/api/bookmarks/trash"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            .init(name: "limit", value: "\(limit)"),
+            .init(name: "offset", value: "\(offset)"),
+        ]
+        return try await get(components.url!)
+    }
+
+    func trashCount() async throws -> Int {
+        try await get(base.appending(path: "/api/bookmarks/trash/count"))
+    }
+
+    @discardableResult
+    func restoreFromTrash(ids: [String]) async throws -> Int {
+        struct Body: Encodable { let ids: [String] }
+        struct Resp: Decodable { let restored: Int }
+        let r: Resp = try await post(base.appending(path: "/api/bookmarks/trash/restore"), body: Body(ids: ids))
+        return r.restored
+    }
+
+    /// Permanently delete trashed bookmarks. Pass nil to empty the whole Trash.
+    @discardableResult
+    func purgeTrash(ids: [String]? = nil) async throws -> Int {
+        struct Body: Encodable { let ids: [String]? }
+        struct Resp: Decodable { let purged: Int }
+        let r: Resp = try await post(base.appending(path: "/api/bookmarks/trash/purge"), body: Body(ids: ids))
+        return r.purged
+    }
+
     func startLinkCheck() async throws -> LinkCheckStatus {
         try await post(base.appending(path: "/api/bookmarks/check-links"), body: EmptyBody())
     }
@@ -156,6 +198,27 @@ final class APIClient {
     func fetchReaderContent(id: String) async throws -> String {
         struct ReaderResponse: Decodable { let content: String }
         let res: ReaderResponse = try await get(base.appending(path: "/api/bookmarks/\(id)/reader"))
+        return res.content
+    }
+
+    /// Optional, opt-in: ask the local LLM to tidy the reader text into clean
+    /// prose. Returns the cleaned text; the cached original is left untouched.
+    func cleanupReaderContent(id: String, config: AIBrainConfig) async throws -> String {
+        struct ProviderConfig: Encodable {
+            let provider: String
+            let model: String
+            let ollama_url: String
+        }
+        struct Body: Encodable { let provider_config: ProviderConfig }
+        struct ReaderResponse: Decodable { let content: String }
+        let pc = ProviderConfig(
+            provider: config.llmProvider.rawValue,
+            model: config.llmProvider == .ollama ? config.ollamaModel : "gpt-4o",
+            ollama_url: config.ollamaURL
+        )
+        let res: ReaderResponse = try await post(
+            base.appending(path: "/api/bookmarks/\(id)/reader/cleanup"),
+            body: Body(provider_config: pc))
         return res.content
     }
 
@@ -408,6 +471,77 @@ final class APIClient {
         )
         let res: ChatResponse = try await post(base.appending(path: "/api/brain/chat"), body: body)
         return res.response
+    }
+
+    /// Stream the AI reply token-by-token. The returned stream yields text
+    /// deltas; cancelling the consuming task aborts the request (Stop button).
+    /// A backend error arrives as a `[GYRUS-ERROR] …` sentinel and is surfaced
+    /// as a thrown `APIError.serverMessage`.
+    func aiChatStream(bookmarkId: String, prompt: String,
+                      history: [(role: String, content: String)] = [],
+                      config: AIBrainConfig) -> AsyncThrowingStream<String, Error> {
+        struct ProviderConfig: Encodable { let provider: String; let model: String; let ollama_url: String }
+        struct HistoryMessage: Encodable { let role: String; let content: String }
+        struct ChatRequest: Encodable {
+            let bookmark_id: String
+            let prompt: String
+            let provider_config: ProviderConfig
+            let history: [HistoryMessage]
+        }
+
+        let providerConfig = ProviderConfig(
+            provider: config.llmProvider.rawValue,
+            model: config.llmProvider == .ollama ? config.ollamaModel : "gpt-4o",
+            ollama_url: config.ollamaURL
+        )
+        let body = ChatRequest(
+            bookmark_id: bookmarkId, prompt: prompt,
+            provider_config: providerConfig,
+            history: history.map { HistoryMessage(role: $0.role, content: $0.content) }
+        )
+
+        let url = base.appending(path: "/api/brain/chat/stream")
+        let encoder = self.encoder
+        let sentinel = "[GYRUS-ERROR]"
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "POST"
+                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    request.httpBody = try encoder.encode(body)
+
+                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                        throw APIError.serverError(http.statusCode)
+                    }
+
+                    // Decode cumulatively so multibyte UTF-8 never splits, and
+                    // emit only the newly added suffix as a delta.
+                    var data = Data()
+                    var emitted = ""
+                    for try await byte in bytes {
+                        if Task.isCancelled { break }
+                        data.append(byte)
+                        guard let full = String(data: data, encoding: .utf8) else { continue }
+                        if let r = full.range(of: sentinel) {
+                            let msg = full[r.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
+                            throw APIError.serverMessage(msg.isEmpty ? "AI request failed" : msg)
+                        }
+                        if full.count > emitted.count {
+                            let delta = String(full[full.index(full.startIndex, offsetBy: emitted.count)...])
+                            emitted = full
+                            continuation.yield(delta)
+                        }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 
     // MARK: - Data Management

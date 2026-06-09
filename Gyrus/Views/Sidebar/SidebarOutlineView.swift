@@ -106,6 +106,11 @@ struct SidebarOutlineView: NSViewRepresentable {
             newRoots.append(node(id: "__all__",
                                  kind: .special(title: "All Bookmarks", symbol: "bookmark.fill", tint: .controlAccentColor),
                                  count: parent.bookmarkStore.totalBookmarkCount))
+            if parent.bookmarkStore.unreadBookmarkCount > 0 {
+                newRoots.append(node(id: "__unread__",
+                                     kind: .special(title: "Unread", symbol: "circle.badge.fill", tint: .controlAccentColor),
+                                     count: parent.bookmarkStore.unreadBookmarkCount))
+            }
             if parent.bookmarkStore.deadBookmarkCount > 0 {
                 newRoots.append(node(id: "__dead__",
                                      kind: .special(title: "Dead Links", symbol: "exclamationmark.triangle.fill", tint: .systemRed),
@@ -120,6 +125,12 @@ struct SidebarOutlineView: NSViewRepresentable {
                 node(id: "tag:\(tag.name)", kind: .tag(tag))
             }
             newRoots.append(tags)
+
+            if parent.bookmarkStore.trashCount > 0 {
+                newRoots.append(node(id: "__trash__",
+                                     kind: .special(title: "Trash", symbol: "trash", tint: .secondaryLabelColor),
+                                     count: parent.bookmarkStore.trashCount))
+            }
 
             roots = newRoots
             // Drop interned nodes that no longer exist.
