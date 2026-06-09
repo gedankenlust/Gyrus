@@ -119,6 +119,9 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
         if content:
             context = content
             _persist_scraped_content(file_path, content)
+            # Also cache it on the bookmark for full-text content search.
+            from services import bookmark_service
+            bookmark_service.store_scraped_content(db, bookmark.id, content)
         elif not context:
             # Fallback to metadata
             context = f"Title: {bookmark.title}\nDescription: {bookmark.description}\nURL: {bookmark.url}"

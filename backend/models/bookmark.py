@@ -13,6 +13,9 @@ class Bookmark(Base):
     url: Mapped[str] = mapped_column(String, index=True, unique=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Extracted page text, cached when a bookmark's reader/chat is opened, so
+    # full-text search can match words from the article body (not just title/url).
+    scraped_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     favicon_path: Mapped[str | None] = mapped_column(String, nullable=True)
     og_image_url: Mapped[str | None] = mapped_column(String, nullable=True)
     og_image_path: Mapped[str | None] = mapped_column(String, nullable=True)

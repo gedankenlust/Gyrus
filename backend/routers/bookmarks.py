@@ -255,7 +255,10 @@ async def get_reader_content(bookmark_id: str, db: Session = Depends(get_db)):
     scrape_result = await scraper_service.extract_content(bm.url)
     content = scrape_result.get("content", "")
 
-    if not content:
+    if content:
+        # Cache the extracted text so full-text search can match the article body.
+        bookmark_service.store_scraped_content(db, bookmark_id, content)
+    else:
         content = "Could not extract readable content from this page."
 
     return ReaderResponse(content=content)

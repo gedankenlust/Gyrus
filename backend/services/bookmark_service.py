@@ -255,6 +255,22 @@ def purge_expired(db: Session, days: int = TRASH_RETENTION_DAYS) -> int:
     return n
 
 
+def store_scraped_content(db: Session, bookmark_id: str, content: str) -> None:
+    """Cache extracted page text on the bookmark so full-text search can match
+    the article body. Best-effort — never let an indexing write break the
+    caller's main flow (reader, chat, auto-tag)."""
+    if not content:
+        return
+    try:
+        bm = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+        if bm is not None and bm.scraped_content != content:
+            bm.scraped_content = content
+            db.commit()
+    except Exception as e:
+        logger.warning("storing scraped content failed: %s", e)
+        db.rollback()
+
+
 def _set_tags(db: Session, bm: Bookmark, tag_ids: list[str]) -> None:
     db.query(BookmarkTag).filter(BookmarkTag.bookmark_id == bm.id).delete()
     for tag_id in tag_ids:
@@ -324,6 +340,9 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
     # 2. Extract content
     scrape_result = await scraper_service.extract_content(bm.url)
     context = scrape_result.get("content", "")
+    if context:
+        # Cache the full text for full-text content search before truncating.
+        store_scraped_content(db, bookmark_id, context)
     if len(context) > 10000:
         context = context[:10000]
         

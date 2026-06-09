@@ -27,6 +27,7 @@ def search_bookmarks(db: Session, query: str, limit: int = 50, offset: int = 0) 
                 Bookmark.title.ilike(pattern)
                 | Bookmark.url.ilike(pattern)
                 | Bookmark.description.ilike(pattern)
+                | Bookmark.scraped_content.ilike(pattern)
             )
         ]
 
