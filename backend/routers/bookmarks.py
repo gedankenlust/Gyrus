@@ -39,17 +39,33 @@ async def _fetch_meta(bookmark_id: str, url: str) -> None:
 
 @router.get("/count", response_model=int)
 def bookmark_count(db: Session = Depends(get_db)):
-    return db.query(Bookmark).count()
+    return db.query(Bookmark).filter(Bookmark.deleted_at.is_(None)).count()
 
 
 @router.get("/count-dead", response_model=int)
 def dead_count(db: Session = Depends(get_db)):
-    return db.query(Bookmark).filter(Bookmark.is_dead == True).count()
+    return db.query(Bookmark).filter(
+        Bookmark.deleted_at.is_(None), Bookmark.is_dead == True
+    ).count()
 
 
 @router.get("/count-unread", response_model=int)
 def unread_count(db: Session = Depends(get_db)):
-    return db.query(Bookmark).filter(Bookmark.is_read == False).count()
+    return db.query(Bookmark).filter(
+        Bookmark.deleted_at.is_(None), Bookmark.is_read == False
+    ).count()
+
+
+# NOTE: these literal /trash routes MUST be declared before GET /{bookmark_id},
+# otherwise "trash" would be captured as a bookmark id.
+@router.get("/trash", response_model=list[BookmarkOut])
+def list_trash(limit: int = 200, offset: int = 0, db: Session = Depends(get_db)):
+    return [_enrich(bm) for bm in bookmark_service.get_trashed(db, limit=limit, offset=offset)]
+
+
+@router.get("/trash/count", response_model=int)
+def trash_count(db: Session = Depends(get_db)):
+    return bookmark_service.count_trashed(db)
 
 
 @router.post("/check-links")
@@ -87,7 +103,7 @@ def list_bookmark_ids(
     db: Session = Depends(get_db),
 ):
     from models.tag import Tag as TagModel, BookmarkTag
-    query = db.query(Bookmark.id)
+    query = db.query(Bookmark.id).filter(Bookmark.deleted_at.is_(None))
     if collection_id:
         query = query.filter(Bookmark.collection_id == collection_id)
     if dead_only:
@@ -180,6 +196,23 @@ class BulkDeleteRequest(BaseModel):
 @router.post("/delete-batch", status_code=204)
 def delete_bookmarks_batch(data: BulkDeleteRequest, db: Session = Depends(get_db)):
     bookmark_service.delete_bookmarks(db, data.ids)
+
+
+class TrashIdsRequest(BaseModel):
+    # None / omitted = act on the whole Trash (used by "Empty Trash").
+    ids: list[str] | None = None
+
+
+@router.post("/trash/restore")
+def restore_from_trash(data: TrashIdsRequest, db: Session = Depends(get_db)):
+    restored = bookmark_service.restore_bookmarks(db, data.ids or [])
+    return {"restored": restored}
+
+
+@router.post("/trash/purge")
+def purge_trash(data: TrashIdsRequest, db: Session = Depends(get_db)):
+    purged = bookmark_service.purge_bookmarks(db, data.ids)
+    return {"purged": purged}
 
 
 @router.post("/{bookmark_id}/fetch-meta", response_model=BookmarkOut)

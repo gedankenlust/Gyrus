@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from models.bookmark import Bookmark
@@ -8,6 +9,9 @@ from schemas.bookmark import BookmarkCreate, BookmarkUpdate
 from services.brain_sync_service import brain_sync_service
 
 logger = logging.getLogger(__name__)
+
+# How long a bookmark stays recoverable in the Trash before it is purged.
+TRASH_RETENTION_DAYS = 30
 
 
 def _safe_brain_sync(action) -> None:
@@ -42,7 +46,7 @@ def get_bookmarks(
     sort_by: str = "created_at",
     order: str = "desc",
 ) -> list[Bookmark]:
-    q = db.query(Bookmark)
+    q = db.query(Bookmark).filter(Bookmark.deleted_at.is_(None))
     if collection_id is not None:
         q = q.filter(Bookmark.collection_id == collection_id)
     if tag:
@@ -92,8 +96,11 @@ def get_bookmarks(
     return q.offset(offset).limit(limit).all()
 
 
-def get_bookmark(db: Session, bookmark_id: str) -> Bookmark | None:
-    return db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+def get_bookmark(db: Session, bookmark_id: str, include_deleted: bool = False) -> Bookmark | None:
+    q = db.query(Bookmark).filter(Bookmark.id == bookmark_id)
+    if not include_deleted:
+        q = q.filter(Bookmark.deleted_at.is_(None))
+    return q.first()
 
 
 def create_bookmark(db: Session, data: BookmarkCreate) -> Bookmark:
@@ -166,31 +173,86 @@ def update_bookmark(db: Session, bm: Bookmark, data: BookmarkUpdate) -> Bookmark
 
 
 def delete_bookmark(db: Session, bm: Bookmark) -> None:
-    # Delete file from AI Brain first while we still have access to the DB
-    # relations — best-effort, so a filesystem error never blocks the delete.
+    """Soft-delete: move the bookmark to the Trash. Its AI-Brain markdown file is
+    removed so it disappears from the mirror, but the row is kept (recoverable)
+    until it is purged."""
     db_session = Session.object_session(bm)
     _safe_brain_sync(lambda: brain_sync_service.delete_bookmark_file(db_session, bm))
 
-    db.delete(bm)
+    bm.deleted_at = datetime.now(timezone.utc)
     db.commit()
     _safe_brain_sync(lambda: brain_sync_service.rebuild_index(db))
 
 
 def delete_bookmarks(db: Session, ids: list[str]) -> None:
-    """Delete multiple bookmarks by ID efficiently."""
-    # 1. Fetch bookmarks to sync with AI Brain (Markdown files)
-    bms = db.query(Bookmark).filter(Bookmark.id.in_(ids)).all()
-    
-    # 2. Best-effort brain sync for each (deletes the .md files)
+    """Soft-delete multiple bookmarks (move them to the Trash)."""
+    # Best-effort: remove the brain markdown files (only for ones not already trashed).
+    bms = db.query(Bookmark).filter(
+        Bookmark.id.in_(ids), Bookmark.deleted_at.is_(None)
+    ).all()
     for bm in bms:
         _safe_brain_sync(lambda: brain_sync_service.delete_bookmark_file(db, bm))
-    
-    # 3. Bulk delete from DB
-    db.query(Bookmark).filter(Bookmark.id.in_(ids)).delete(synchronize_session=False)
+
+    db.query(Bookmark).filter(
+        Bookmark.id.in_(ids), Bookmark.deleted_at.is_(None)
+    ).update({Bookmark.deleted_at: datetime.now(timezone.utc)}, synchronize_session=False)
     db.commit()
-    
-    # 4. Rebuild FTS index once
     _safe_brain_sync(lambda: brain_sync_service.rebuild_index(db))
+
+
+def get_trashed(db: Session, limit: int = 200, offset: int = 0) -> list[Bookmark]:
+    """List bookmarks currently in the Trash, most recently deleted first."""
+    return (
+        db.query(Bookmark)
+        .filter(Bookmark.deleted_at.is_not(None))
+        .order_by(Bookmark.deleted_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+
+def count_trashed(db: Session) -> int:
+    return db.query(Bookmark).filter(Bookmark.deleted_at.is_not(None)).count()
+
+
+def restore_bookmarks(db: Session, ids: list[str]) -> int:
+    """Bring bookmarks back from the Trash and recreate their brain files."""
+    bms = db.query(Bookmark).filter(
+        Bookmark.id.in_(ids), Bookmark.deleted_at.is_not(None)
+    ).all()
+    for bm in bms:
+        bm.deleted_at = None
+    db.commit()
+    for bm in bms:
+        _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm))
+    _safe_brain_sync(lambda: brain_sync_service.rebuild_index(db))
+    return len(bms)
+
+
+def purge_bookmarks(db: Session, ids: list[str] | None = None) -> int:
+    """Permanently delete trashed bookmarks. ids=None empties the whole Trash.
+    Only ever touches rows that are already in the Trash."""
+    q = db.query(Bookmark).filter(Bookmark.deleted_at.is_not(None))
+    if ids is not None:
+        q = q.filter(Bookmark.id.in_(ids))
+    n = q.count()
+    q.delete(synchronize_session=False)
+    db.commit()
+    return n
+
+
+def purge_expired(db: Session, days: int = TRASH_RETENTION_DAYS) -> int:
+    """Hard-delete bookmarks that have sat in the Trash longer than `days`."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    q = db.query(Bookmark).filter(
+        Bookmark.deleted_at.is_not(None), Bookmark.deleted_at < cutoff
+    )
+    n = q.count()
+    if n:
+        q.delete(synchronize_session=False)
+        db.commit()
+    return n
 
 
 def _set_tags(db: Session, bm: Bookmark, tag_ids: list[str]) -> None:

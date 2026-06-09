@@ -21,6 +21,10 @@ class Bookmark(Base):
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
     collection_id: Mapped[str | None] = mapped_column(String, ForeignKey("collections.id"), nullable=True)
 
+    # Soft-delete: when set, the bookmark is in the Trash (hidden from all normal
+    # views) and is purged for good after TRASH_RETENTION_DAYS.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

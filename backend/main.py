@@ -15,6 +15,18 @@ async def lifespan(app: FastAPI):
     from alembic.config import Config
     from alembic import command
     command.upgrade(Config("alembic.ini"), "head")
+    # Permanently remove bookmarks that have sat in the Trash past the
+    # retention window (best-effort — must never block startup).
+    try:
+        from database import SessionLocal
+        from services import bookmark_service
+        db = SessionLocal()
+        try:
+            bookmark_service.purge_expired(db)
+        finally:
+            db.close()
+    except Exception:
+        pass
     yield
 
 

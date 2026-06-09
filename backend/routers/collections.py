@@ -73,7 +73,7 @@ def list_collections(db: Session = Depends(get_db)):
     all_cols = db.query(Collection).order_by(Collection.position, Collection.created_at).all()
     rows = (
         db.query(Bookmark.collection_id, func.count(Bookmark.id))
-        .filter(Bookmark.collection_id.is_not(None))
+        .filter(Bookmark.collection_id.is_not(None), Bookmark.deleted_at.is_(None))
         .group_by(Bookmark.collection_id)
         .all()
     )

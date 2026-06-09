@@ -199,7 +199,7 @@ created_at: {bookmark.created_at}
         if not self.is_enabled or not self.root_dir.exists():
             return
 
-        by_url = {bm.url: bm for bm in db.query(Bookmark).all()}
+        by_url = {bm.url: bm for bm in db.query(Bookmark).filter(Bookmark.deleted_at.is_(None)).all()}
         for path in [p for p in self.root_dir.rglob("*.md") if p.is_file()]:
             url = self._frontmatter_url(path)
             if not url:
@@ -271,7 +271,7 @@ created_at: {bookmark.created_at}
             tags_by_bm.setdefault(bid, []).append(tname)
 
         # Only the columns we need — no full ORM objects, no lazy relations.
-        rows = db.query(Bookmark.id, Bookmark.title, Bookmark.url, Bookmark.collection_id).all()
+        rows = db.query(Bookmark.id, Bookmark.title, Bookmark.url, Bookmark.collection_id).filter(Bookmark.deleted_at.is_(None)).all()
 
         groups: dict[str, list] = {}
         for bid, title, url, cid in rows:
