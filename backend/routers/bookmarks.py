@@ -264,6 +264,49 @@ async def get_reader_content(bookmark_id: str, db: Session = Depends(get_db)):
     return ReaderResponse(content=content)
 
 
+class ReaderCleanupRequest(BaseModel):
+    provider_config: dict | None = {"provider": "ollama", "model": "llama3"}
+
+
+@router.post("/{bookmark_id}/reader/cleanup", response_model=ReaderResponse)
+async def cleanup_reader_content(
+    bookmark_id: str, request: ReaderCleanupRequest, db: Session = Depends(get_db)
+):
+    """Optional, opt-in: ask the local LLM to tidy the extracted text into clean
+    prose. The original cached content is NOT modified — this only returns a
+    nicer rendering for display."""
+    from services.llm_service import LLMService
+
+    bm = bookmark_service.get_bookmark(db, bookmark_id)
+    if not bm:
+        raise HTTPException(404, "Bookmark not found")
+
+    content = bm.scraped_content
+    if not content:
+        scrape_result = await scraper_service.extract_content(bm.url)
+        content = scrape_result.get("content", "")
+        if content:
+            bookmark_service.store_scraped_content(db, bookmark_id, content)
+    if not content:
+        raise HTTPException(422, "No readable content to clean up")
+
+    prompt = (
+        "Reformat the page text below into clean, readable prose. Fix broken "
+        "line breaks and spacing, keep headings and lists. Do NOT add, remove "
+        "or change any facts — only improve formatting. Return only the text."
+    )
+    try:
+        cleaned = await LLMService.ask_llm(
+            prompt=prompt, context=content[:15000],
+            provider_config=request.provider_config or {"provider": "ollama", "model": "llama3"},
+            title=bm.title or "", url=bm.url or "",
+        )
+    except Exception as e:
+        raise HTTPException(502, f"LLM cleanup failed: {e}")
+
+    return ReaderResponse(content=cleaned or content)
+
+
 @router.post("/{bookmark_id}/auto-tag", response_model=BookmarkOut)
 async def auto_tag_bookmark(bookmark_id: str, request: AutoTagRequest, db: Session = Depends(get_db)):
     bm = await bookmark_service.auto_tag_bookmark(db, bookmark_id, request.provider_config)

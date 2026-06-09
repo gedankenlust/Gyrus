@@ -182,6 +182,54 @@ def _player_response(html: str) -> Optional[dict]:
         return None
 
 
+_BLOCK_TAGS = {
+    "p", "h1", "h2", "h3", "h4", "h5", "h6",
+    "li", "blockquote", "pre", "figcaption", "br",
+}
+
+
+def _structured_text(soup: BeautifulSoup) -> str:
+    """Turn the cleaned article HTML into readable Markdown-ish plain text,
+    preserving paragraphs, headings and list items.
+
+    The old approach (`get_text(separator="\\n")`) inserted a newline between
+    *every* inline node, which shredded sentences into ragged fragments — the
+    "buggy" look in the reader. Walking block-level elements instead keeps each
+    paragraph on one line and separates blocks with a blank line."""
+    lines: list[str] = []
+
+    def emit(text: str, prefix: str = "") -> None:
+        # Collapse internal whitespace so inline spans don't add stray breaks.
+        cleaned = " ".join(text.split())
+        if cleaned:
+            lines.append(prefix + cleaned)
+
+    body = soup.body or soup
+    for el in body.find_all(_BLOCK_TAGS):
+        name = el.name.lower()
+        if name == "br":
+            continue
+        # Skip a block that only wraps other blocks — its children are handled
+        # on their own, so emitting here would duplicate the text.
+        if el.find(_BLOCK_TAGS - {"br"}):
+            continue
+        if name in ("h1", "h2", "h3", "h4", "h5", "h6"):
+            level = int(name[1])
+            emit(el.get_text(" ", strip=True), prefix="#" * level + " ")
+        elif name == "li":
+            emit(el.get_text(" ", strip=True), prefix="- ")
+        elif name == "blockquote":
+            emit(el.get_text(" ", strip=True), prefix="> ")
+        else:  # p, pre, figcaption
+            emit(el.get_text(" ", strip=True))
+
+    # Fall back to flat text only when NO block structure was found at all
+    # (unusual markup) — never just because the content is legitimately short.
+    if not lines:
+        return soup.get_text("\n", strip=True)
+    return "\n\n".join(lines)
+
+
 class ScraperService:
     def __init__(self):
         self.timeout = httpx.Timeout(15.0)
@@ -231,7 +279,9 @@ class ScraperService:
                     if len(links) > 10 or len(rows) > 20:
                         table.decompose()
                 
-                body_text = clean_soup.get_text(separator="\n", strip=True)
+                # Preserve paragraph/heading/list structure instead of flattening
+                # every inline node onto its own line (which looked shredded).
+                body_text = _structured_text(clean_soup)
 
                 # Prepend facts ONLY if they aren't already dominant in the body
                 parts = []
