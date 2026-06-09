@@ -36,6 +36,7 @@ def get_bookmarks(
     collection_id: str | None = None,
     tag: str | None = None,
     dead_only: bool = False,
+    unread_only: bool = False,
     limit: int = 100,
     offset: int = 0,
     sort_by: str = "created_at",
@@ -48,6 +49,8 @@ def get_bookmarks(
         q = q.join(BookmarkTag).join(Tag).filter(Tag.name == tag)
     if dead_only:
         q = q.filter(Bookmark.is_dead == True)
+    if unread_only:
+        q = q.filter(Bookmark.is_read == False)
 
     if sort_by == "tag":
         # Sort by the bookmark's first tag (alphabetically); untagged go last.

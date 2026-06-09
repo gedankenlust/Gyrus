@@ -47,6 +47,11 @@ def dead_count(db: Session = Depends(get_db)):
     return db.query(Bookmark).filter(Bookmark.is_dead == True).count()
 
 
+@router.get("/count-unread", response_model=int)
+def unread_count(db: Session = Depends(get_db)):
+    return db.query(Bookmark).filter(Bookmark.is_read == False).count()
+
+
 @router.post("/check-links")
 async def start_link_check():
     return await link_check_service.start()
@@ -77,6 +82,7 @@ def list_bookmark_ids(
     collection_id: str | None = None,
     tag: str | None = None,
     dead_only: bool = False,
+    unread_only: bool = False,
     q: str | None = None,
     db: Session = Depends(get_db),
 ):
@@ -86,6 +92,8 @@ def list_bookmark_ids(
         query = query.filter(Bookmark.collection_id == collection_id)
     if dead_only:
         query = query.filter(Bookmark.is_dead == True)
+    if unread_only:
+        query = query.filter(Bookmark.is_read == False)
     if tag:
         query = (query
                  .join(BookmarkTag, BookmarkTag.bookmark_id == Bookmark.id)
@@ -104,6 +112,7 @@ def list_bookmarks(
     collection_id: str | None = None,
     tag: str | None = None,
     dead_only: bool = False,
+    unread_only: bool = False,
     limit: int = 100,
     offset: int = 0,
     sort_by: str = "created_at",
@@ -115,6 +124,7 @@ def list_bookmarks(
         collection_id=collection_id,
         tag=tag,
         dead_only=dead_only,
+        unread_only=unread_only,
         limit=limit,
         offset=offset,
         sort_by=sort_by,

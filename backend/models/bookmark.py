@@ -18,6 +18,7 @@ class Bookmark(Base):
     og_image_path: Mapped[str | None] = mapped_column(String, nullable=True)
     source: Mapped[str] = mapped_column(String, default="manual")
     is_dead: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
     collection_id: Mapped[str | None] = mapped_column(String, ForeignKey("collections.id"), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
