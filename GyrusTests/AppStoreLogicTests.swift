@@ -84,28 +84,29 @@ final class AppStoreLogicTests: XCTestCase {
     // MARK: - requestOpenInBrowser / batch-open threshold
 
     func testBatchOpenAtThresholdDoesNotSetPending() {
-        // threshold is 5: exactly 5 should NOT show confirmation
-        bookmarkStore.bookmarks = (1...5).map { bm("b\($0)", tags: []) }
+        // threshold is 10: exactly 10 should NOT show confirmation
+        bookmarkStore.bookmarks = (1...10).map { bm("b\($0)", tags: []) }
         appStore.requestOpenInBrowser(ids: Set(bookmarkStore.bookmarks.map { $0.id }))
         XCTAssertNil(appStore.uiStateStore.pendingBatchOpen)
     }
 
     func testBatchOpenAboveThresholdSetsPending() {
-        bookmarkStore.bookmarks = (1...6).map { bm("b\($0)", tags: []) }
+        // more than 10 should ask for confirmation
+        bookmarkStore.bookmarks = (1...11).map { bm("b\($0)", tags: []) }
         let ids = Set(bookmarkStore.bookmarks.map { $0.id })
         appStore.requestOpenInBrowser(ids: ids)
         XCTAssertEqual(appStore.uiStateStore.pendingBatchOpen, ids)
     }
 
     func testCancelPendingOpenClearsState() {
-        bookmarkStore.bookmarks = (1...6).map { bm("b\($0)", tags: []) }
+        bookmarkStore.bookmarks = (1...11).map { bm("b\($0)", tags: []) }
         appStore.requestOpenInBrowser(ids: Set(bookmarkStore.bookmarks.map { $0.id }))
         appStore.cancelPendingOpen()
         XCTAssertNil(appStore.uiStateStore.pendingBatchOpen)
     }
 
     func testConfirmPendingOpenClearsState() {
-        bookmarkStore.bookmarks = (1...6).map { bm("b\($0)", tags: []) }
+        bookmarkStore.bookmarks = (1...11).map { bm("b\($0)", tags: []) }
         appStore.requestOpenInBrowser(ids: Set(bookmarkStore.bookmarks.map { $0.id }))
         appStore.confirmPendingOpen()
         XCTAssertNil(appStore.uiStateStore.pendingBatchOpen)
