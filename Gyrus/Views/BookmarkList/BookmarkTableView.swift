@@ -16,10 +16,15 @@ struct BookmarkTableView: View {
                 TableColumn("Title", value: \.title) { bm in
                     let urlFirst = AppSettings.shared.cardLayout == "urlFirst"
                     HStack(spacing: 8) {
+                        // Unread indicator (reserves space so rows stay aligned).
+                        Circle()
+                            .fill(bm.isRead ? Color.clear : Color.accentColor)
+                            .frame(width: 7, height: 7)
+                            .help(bm.isRead ? "Read" : "Unread")
                         FaviconView(faviconPath: bm.faviconPath, bookmarkURL: bm.url)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(urlFirst ? bm.url : bm.displayTitle)
-                                .font(.callout.weight(.medium)).lineLimit(1)
+                                .font(.callout.weight(bm.isRead ? .regular : .semibold)).lineLimit(1)
                                 .truncationMode(urlFirst ? .middle : .tail)
                             Text(urlFirst ? bm.displayTitle : bm.url)
                                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)

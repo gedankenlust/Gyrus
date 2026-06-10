@@ -108,7 +108,7 @@ struct SidebarOutlineView: NSViewRepresentable {
                                  count: parent.bookmarkStore.totalBookmarkCount))
             if parent.bookmarkStore.unreadBookmarkCount > 0 {
                 newRoots.append(node(id: "__unread__",
-                                     kind: .special(title: "Unread", symbol: "circle.badge.fill", tint: .controlAccentColor),
+                                     kind: .special(title: "Unread", symbol: "envelope.badge.fill", tint: .controlAccentColor),
                                      count: parent.bookmarkStore.unreadBookmarkCount))
             }
             if parent.bookmarkStore.deadBookmarkCount > 0 {
@@ -126,11 +126,11 @@ struct SidebarOutlineView: NSViewRepresentable {
             }
             newRoots.append(tags)
 
-            if parent.bookmarkStore.trashCount > 0 {
-                newRoots.append(node(id: "__trash__",
-                                     kind: .special(title: "Trash", symbol: "trash", tint: .secondaryLabelColor),
-                                     count: parent.bookmarkStore.trashCount))
-            }
+            // Trash is always shown (like Finder) so it's a predictable place to
+            // recover deleted bookmarks — even when currently empty.
+            newRoots.append(node(id: "__trash__",
+                                 kind: .special(title: "Trash", symbol: "trash", tint: .secondaryLabelColor),
+                                 count: parent.bookmarkStore.trashCount))
 
             roots = newRoots
             // Drop interned nodes that no longer exist.
