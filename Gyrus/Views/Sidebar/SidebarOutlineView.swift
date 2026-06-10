@@ -304,8 +304,11 @@ struct SidebarOutlineView: NSViewRepresentable {
                 if isDescendant(target.parentId, ofOrEqual: movedId) { return [] }
                 return .move
             }
-            // Bookmarks: only onto a folder row.
-            if index == NSOutlineViewDropOnItemIndex, case .folder = (item as? SidebarNode)?.kind { return .move }
+            // Bookmarks: onto a folder row (move) or the Trash row (delete).
+            if index == NSOutlineViewDropOnItemIndex {
+                if case .folder = (item as? SidebarNode)?.kind { return .move }
+                if (item as? SidebarNode)?.id == "__trash__" { return .move }
+            }
             return []
         }
 
@@ -323,6 +326,16 @@ struct SidebarOutlineView: NSViewRepresentable {
                 Task { @MainActor in store.moveFolder(movedId, toParent: target.parentId, atIndex: idx); self.reload() }
                 return true
             }
+            // Drop bookmarks onto the Trash row → move them to the Trash.
+            if (item as? SidebarNode)?.id == "__trash__" {
+                let ids = Set(str.split(separator: "\n").map(String.init))
+                Task { @MainActor in
+                    await AppStore.shared.trashBookmarks(ids: ids)
+                    self.reload()
+                }
+                return true
+            }
+
             guard case .folder(let c)? = (item as? SidebarNode)?.kind else { return false }
             let ids = Set(str.split(separator: "\n").map(String.init))
             Task { @MainActor in

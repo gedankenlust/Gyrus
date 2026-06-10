@@ -367,6 +367,21 @@ final class AppStore {
         } catch { handleUIError(error) }
     }
 
+    /// Move bookmarks to the Trash directly (used by drag-to-trash in the
+    /// sidebar). Removes them from the current view and refreshes counts.
+    func trashBookmarks(ids: Set<String>) async {
+        guard !ids.isEmpty else { return }
+        do {
+            try await api.deleteBookmarks(ids: ids)
+            bookmarksStore.bookmarks.removeAll { ids.contains($0.id) }
+            bookmarksStore.selectedIds.subtract(ids)
+            if let sel = bookmarksStore.selectedBookmark, ids.contains(sel.id) {
+                bookmarksStore.selectedBookmark = nil
+            }
+            await refreshCounts()
+        } catch { handleUIError(error) }
+    }
+
     func restoreFromTrash(ids: Set<String>) async {
         do {
             try await bookmarksStore.restoreFromTrash(ids: ids)
