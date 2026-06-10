@@ -418,6 +418,16 @@ struct BookmarkDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             Button {
+                Task { await AppStore.shared.toggleRead(bookmark) }
+            } label: {
+                Image(systemName: bookmark.isRead ? "envelope.badge" : "envelope.open")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help(bookmark.isRead ? "Mark as Unread" : "Mark as Read")
+
+            Button {
                 editTitle = bookmark.title
                 editURL   = bookmark.url
                 editDesc  = bookmark.description ?? ""
