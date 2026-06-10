@@ -7,6 +7,8 @@ final class CollectionStore {
     var collections: [Collection] = []
     var selectedCollectionId: String? = nil
     var showDeadOnly: Bool = false
+    var showUnreadOnly: Bool = false
+    var showTrash: Bool = false
 
     private let api = APIClient.shared
 

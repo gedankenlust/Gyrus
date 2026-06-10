@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from database import get_db, SessionLocal
 from models.bookmark import Bookmark
-from services.llm_service import LLMService
+from services.llm_service import LLMService, LLMUnavailableError
 from services.scraper_service import scraper_service, _is_youtube as is_youtube
 from services.brain_sync_service import brain_sync_service
 
@@ -81,6 +81,43 @@ async def update_brain_config(config: BrainConfigUpdate):
         asyncio.get_event_loop().run_in_executor(None, _reconcile_brain_blocking)
     return {"status": "ok", "root_dir": str(brain_sync_service.root_dir), "is_enabled": brain_sync_service.is_enabled}
 
+async def _prepare_context(db: Session, bookmark) -> str:
+    """Build the page context for an LLM chat: read the cached scraped section
+    from the bookmark's markdown file, re-scraping when it's missing/stale.
+    Shared by the blocking and streaming chat endpoints."""
+    file_path = brain_sync_service._get_bookmark_file_path(db, bookmark)
+    if not file_path.exists():
+        brain_sync_service.sync_bookmark(db, bookmark)
+
+    full_text = ""
+    with open(file_path, "r", encoding="utf-8") as f:
+        full_text = f.read()
+
+    context = ""
+    if "## Content (Scraped)" in full_text:
+        sections = full_text.split("## Content (Scraped)")
+        if len(sections) > 1:
+            context = sections[1].split("\n## ")[0].strip()
+
+    needs_scrape = len(context) < 200 or SCRAPE_MARKER not in context
+    if needs_scrape:
+        scrape_result = await scraper_service.extract_content(bookmark.url)
+        content = scrape_result.get("content", "")
+        if content:
+            context = content
+            _persist_scraped_content(file_path, content)
+            from services import bookmark_service
+            bookmark_service.store_scraped_content(db, bookmark.id, content)
+        elif not context:
+            context = f"Title: {bookmark.title}\nDescription: {bookmark.description}\nURL: {bookmark.url}"
+
+    context = context.replace(SCRAPE_MARKER, "").strip()
+    MAX_CONTEXT_CHARS = 15000
+    if len(context) > MAX_CONTEXT_CHARS:
+        context = context[:MAX_CONTEXT_CHARS] + "... [Content Truncated]"
+    return context
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)):
     # 1. Fetch bookmark
@@ -88,48 +125,8 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
     if not bookmark:
         raise HTTPException(status_code=404, detail="Bookmark not found")
 
-    # 2. Get context (check markdown file first to avoid redundant scraping)
-    file_path = brain_sync_service._get_bookmark_file_path(db, bookmark)
-    
-    # Ensure the file/directory exists
-    if not file_path.exists():
-        brain_sync_service.sync_bookmark(db, bookmark)
-    
-    full_text = ""
-    with open(file_path, "r", encoding="utf-8") as f:
-        full_text = f.read()
-
-    # Extract specifically the scraped content section to avoid prompt bloat from chat history
-    context = ""
-    if "## Content (Scraped)" in full_text:
-        sections = full_text.split("## Content (Scraped)")
-        if len(sections) > 1:
-            # Get everything after the header, but stop before next section if any
-            scraped_part = sections[1].split("\n## ")[0].strip()
-            context = scraped_part
-
-    # Re-scrape when the cached content is missing/too thin, or when it was
-    # produced by an older scraper version (no current marker) — this heals
-    # stale caches (e.g. content saved before structured-data extraction) once.
-    needs_scrape = len(context) < 200 or SCRAPE_MARKER not in context
-
-    if needs_scrape:
-        scrape_result = await scraper_service.extract_content(bookmark.url)
-        content = scrape_result.get("content", "")
-        if content:
-            context = content
-            _persist_scraped_content(file_path, content)
-        elif not context:
-            # Fallback to metadata
-            context = f"Title: {bookmark.title}\nDescription: {bookmark.description}\nURL: {bookmark.url}"
-
-    # The version marker is bookkeeping, not page content — keep it out of the prompt.
-    context = context.replace(SCRAPE_MARKER, "").strip()
-
-    # Cap context length (approx. 15,000 chars)
-    MAX_CONTEXT_CHARS = 15000
-    if len(context) > MAX_CONTEXT_CHARS:
-        context = context[:MAX_CONTEXT_CHARS] + "... [Content Truncated]"
+    # 2. Build the page context (cached scrape, re-scraping when stale).
+    context = await _prepare_context(db, bookmark)
 
     # 3. Call LLM — pass the bookmark identity and recent history so every
     #    turn stays anchored to this specific page.
@@ -143,6 +140,9 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
             url=bookmark.url or "",
             history=history,
         )
+    except LLMUnavailableError as e:
+        # Clear, user-facing reason (Ollama down, model missing, cloud n/a).
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Error: {str(e)}")
 
@@ -154,3 +154,49 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
         print(f"Failed to append interaction: {e}")
 
     return ChatResponse(response=response_text)
+
+
+@router.post("/chat/stream")
+async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(get_db)):
+    """Streaming variant: emits the reply token-by-token (text/plain chunks) so
+    the UI can render it live. The full reply is saved to the markdown file when
+    the stream completes. Errors are sent as a final line prefixed with the
+    sentinel below so the client can show them clearly."""
+    from fastapi.responses import StreamingResponse
+
+    bookmark = db.query(Bookmark).filter(Bookmark.id == request.bookmark_id).first()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    context = await _prepare_context(db, bookmark)
+    history = [{"role": m.role, "content": m.content} for m in (request.history or [])]
+
+    async def generate():
+        collected: list[str] = []
+        try:
+            async for piece in LLMService.stream_ollama(
+                prompt=request.prompt,
+                context=context,
+                provider_config=request.provider_config,
+                title=bookmark.title or "",
+                url=bookmark.url or "",
+                history=history,
+            ):
+                collected.append(piece)
+                yield piece
+        except LLMUnavailableError as e:
+            yield f"\n\n[GYRUS-ERROR] {e}"
+            return
+        except Exception as e:
+            yield f"\n\n[GYRUS-ERROR] {e}"
+            return
+
+        # Persist the completed answer (best-effort) once streaming finishes.
+        full = "".join(collected)
+        if full:
+            try:
+                brain_sync_service.append_interaction(db, bookmark, request.prompt, full)
+            except Exception as e:
+                print(f"Failed to append interaction: {e}")
+
+    return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")

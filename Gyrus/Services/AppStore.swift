@@ -36,18 +36,24 @@ final class AppStore {
             collectionId: collectionsStore.selectedCollectionId,
             tagName: tagsStore.selectedTagName,
             showDeadOnly: collectionsStore.showDeadOnly,
+            unreadOnly: collectionsStore.showUnreadOnly,
+            showTrash: collectionsStore.showTrash,
             query: bookmarksStore.searchQuery
         )
         async let colsResult: Void? = try? await collectionsStore.fetchCollections()
         async let tagsResult: Void? = try? await tagsStore.fetchTags()
         async let totalResult: Int? = try? await api.bookmarkCount()
         async let deadResult: Int? = try? await api.deadBookmarkCount()
-        
-        let _ = await (bmsResult, colsResult, tagsResult, totalResult, deadResult)
-        
+        async let unreadResult: Int? = try? await api.unreadBookmarkCount()
+        async let trashResult: Int? = try? await api.trashCount()
+
+        let _ = await (bmsResult, colsResult, tagsResult, totalResult, deadResult, unreadResult, trashResult)
+
         if let n = await totalResult { bookmarksStore.totalBookmarkCount = n }
         if let d = await deadResult { bookmarksStore.deadBookmarkCount = d }
-        
+        if let u = await unreadResult { bookmarksStore.unreadBookmarkCount = u }
+        if let tr = await trashResult { bookmarksStore.trashCount = tr }
+
         startAutoRefreshPolling()
     }
 
@@ -114,6 +120,8 @@ final class AppStore {
                 collectionId: collectionsStore.selectedCollectionId,
                 tagName: tagsStore.selectedTagName,
                 showDeadOnly: collectionsStore.showDeadOnly,
+                unreadOnly: collectionsStore.showUnreadOnly,
+                showTrash: collectionsStore.showTrash,
                 query: bookmarksStore.searchQuery
             )
         } catch {
@@ -309,6 +317,8 @@ final class AppStore {
                 collectionId: collectionsStore.selectedCollectionId,
                 tagName: tagsStore.selectedTagName,
                 showDeadOnly: collectionsStore.showDeadOnly,
+                unreadOnly: collectionsStore.showUnreadOnly,
+                showTrash: collectionsStore.showTrash,
                 query: bookmarksStore.searchQuery
             )
         } catch {
@@ -320,19 +330,82 @@ final class AppStore {
         // Reset filters
         collectionsStore.selectedCollectionId = nil
         collectionsStore.showDeadOnly = false
+        collectionsStore.showUnreadOnly = false
+        collectionsStore.showTrash = false
         tagsStore.selectedTagName = nil
-        
+
         if let id = id {
             if id == "__dead__" {
                 collectionsStore.showDeadOnly = true
+            } else if id == "__unread__" {
+                collectionsStore.showUnreadOnly = true
+            } else if id == "__trash__" {
+                collectionsStore.showTrash = true
             } else if id.hasPrefix("tag:") {
                 tagsStore.selectedTagName = String(id.dropFirst(4))
             } else {
                 collectionsStore.selectedCollectionId = id
             }
         }
-        
+
         await loadBookmarks()
+    }
+
+    // MARK: - Read / Unread & Trash actions
+
+    func setRead(ids: Set<String>, isRead: Bool) async {
+        do {
+            try await bookmarksStore.setRead(ids: ids, isRead: isRead)
+            if let n = try? await api.unreadBookmarkCount() { bookmarksStore.unreadBookmarkCount = n }
+        } catch { handleUIError(error) }
+    }
+
+    func toggleRead(_ bookmark: Bookmark) async {
+        do {
+            try await bookmarksStore.setRead(bookmark, isRead: !bookmark.isRead)
+            if let n = try? await api.unreadBookmarkCount() { bookmarksStore.unreadBookmarkCount = n }
+        } catch { handleUIError(error) }
+    }
+
+    /// Move bookmarks to the Trash directly (used by drag-to-trash in the
+    /// sidebar). Removes them from the current view and refreshes counts.
+    func trashBookmarks(ids: Set<String>) async {
+        guard !ids.isEmpty else { return }
+        do {
+            try await api.deleteBookmarks(ids: ids)
+            bookmarksStore.bookmarks.removeAll { ids.contains($0.id) }
+            bookmarksStore.selectedIds.subtract(ids)
+            if let sel = bookmarksStore.selectedBookmark, ids.contains(sel.id) {
+                bookmarksStore.selectedBookmark = nil
+            }
+            await refreshCounts()
+        } catch { handleUIError(error) }
+    }
+
+    func restoreFromTrash(ids: Set<String>) async {
+        do {
+            try await bookmarksStore.restoreFromTrash(ids: ids)
+            await refreshCounts()
+        } catch { handleUIError(error) }
+    }
+
+    func emptyTrash() async {
+        do {
+            try await bookmarksStore.purgeTrash(ids: nil)
+        } catch { handleUIError(error) }
+    }
+
+    func purgeFromTrash(ids: Set<String>) async {
+        do {
+            try await bookmarksStore.purgeTrash(ids: ids)
+        } catch { handleUIError(error) }
+    }
+
+    private func refreshCounts() async {
+        if let t = try? await api.bookmarkCount() { bookmarksStore.totalBookmarkCount = t }
+        if let d = try? await api.deadBookmarkCount() { bookmarksStore.deadBookmarkCount = d }
+        if let u = try? await api.unreadBookmarkCount() { bookmarksStore.unreadBookmarkCount = u }
+        if let tr = try? await api.trashCount() { bookmarksStore.trashCount = tr }
     }
 
     func requestDeleteAll(deadOnly: Bool) async {

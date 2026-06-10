@@ -15,6 +15,8 @@ final class BookmarkStore {
     var currentOffset: Int = 0
     var totalBookmarkCount: Int = 0
     var deadBookmarkCount: Int = 0
+    var unreadBookmarkCount: Int = 0
+    var trashCount: Int = 0
     var searchQuery: String = ""
 
     /// IDs that are scheduled for deletion (within the Undo window) 
@@ -33,33 +35,39 @@ final class BookmarkStore {
 
     // MARK: - Fetching
 
-    func loadBookmarks(collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, query: String = "") async throws {
+    func loadBookmarks(collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "") async throws {
         searchQuery = query
         currentOffset = 0
-        let page = try await fetchPage(offset: 0, collectionId: collectionId, tagName: tagName, showDeadOnly: showDeadOnly, query: query)
-        
+        let page = try await fetchPage(offset: 0, collectionId: collectionId, tagName: tagName, showDeadOnly: showDeadOnly, unreadOnly: unreadOnly, showTrash: showTrash, query: query)
+
         // Exclude pending deletions
         bookmarks = page.filter { !pendingDeletionIds.contains($0.id) }
-        
+
         currentOffset = page.count
         hasMore = page.count == pageSize
-        
-        let total = try await api.bookmarkCount()
-        totalBookmarkCount = max(0, total - pendingDeletionIds.count)
+
+        if showTrash {
+            // In the Trash view the "total" shown is the trash count.
+            let n = try await api.trashCount()
+            trashCount = n
+        } else {
+            let total = try await api.bookmarkCount()
+            totalBookmarkCount = max(0, total - pendingDeletionIds.count)
+        }
     }
 
-    func loadMoreBookmarks(collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, query: String = "") async throws {
+    func loadMoreBookmarks(collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "") async throws {
         guard hasMore && !isLoadingMore else { return }
         isLoadingMore = true
         defer { isLoadingMore = false }
-        
+
         do {
-            let page = try await fetchPage(offset: currentOffset, collectionId: collectionId, tagName: tagName, showDeadOnly: showDeadOnly, query: query)
-            
+            let page = try await fetchPage(offset: currentOffset, collectionId: collectionId, tagName: tagName, showDeadOnly: showDeadOnly, unreadOnly: unreadOnly, showTrash: showTrash, query: query)
+
             // Exclude pending deletions
             let filtered = page.filter { !pendingDeletionIds.contains($0.id) }
             bookmarks.append(contentsOf: filtered)
-            
+
             currentOffset += page.count
             hasMore = page.count == pageSize
         } catch {
@@ -68,11 +76,15 @@ final class BookmarkStore {
         }
     }
 
-    func fetchPage(offset: Int, collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, query: String = "") async throws -> [Bookmark] {
-        if !query.isEmpty {
+    func fetchPage(offset: Int, collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "") async throws -> [Bookmark] {
+        if showTrash {
+            return try await api.trashedBookmarks(limit: pageSize, offset: offset)
+        } else if !query.isEmpty {
             return try await api.search(query: query, limit: pageSize, offset: offset)
         } else if showDeadOnly {
             return try await api.bookmarks(deadOnly: true, limit: pageSize, offset: offset, sortBy: sortBy, order: sortOrder)
+        } else if unreadOnly {
+            return try await api.bookmarks(unreadOnly: true, limit: pageSize, offset: offset, sortBy: sortBy, order: sortOrder)
         } else if let tag = tagName {
             return try await api.bookmarks(tag: tag, limit: pageSize, offset: offset, sortBy: sortBy, order: sortOrder)
         } else {
@@ -82,12 +94,17 @@ final class BookmarkStore {
 
     // MARK: - Selection
 
-    func selectAllInCurrentView(collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, query: String = "") async throws {
+    func selectAllInCurrentView(collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "") async throws {
         let ids: [String]
-        if !query.isEmpty {
+        if showTrash {
+            // The Trash list is already fully loaded into `bookmarks` for typical sizes.
+            ids = bookmarks.map { $0.id }
+        } else if !query.isEmpty {
             ids = try await api.bookmarkIds(query: query)
         } else if showDeadOnly {
             ids = try await api.bookmarkIds(deadOnly: true)
+        } else if unreadOnly {
+            ids = try await api.bookmarkIds(unreadOnly: true)
         } else if let tag = tagName {
             ids = try await api.bookmarkIds(tag: tag)
         } else {
@@ -95,6 +112,54 @@ final class BookmarkStore {
         }
         // Exclude pending deletions from selection too
         selectedIds = Set(ids).subtracting(pendingDeletionIds)
+    }
+
+    // MARK: - Read / Unread
+
+    /// Toggle (or set) the read state and update local copies immediately.
+    func setRead(_ bookmark: Bookmark, isRead: Bool) async throws {
+        var update = BookmarkUpdate()
+        update.isRead = isRead
+        let updated = try await api.updateBookmark(id: bookmark.id, body: update)
+        if let idx = bookmarks.firstIndex(where: { $0.id == bookmark.id }) { bookmarks[idx] = updated }
+        if selectedBookmark?.id == bookmark.id { selectedBookmark = updated }
+    }
+
+    func setRead(ids: Set<String>, isRead: Bool) async throws {
+        for id in ids {
+            var update = BookmarkUpdate()
+            update.isRead = isRead
+            let updated = try await api.updateBookmark(id: id, body: update)
+            if let idx = bookmarks.firstIndex(where: { $0.id == id }) { bookmarks[idx] = updated }
+            if selectedBookmark?.id == id { selectedBookmark = updated }
+        }
+    }
+
+    // MARK: - Trash
+
+    /// Restore bookmarks from the Trash; drop them from the current (trash) list.
+    func restoreFromTrash(ids: Set<String>) async throws {
+        _ = try await api.restoreFromTrash(ids: Array(ids))
+        bookmarks.removeAll { ids.contains($0.id) }
+        selectedIds.subtract(ids)
+        if let sel = selectedBookmark, ids.contains(sel.id) { selectedBookmark = nil }
+        trashCount = max(0, trashCount - ids.count)
+    }
+
+    /// Permanently delete trashed bookmarks (nil = empty the whole Trash).
+    func purgeTrash(ids: Set<String>?) async throws {
+        _ = try await api.purgeTrash(ids: ids.map(Array.init))
+        if let ids {
+            bookmarks.removeAll { ids.contains($0.id) }
+            selectedIds.subtract(ids)
+            if let sel = selectedBookmark, ids.contains(sel.id) { selectedBookmark = nil }
+            trashCount = max(0, trashCount - ids.count)
+        } else {
+            bookmarks.removeAll()
+            selectedIds.removeAll()
+            selectedBookmark = nil
+            trashCount = 0
+        }
     }
 
     // MARK: - CRUD

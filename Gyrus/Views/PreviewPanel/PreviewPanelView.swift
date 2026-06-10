@@ -116,6 +116,7 @@ struct BookmarkDetailView: View {
     @State private var isEditing    = false
     @State private var newNoteText  = ""
     @State private var readerContent: String = "Loading..."
+    @State private var isCleaningReader = false
 
     // Edit-mode drafts
     @State private var editTitle    = ""
@@ -215,25 +216,51 @@ struct BookmarkDetailView: View {
     // MARK: - Reader Mode
 
     private var readerMode: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text(bookmark.title)
-                    .font(.title.bold())
-                
-                // Using AttributedString for basic markdown parsing without dependencies
-                if let attrString = try? AttributedString(markdown: readerContent, options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
-                    Text(attrString)
-                        .font(.body)
-                        .lineSpacing(4)
-                        .textSelection(.enabled)
-                } else {
-                    Text(readerContent)
-                        .font(.body)
-                        .textSelection(.enabled)
+        VStack(spacing: 0) {
+            // Optional, opt-in AI tidy-up. The local model reformats the text;
+            // it never silently replaces the extracted original on disk.
+            HStack {
+                Text("Reader").font(.headline)
+                Spacer()
+                Button {
+                    cleanupReaderWithAI()
+                } label: {
+                    if isCleaningReader {
+                        ProgressView().scaleEffect(0.5)
+                    } else {
+                        Label("Tidy with AI", systemImage: "sparkles")
+                            .font(.caption.weight(.medium))
+                    }
                 }
+                .buttonStyle(.borderless)
+                .disabled(isCleaningReader || readerContent == "Loading..." || readerContent == "Failed to load content.")
+                .help("Reformat this text into clean prose using your local AI model")
             }
-            .padding(24)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.bar)
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(bookmark.title)
+                        .font(.title.bold())
+
+                    // Using AttributedString for basic markdown parsing without dependencies
+                    if let attrString = try? AttributedString(markdown: readerContent, options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+                        Text(attrString)
+                            .font(.body)
+                            .lineSpacing(4)
+                            .textSelection(.enabled)
+                    } else {
+                        Text(readerContent)
+                            .font(.body)
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .onAppear {
             Task {
@@ -243,6 +270,20 @@ struct BookmarkDetailView: View {
                 } catch {
                     readerContent = "Failed to load content."
                 }
+            }
+        }
+    }
+
+    private func cleanupReaderWithAI() {
+        isCleaningReader = true
+        Task {
+            defer { isCleaningReader = false }
+            do {
+                readerContent = try await APIClient.shared.cleanupReaderContent(
+                    id: bookmark.id, config: AppSettings.shared.aiBrainConfig)
+            } catch {
+                // Keep the original text; surface the reason via the shared toast.
+                AppStore.shared.uiStateStore.showError(error.localizedDescription)
             }
         }
     }
@@ -375,6 +416,18 @@ struct BookmarkDetailView: View {
                 .font(.title3.bold())
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+            if AppSettings.shared.enableReadStatus {
+                Button {
+                    Task { await AppStore.shared.toggleRead(bookmark) }
+                } label: {
+                    Image(systemName: bookmark.isRead ? "envelope.badge" : "envelope.open")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(bookmark.isRead ? "Mark as Unread" : "Mark as Read")
+            }
 
             Button {
                 editTitle = bookmark.title

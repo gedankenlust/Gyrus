@@ -65,6 +65,8 @@ private struct GeneralPane: View {
                         }
                     }
                 Toggle("Confirm before deleting", isOn: $settings.confirmDelete)
+                Toggle("Track read / unread", isOn: $settings.enableReadStatus)
+                    .help("Show read/unread dots, the Unread view and the mark-as-read controls. Turn off for a plain bookmark list.")
 
                 HStack {
                     Text("Global Search Shortcut")
@@ -340,7 +342,7 @@ private struct DataPane: View {
 
 private struct AboutPane: View {
     private var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.5.1"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.6.0"
     }
     private var build: String {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"

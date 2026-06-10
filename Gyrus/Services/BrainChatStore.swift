@@ -3,8 +3,9 @@ import Observation
 
 struct ChatMessage: Identifiable, Equatable {
     let id = UUID()
-    let text: String
+    var text: String          // var: updated in place while streaming
     let isUser: Bool
+    var isError: Bool = false
     let timestamp = Date()
 }
 
@@ -12,7 +13,7 @@ struct ChatMessage: Identifiable, Equatable {
 /// history lives here (not in the chat view's @State), switching bookmarks no
 /// longer ends the session — a request keeps running in the background, the
 /// conversation is restored when you return, and several bookmarks can be
-/// queried in parallel.
+/// queried in parallel. Replies stream in token-by-token and can be stopped.
 @MainActor
 @Observable
 final class BrainChatStore {
@@ -21,28 +22,91 @@ final class BrainChatStore {
 
     private(set) var conversations: [String: [ChatMessage]] = [:]
     private(set) var sending: Set<String> = []
+    private var tasks: [String: Task<Void, Never>] = [:]
 
     func messages(for bookmarkId: String) -> [ChatMessage] { conversations[bookmarkId] ?? [] }
     func isSending(_ bookmarkId: String) -> Bool { sending.contains(bookmarkId) }
+    func hasConversation(_ bookmarkId: String) -> Bool { !(conversations[bookmarkId] ?? []).isEmpty }
 
     func send(bookmark: Bookmark, prompt: String, config: AIBrainConfig) {
         let id = bookmark.id
-        // Capture the prior turns before appending the new prompt, then send
-        // the last few so follow-up questions keep their context.
-        let history = (conversations[id] ?? []).suffix(10).map {
-            (role: $0.isUser ? "user" : "assistant", content: $0.text)
-        }
+        // Prior turns (before appending the new prompt) so follow-ups keep context.
+        let history = (conversations[id] ?? [])
+            .filter { !$0.isError }
+            .suffix(10)
+            .map { (role: $0.isUser ? "user" : "assistant", content: $0.text) }
+
         conversations[id, default: []].append(ChatMessage(text: prompt, isUser: true))
+        // Placeholder assistant message that fills in as tokens stream.
+        conversations[id, default: []].append(ChatMessage(text: "", isUser: false))
+        let replyIndex = (conversations[id]?.count ?? 1) - 1
         sending.insert(id)
-        Task {
+
+        tasks[id] = Task { [weak self] in
+            guard let self else { return }
             do {
-                let response = try await APIClient.shared.aiChat(
+                let stream = APIClient.shared.aiChatStream(
                     bookmarkId: id, prompt: prompt, history: history, config: config)
-                conversations[id, default: []].append(ChatMessage(text: response, isUser: false))
+                for try await delta in stream {
+                    self.appendDelta(to: id, at: replyIndex, delta: delta)
+                }
+                // If the model returned nothing at all, show a gentle note.
+                if self.conversations[id]?[safe: replyIndex]?.text.isEmpty == true {
+                    self.setMessage(id, replyIndex, text: "(No response)", isError: true)
+                }
+            } catch is CancellationError {
+                self.markStopped(id, replyIndex)
             } catch {
-                conversations[id, default: []].append(ChatMessage(text: "Error: \(error.localizedDescription)", isUser: false))
+                self.setMessage(id, replyIndex,
+                                text: error.localizedDescription, isError: true)
             }
-            sending.remove(id)
+            self.sending.remove(id)
+            self.tasks[id] = nil
         }
+    }
+
+    /// Stop the in-flight reply for a bookmark (keeps whatever streamed so far).
+    func stop(_ bookmarkId: String) {
+        tasks[bookmarkId]?.cancel()
+    }
+
+    /// Clear the whole conversation for a bookmark (cancels any in-flight reply).
+    func clear(_ bookmarkId: String) {
+        tasks[bookmarkId]?.cancel()
+        tasks[bookmarkId] = nil
+        sending.remove(bookmarkId)
+        conversations[bookmarkId] = []
+    }
+
+    // MARK: - Mutation helpers (main-actor isolated)
+
+    private func appendDelta(to id: String, at index: Int, delta: String) {
+        guard var msgs = conversations[id], msgs.indices.contains(index) else { return }
+        msgs[index].text += delta
+        conversations[id] = msgs
+    }
+
+    private func setMessage(_ id: String, _ index: Int, text: String, isError: Bool) {
+        guard var msgs = conversations[id], msgs.indices.contains(index) else { return }
+        msgs[index].text = text
+        msgs[index].isError = isError
+        conversations[id] = msgs
+    }
+
+    private func markStopped(_ id: String, _ index: Int) {
+        guard var msgs = conversations[id], msgs.indices.contains(index) else { return }
+        if msgs[index].text.isEmpty {
+            msgs[index].text = "(Stopped)"
+            msgs[index].isError = true
+        } else {
+            msgs[index].text += " …(stopped)"
+        }
+        conversations[id] = msgs
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }

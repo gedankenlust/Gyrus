@@ -39,12 +39,33 @@ async def _fetch_meta(bookmark_id: str, url: str) -> None:
 
 @router.get("/count", response_model=int)
 def bookmark_count(db: Session = Depends(get_db)):
-    return db.query(Bookmark).count()
+    return db.query(Bookmark).filter(Bookmark.deleted_at.is_(None)).count()
 
 
 @router.get("/count-dead", response_model=int)
 def dead_count(db: Session = Depends(get_db)):
-    return db.query(Bookmark).filter(Bookmark.is_dead == True).count()
+    return db.query(Bookmark).filter(
+        Bookmark.deleted_at.is_(None), Bookmark.is_dead == True
+    ).count()
+
+
+@router.get("/count-unread", response_model=int)
+def unread_count(db: Session = Depends(get_db)):
+    return db.query(Bookmark).filter(
+        Bookmark.deleted_at.is_(None), Bookmark.is_read == False
+    ).count()
+
+
+# NOTE: these literal /trash routes MUST be declared before GET /{bookmark_id},
+# otherwise "trash" would be captured as a bookmark id.
+@router.get("/trash", response_model=list[BookmarkOut])
+def list_trash(limit: int = 200, offset: int = 0, db: Session = Depends(get_db)):
+    return [_enrich(bm) for bm in bookmark_service.get_trashed(db, limit=limit, offset=offset)]
+
+
+@router.get("/trash/count", response_model=int)
+def trash_count(db: Session = Depends(get_db)):
+    return bookmark_service.count_trashed(db)
 
 
 @router.post("/check-links")
@@ -77,15 +98,18 @@ def list_bookmark_ids(
     collection_id: str | None = None,
     tag: str | None = None,
     dead_only: bool = False,
+    unread_only: bool = False,
     q: str | None = None,
     db: Session = Depends(get_db),
 ):
     from models.tag import Tag as TagModel, BookmarkTag
-    query = db.query(Bookmark.id)
+    query = db.query(Bookmark.id).filter(Bookmark.deleted_at.is_(None))
     if collection_id:
         query = query.filter(Bookmark.collection_id == collection_id)
     if dead_only:
         query = query.filter(Bookmark.is_dead == True)
+    if unread_only:
+        query = query.filter(Bookmark.is_read == False)
     if tag:
         query = (query
                  .join(BookmarkTag, BookmarkTag.bookmark_id == Bookmark.id)
@@ -104,6 +128,7 @@ def list_bookmarks(
     collection_id: str | None = None,
     tag: str | None = None,
     dead_only: bool = False,
+    unread_only: bool = False,
     limit: int = 100,
     offset: int = 0,
     sort_by: str = "created_at",
@@ -115,6 +140,7 @@ def list_bookmarks(
         collection_id=collection_id,
         tag=tag,
         dead_only=dead_only,
+        unread_only=unread_only,
         limit=limit,
         offset=offset,
         sort_by=sort_by,
@@ -172,6 +198,23 @@ def delete_bookmarks_batch(data: BulkDeleteRequest, db: Session = Depends(get_db
     bookmark_service.delete_bookmarks(db, data.ids)
 
 
+class TrashIdsRequest(BaseModel):
+    # None / omitted = act on the whole Trash (used by "Empty Trash").
+    ids: list[str] | None = None
+
+
+@router.post("/trash/restore")
+def restore_from_trash(data: TrashIdsRequest, db: Session = Depends(get_db)):
+    restored = bookmark_service.restore_bookmarks(db, data.ids or [])
+    return {"restored": restored}
+
+
+@router.post("/trash/purge")
+def purge_trash(data: TrashIdsRequest, db: Session = Depends(get_db)):
+    purged = bookmark_service.purge_bookmarks(db, data.ids)
+    return {"purged": purged}
+
+
 @router.post("/{bookmark_id}/fetch-meta", response_model=BookmarkOut)
 async def fetch_meta(bookmark_id: str, db: Session = Depends(get_db)):
     bm = bookmark_service.get_bookmark(db, bookmark_id)
@@ -212,10 +255,56 @@ async def get_reader_content(bookmark_id: str, db: Session = Depends(get_db)):
     scrape_result = await scraper_service.extract_content(bm.url)
     content = scrape_result.get("content", "")
 
-    if not content:
+    if content:
+        # Cache the extracted text so full-text search can match the article body.
+        bookmark_service.store_scraped_content(db, bookmark_id, content)
+    else:
         content = "Could not extract readable content from this page."
 
     return ReaderResponse(content=content)
+
+
+class ReaderCleanupRequest(BaseModel):
+    provider_config: dict | None = {"provider": "ollama", "model": "llama3"}
+
+
+@router.post("/{bookmark_id}/reader/cleanup", response_model=ReaderResponse)
+async def cleanup_reader_content(
+    bookmark_id: str, request: ReaderCleanupRequest, db: Session = Depends(get_db)
+):
+    """Optional, opt-in: ask the local LLM to tidy the extracted text into clean
+    prose. The original cached content is NOT modified — this only returns a
+    nicer rendering for display."""
+    from services.llm_service import LLMService
+
+    bm = bookmark_service.get_bookmark(db, bookmark_id)
+    if not bm:
+        raise HTTPException(404, "Bookmark not found")
+
+    content = bm.scraped_content
+    if not content:
+        scrape_result = await scraper_service.extract_content(bm.url)
+        content = scrape_result.get("content", "")
+        if content:
+            bookmark_service.store_scraped_content(db, bookmark_id, content)
+    if not content:
+        raise HTTPException(422, "No readable content to clean up")
+
+    prompt = (
+        "Reformat the page text below into clean, readable prose. Fix broken "
+        "line breaks and spacing, keep headings and lists. Do NOT add, remove "
+        "or change any facts — only improve formatting. Return only the text."
+    )
+    try:
+        cleaned = await LLMService.ask_llm(
+            prompt=prompt, context=content[:15000],
+            provider_config=request.provider_config or {"provider": "ollama", "model": "llama3"},
+            title=bm.title or "", url=bm.url or "",
+        )
+    except Exception as e:
+        raise HTTPException(502, f"LLM cleanup failed: {e}")
+
+    return ReaderResponse(content=cleaned or content)
 
 
 @router.post("/{bookmark_id}/auto-tag", response_model=BookmarkOut)

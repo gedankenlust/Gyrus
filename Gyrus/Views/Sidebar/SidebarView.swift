@@ -28,6 +28,9 @@ struct SidebarView: View {
     @State private var recolorFolderPick: Color = .blue
 
     var body: some View {
+        // Observe so the source list rebuilds when the read-status setting is
+        // toggled (the AppKit outline view refreshes on this view's re-render).
+        let _ = AppSettings.shared.enableReadStatus
         VStack(spacing: 0) {
             SidebarOutlineView(
                 selection: $selection,

@@ -21,6 +21,7 @@ class BookmarkUpdate(BaseModel):
     collection_id: str | None = None
     tag_ids: list[str] | None = None
     is_dead: bool | None = None
+    is_read: bool | None = None
 
 
 class BookmarkNoteCreate(BaseModel):
@@ -50,6 +51,7 @@ class BookmarkOut(BaseModel):
     og_image_path: str | None
     source: str
     is_dead: bool
+    is_read: bool = False
     collection_id: str | None
     tags: list[TagOut] = []
     created_at: datetime

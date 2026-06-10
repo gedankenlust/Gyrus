@@ -15,11 +15,19 @@ struct BookmarkTableView: View {
             Table(of: Bookmark.self, selection: $bookmarkStore.selectedIds, sortOrder: $sortOrder) {
                 TableColumn("Title", value: \.title) { bm in
                     let urlFirst = AppSettings.shared.cardLayout == "urlFirst"
+                    let showRead = AppSettings.shared.enableReadStatus
                     HStack(spacing: 8) {
+                        // Unread indicator (reserves space so rows stay aligned).
+                        if showRead {
+                            Circle()
+                                .fill(bm.isRead ? Color.clear : Color.accentColor)
+                                .frame(width: 7, height: 7)
+                                .help(bm.isRead ? "Read" : "Unread")
+                        }
                         FaviconView(faviconPath: bm.faviconPath, bookmarkURL: bm.url)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(urlFirst ? bm.url : bm.displayTitle)
-                                .font(.callout.weight(.medium)).lineLimit(1)
+                                .font(.callout.weight(showRead && !bm.isRead ? .semibold : .regular)).lineLimit(1)
                                 .truncationMode(urlFirst ? .middle : .tail)
                             Text(urlFirst ? bm.displayTitle : bm.url)
                                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)

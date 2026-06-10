@@ -27,6 +27,7 @@ def search_bookmarks(db: Session, query: str, limit: int = 50, offset: int = 0) 
                 Bookmark.title.ilike(pattern)
                 | Bookmark.url.ilike(pattern)
                 | Bookmark.description.ilike(pattern)
+                | Bookmark.scraped_content.ilike(pattern)
             )
         ]
 
@@ -68,6 +69,8 @@ def search_bookmarks(db: Session, query: str, limit: int = 50, offset: int = 0) 
 
     bookmarks_map = {
         bm.id: bm
-        for bm in db.query(Bookmark).filter(Bookmark.id.in_(page_ids)).all()
+        for bm in db.query(Bookmark)
+        .filter(Bookmark.id.in_(page_ids), Bookmark.deleted_at.is_(None))
+        .all()
     }
     return [bookmarks_map[i] for i in page_ids if i in bookmarks_map]

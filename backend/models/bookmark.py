@@ -13,12 +13,20 @@ class Bookmark(Base):
     url: Mapped[str] = mapped_column(String, index=True, unique=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Extracted page text, cached when a bookmark's reader/chat is opened, so
+    # full-text search can match words from the article body (not just title/url).
+    scraped_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     favicon_path: Mapped[str | None] = mapped_column(String, nullable=True)
     og_image_url: Mapped[str | None] = mapped_column(String, nullable=True)
     og_image_path: Mapped[str | None] = mapped_column(String, nullable=True)
     source: Mapped[str] = mapped_column(String, default="manual")
     is_dead: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
     collection_id: Mapped[str | None] = mapped_column(String, ForeignKey("collections.id"), nullable=True)
+
+    # Soft-delete: when set, the bookmark is in the Trash (hidden from all normal
+    # views) and is purged for good after TRASH_RETENTION_DAYS.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

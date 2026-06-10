@@ -39,6 +39,16 @@ struct AIBrainTabView: View {
                 if isSending {
                     ProgressView().scaleEffect(0.5)
                 }
+                if chat.hasConversation(bookmark.id) {
+                    Button {
+                        chat.clear(bookmark.id)
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Clear this conversation")
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -51,13 +61,14 @@ struct AIBrainTabView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 12) {
-                    ForEach(messages) { msg in
+                    // Skip the empty placeholder reply that fills in while streaming.
+                    ForEach(messages.filter { !(!$0.isUser && $0.text.isEmpty) }) { msg in
                         ChatBubble(message: msg) {
                             Task { try? await AppStore.shared.bookmarksStore.addNote(to: bookmark, content: msg.text, source: msg.isUser ? "user" : "ai") }
                         }
                         .id(msg.id)
                     }
-                    if isSending {
+                    if isSending && (messages.last?.text.isEmpty ?? true) {
                         HStack {
                             ProgressView().scaleEffect(0.6)
                             Text("Thinking...")
@@ -116,15 +127,27 @@ struct AIBrainTabView: View {
                         }
                     }
                 
-                Button {
-                    sendPrompt(currentPrompt)
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundStyle(currentPrompt.isEmpty || isSending ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
+                if isSending {
+                    Button {
+                        chat.stop(bookmark.id)
+                    } label: {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(Color.red)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Stop generating")
+                } else {
+                    Button {
+                        sendPrompt(currentPrompt)
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundStyle(currentPrompt.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(currentPrompt.isEmpty)
                 }
-                .buttonStyle(.plain)
-                .disabled(currentPrompt.isEmpty || isSending)
             }
             .padding(12)
             .background(.bar)
@@ -160,10 +183,10 @@ struct ChatBubble: View {
             if message.isUser { Spacer() }
             
             VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
-                Text(message.text)
+                bubbleText
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(message.isUser ? Color.accentColor : Color.secondary.opacity(0.2))
+                    .background(bubbleBackground)
                     .foregroundStyle(message.isUser ? .white : .primary)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .textSelection(.enabled)
@@ -180,7 +203,7 @@ struct ChatBubble: View {
                         }
                     }
                 
-                if !message.isUser {
+                if !message.isUser && !message.isError {
                     Button {
                         onSaveToNotes()
                         withAnimation { didSave = true }
@@ -199,12 +222,37 @@ struct ChatBubble: View {
                     .disabled(didSave)
                 }
             }
-            
+
             if !message.isUser { Spacer() }
         }
         .padding(.horizontal, 16)
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
+    }
+
+    /// Render assistant replies as Markdown (bold, lists, code, links) while
+    /// preserving newlines; user text stays plain. Falls back to plain text if
+    /// Markdown parsing fails.
+    @ViewBuilder
+    private var bubbleText: some View {
+        if message.isUser {
+            Text(message.text)
+        } else if message.isError {
+            Label(message.text, systemImage: "exclamationmark.triangle.fill")
+                .font(.callout)
+        } else if let attributed = try? AttributedString(
+            markdown: message.text,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+            Text(attributed)
+        } else {
+            Text(message.text)
+        }
+    }
+
+    private var bubbleBackground: Color {
+        if message.isUser { return Color.accentColor }
+        if message.isError { return Color.red.opacity(0.15) }
+        return Color.secondary.opacity(0.2)
     }
 }
 

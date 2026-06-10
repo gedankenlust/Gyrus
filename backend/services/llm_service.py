@@ -5,6 +5,11 @@ from typing import Dict, Any, List, Optional
 logger = logging.getLogger(__name__)
 
 
+class LLMUnavailableError(Exception):
+    """Raised when the LLM can't be reached or the provider isn't available.
+    Carries a user-friendly message meant to be shown directly in the UI."""
+
+
 def _build_system_prompt(context: str, title: str, url: str) -> str:
     """Anchor every conversation to the specific bookmark being viewed, so the
     model always knows which page it is talking about — even on the first
@@ -47,12 +52,31 @@ class LLMService:
 
         if provider == "ollama":
             return await LLMService._ask_ollama(prompt, context, provider_config, title, url, history)
-        elif provider in ["cloud", "openai", "anthropic", "google"]:
-            return await LLMService._ask_cloud(prompt, context, provider_config)
-        else:
-            # Fallback to cloud stub instead of raising ValueError for robustness
-            logger.warning(f"Unsupported LLM provider '{provider}', falling back to Cloud stub.")
-            return await LLMService._ask_cloud(prompt, context, provider_config)
+        # Cloud providers aren't implemented yet — be honest instead of returning
+        # a fake stub answer (which looked like a real reply to the user).
+        raise LLMUnavailableError(
+            "Cloud AI providers aren't available yet. Switch to Ollama in "
+            "Settings → AI to chat with a local model."
+        )
+
+    @staticmethod
+    def _build_messages(prompt, context, title, url, history) -> List[Dict[str, str]]:
+        messages: List[Dict[str, str]] = [
+            {"role": "system", "content": _build_system_prompt(context, title, url)}
+        ]
+        for turn in (history or []):
+            role = turn.get("role")
+            content = turn.get("content", "")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": prompt})
+        return messages
+
+    @staticmethod
+    def _ollama_base(provider_config: Dict[str, Any]) -> str:
+        return (provider_config.get("base_url")
+                or provider_config.get("ollama_url")
+                or "http://localhost:11434")
 
     @staticmethod
     async def _ask_ollama(
@@ -67,39 +91,66 @@ class LLMService:
         Send a chat request to a local Ollama instance, using role-based
         messages so the page context and prior turns are always present.
         """
-        base_url = provider_config.get("base_url") or provider_config.get("ollama_url") or "http://localhost:11434"
+        base_url = LLMService._ollama_base(provider_config)
         model = provider_config.get("model", "llama3")
-
-        messages: List[Dict[str, str]] = [
-            {"role": "system", "content": _build_system_prompt(context, title, url)}
-        ]
-        for turn in history:
-            role = turn.get("role")
-            content = turn.get("content", "")
-            if role in ("user", "assistant") and content:
-                messages.append({"role": role, "content": content})
-        messages.append({"role": "user", "content": prompt})
-
+        messages = LLMService._build_messages(prompt, context, title, url, history)
         payload = {"model": model, "messages": messages, "stream": False}
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(f"{base_url}/api/chat", json=payload)
-            response.raise_for_status()
-            data = response.json()
-            return data.get("message", {}).get("content", "")
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(f"{base_url}/api/chat", json=payload)
+                response.raise_for_status()
+                data = response.json()
+                return data.get("message", {}).get("content", "")
+        except httpx.ConnectError:
+            raise LLMUnavailableError(
+                "Couldn't reach Ollama. Make sure it's running "
+                f"(at {base_url}) and the model is installed."
+            )
+        except httpx.HTTPStatusError as e:
+            if e.response is not None and e.response.status_code == 404:
+                raise LLMUnavailableError(
+                    f"Model '{model}' isn't installed in Ollama. "
+                    f"Run: ollama pull {model}"
+                )
+            raise LLMUnavailableError(f"Ollama returned an error: {e}")
 
     @staticmethod
-    async def _ask_cloud(prompt: str, context: str, provider_config: Dict[str, Any]) -> str:
-        """
-        Placeholder for Cloud providers (OpenAI/Anthropic).
-        In a real implementation, this would use API keys and appropriate endpoints.
-        """
-        cloud_provider = provider_config.get("cloud_provider") or provider_config.get("provider") or "cloud"
-        model = provider_config.get("model", "gpt-3.5-turbo")
+    async def stream_ollama(
+        prompt: str,
+        context: str,
+        provider_config: Dict[str, Any],
+        title: str = "",
+        url: str = "",
+        history: Optional[List[Dict[str, str]]] = None,
+    ):
+        """Yield the assistant reply token-by-token as it is generated, so the
+        UI can render it live instead of waiting for the whole answer."""
+        import json as _json
 
-        # This is a stub that simulates a cloud request
-        logger.info(f"Simulating {cloud_provider} request with model {model}")
+        base_url = LLMService._ollama_base(provider_config)
+        model = provider_config.get("model", "llama3")
+        messages = LLMService._build_messages(prompt, context, title, url, history)
+        payload = {"model": model, "messages": messages, "stream": True}
 
-        # For now, we'll return a message indicating it's a stub,
-        # but structured to be easily replaced by actual httpx calls.
-        return f"[Cloud Provider Stub: {cloud_provider}] I've processed your question based on the context provided. (Model: {model})"
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                async with client.stream("POST", f"{base_url}/api/chat", json=payload) as resp:
+                    resp.raise_for_status()
+                    async for line in resp.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            chunk = _json.loads(line)
+                        except Exception:
+                            continue
+                        piece = chunk.get("message", {}).get("content", "")
+                        if piece:
+                            yield piece
+                        if chunk.get("done"):
+                            break
+        except httpx.ConnectError:
+            raise LLMUnavailableError(
+                "Couldn't reach Ollama. Make sure it's running "
+                f"(at {base_url}) and the model is installed."
+            )

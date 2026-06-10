@@ -106,6 +106,11 @@ struct SidebarOutlineView: NSViewRepresentable {
             newRoots.append(node(id: "__all__",
                                  kind: .special(title: "All Bookmarks", symbol: "bookmark.fill", tint: .controlAccentColor),
                                  count: parent.bookmarkStore.totalBookmarkCount))
+            if AppSettings.shared.enableReadStatus && parent.bookmarkStore.unreadBookmarkCount > 0 {
+                newRoots.append(node(id: "__unread__",
+                                     kind: .special(title: "Unread", symbol: "envelope.badge.fill", tint: .controlAccentColor),
+                                     count: parent.bookmarkStore.unreadBookmarkCount))
+            }
             if parent.bookmarkStore.deadBookmarkCount > 0 {
                 newRoots.append(node(id: "__dead__",
                                      kind: .special(title: "Dead Links", symbol: "exclamationmark.triangle.fill", tint: .systemRed),
@@ -120,6 +125,12 @@ struct SidebarOutlineView: NSViewRepresentable {
                 node(id: "tag:\(tag.name)", kind: .tag(tag))
             }
             newRoots.append(tags)
+
+            // Trash is always shown (like Finder) so it's a predictable place to
+            // recover deleted bookmarks — even when currently empty.
+            newRoots.append(node(id: "__trash__",
+                                 kind: .special(title: "Trash", symbol: "trash", tint: .secondaryLabelColor),
+                                 count: parent.bookmarkStore.trashCount))
 
             roots = newRoots
             // Drop interned nodes that no longer exist.
@@ -293,8 +304,11 @@ struct SidebarOutlineView: NSViewRepresentable {
                 if isDescendant(target.parentId, ofOrEqual: movedId) { return [] }
                 return .move
             }
-            // Bookmarks: only onto a folder row.
-            if index == NSOutlineViewDropOnItemIndex, case .folder = (item as? SidebarNode)?.kind { return .move }
+            // Bookmarks: onto a folder row (move) or the Trash row (delete).
+            if index == NSOutlineViewDropOnItemIndex {
+                if case .folder = (item as? SidebarNode)?.kind { return .move }
+                if (item as? SidebarNode)?.id == "__trash__" { return .move }
+            }
             return []
         }
 
@@ -312,6 +326,16 @@ struct SidebarOutlineView: NSViewRepresentable {
                 Task { @MainActor in store.moveFolder(movedId, toParent: target.parentId, atIndex: idx); self.reload() }
                 return true
             }
+            // Drop bookmarks onto the Trash row → move them to the Trash.
+            if (item as? SidebarNode)?.id == "__trash__" {
+                let ids = Set(str.split(separator: "\n").map(String.init))
+                Task { @MainActor in
+                    await AppStore.shared.trashBookmarks(ids: ids)
+                    self.reload()
+                }
+                return true
+            }
+
             guard case .folder(let c)? = (item as? SidebarNode)?.kind else { return false }
             let ids = Set(str.split(separator: "\n").map(String.init))
             Task { @MainActor in
