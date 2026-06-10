@@ -218,7 +218,7 @@ final class APIClient {
         )
         let res: ReaderResponse = try await post(
             base.appending(path: "/api/bookmarks/\(id)/reader/cleanup"),
-            body: Body(provider_config: pc))
+            body: Body(provider_config: pc), timeout: APIClient.llmTimeout)
         return res.content
     }
 
@@ -246,7 +246,7 @@ final class APIClient {
             api_key: apiKey
         )
         
-        return try await post(base.appending(path: "/api/bookmarks/\(bookmarkId)/auto-tag"), body: Body(provider_config: providerConfig))
+        return try await post(base.appending(path: "/api/bookmarks/\(bookmarkId)/auto-tag"), body: Body(provider_config: providerConfig), timeout: APIClient.llmTimeout)
     }
 
     func addNote(bookmarkId: String, content: String, source: String = "user") async throws -> BookmarkNote {
@@ -469,7 +469,7 @@ final class APIClient {
             provider_config: providerConfig,
             history: history.map { HistoryMessage(role: $0.role, content: $0.content) }
         )
-        let res: ChatResponse = try await post(base.appending(path: "/api/brain/chat"), body: body)
+        let res: ChatResponse = try await post(base.appending(path: "/api/brain/chat"), body: body, timeout: APIClient.llmTimeout)
         return res.response
     }
 
@@ -511,6 +511,8 @@ final class APIClient {
                     request.httpMethod = "POST"
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
                     request.httpBody = try encoder.encode(body)
+                    // A cold Ollama model can take a while before the first token.
+                    request.timeoutInterval = APIClient.llmTimeout
 
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)
                     if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
@@ -593,11 +595,16 @@ final class APIClient {
         }
     }
 
-    private func post<Body: Encodable, T: Decodable>(_ url: URL, body: Body) async throws -> T {
+    /// Generous timeout for local-LLM calls — a cold Ollama model can take a
+    /// minute or two to load before it answers, well past URLSession's 60s default.
+    static let llmTimeout: TimeInterval = 300
+
+    private func post<Body: Encodable, T: Decodable>(_ url: URL, body: Body, timeout: TimeInterval? = nil) async throws -> T {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try encoder.encode(body)
+        if let timeout { request.timeoutInterval = timeout }
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             try checkStatus(response)
