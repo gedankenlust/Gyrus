@@ -65,6 +65,8 @@ private struct GeneralPane: View {
                         }
                     }
                 Toggle("Confirm before deleting", isOn: $settings.confirmDelete)
+                Toggle("Track read / unread", isOn: $settings.enableReadStatus)
+                    .help("Show read/unread dots, the Unread view and the mark-as-read controls. Turn off for a plain bookmark list.")
 
                 HStack {
                     Text("Global Search Shortcut")

@@ -20,7 +20,7 @@ struct BookmarkCardView: View {
                     .lineLimit(2)
                     .truncationMode(urlFirst ? .middle : .tail)
                     .frame(maxWidth: .infinity, minHeight: 34, alignment: .topLeading)
-                if !bookmark.isRead {
+                if AppSettings.shared.enableReadStatus && !bookmark.isRead {
                     Circle()
                         .fill(Color.accentColor)
                         .frame(width: 7, height: 7)

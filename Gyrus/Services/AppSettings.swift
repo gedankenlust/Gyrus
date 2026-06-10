@@ -43,6 +43,7 @@ public final class AppSettings {
         static let defaultViewMode = "defaultViewMode"
         static let defaultPreviewTab = "defaultPreviewTab"
         static let cardLayout = "cardLayout"
+        static let enableReadStatus = "enableReadStatus"
         static let aiBrainConfig = "aiBrainConfig"
         static let didCompleteBrainOnboarding = "didCompleteBrainOnboarding"
         static let searchHotkey = "searchHotkey"
@@ -60,6 +61,12 @@ public final class AppSettings {
 
     public var confirmDelete: Bool {
         didSet { defaults.set(confirmDelete, forKey: Keys.confirmDelete) }
+    }
+
+    /// Whether the read/unread feature is shown at all (dots, Unread view,
+    /// toggle button, context-menu action). Off = a plain bookmark manager.
+    public var enableReadStatus: Bool {
+        didSet { defaults.set(enableReadStatus, forKey: Keys.enableReadStatus) }
     }
 
     public var defaultExportFmt: String {
@@ -125,6 +132,7 @@ public final class AppSettings {
         appLanguage = d.string(forKey: Keys.appLanguage) ?? "system"
         appTheme = d.string(forKey: Keys.appTheme) ?? "system"
         confirmDelete = d.object(forKey: Keys.confirmDelete) as? Bool ?? true
+        enableReadStatus = d.object(forKey: Keys.enableReadStatus) as? Bool ?? true
         defaultExportFmt = d.string(forKey: Keys.defaultExportFmt) ?? "markdown"
         defaultViewMode = d.string(forKey: Keys.defaultViewMode) ?? "grid"
         defaultPreviewTab = d.string(forKey: Keys.defaultPreviewTab) ?? "Info"

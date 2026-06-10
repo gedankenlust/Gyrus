@@ -106,7 +106,7 @@ struct SidebarOutlineView: NSViewRepresentable {
             newRoots.append(node(id: "__all__",
                                  kind: .special(title: "All Bookmarks", symbol: "bookmark.fill", tint: .controlAccentColor),
                                  count: parent.bookmarkStore.totalBookmarkCount))
-            if parent.bookmarkStore.unreadBookmarkCount > 0 {
+            if AppSettings.shared.enableReadStatus && parent.bookmarkStore.unreadBookmarkCount > 0 {
                 newRoots.append(node(id: "__unread__",
                                      kind: .special(title: "Unread", symbol: "envelope.badge.fill", tint: .controlAccentColor),
                                      count: parent.bookmarkStore.unreadBookmarkCount))

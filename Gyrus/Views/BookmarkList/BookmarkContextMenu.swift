@@ -110,15 +110,17 @@ struct BookmarkContextMenu: View {
                           systemImage: "trash.slash")
                 }
             } else {
-                // Mark read / unread
-                let anyUnread = bookmarks.filter { ids.contains($0.id) }.contains { !$0.isRead }
-                Button {
-                    Task { await appStore.setRead(ids: ids, isRead: anyUnread) }
-                } label: {
-                    Label(anyUnread
-                          ? (single ? "Mark as Read" : "Mark \(count) as Read")
-                          : (single ? "Mark as Unread" : "Mark \(count) as Unread"),
-                          systemImage: anyUnread ? "envelope.open" : "envelope.badge")
+                // Mark read / unread (only when the feature is enabled)
+                if AppSettings.shared.enableReadStatus {
+                    let anyUnread = bookmarks.filter { ids.contains($0.id) }.contains { !$0.isRead }
+                    Button {
+                        Task { await appStore.setRead(ids: ids, isRead: anyUnread) }
+                    } label: {
+                        Label(anyUnread
+                              ? (single ? "Mark as Read" : "Mark \(count) as Read")
+                              : (single ? "Mark as Unread" : "Mark \(count) as Unread"),
+                              systemImage: anyUnread ? "envelope.open" : "envelope.badge")
+                    }
                 }
 
                 Divider()

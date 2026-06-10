@@ -417,15 +417,17 @@ struct BookmarkDetailView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            Button {
-                Task { await AppStore.shared.toggleRead(bookmark) }
-            } label: {
-                Image(systemName: bookmark.isRead ? "envelope.badge" : "envelope.open")
-                    .font(.caption)
+            if AppSettings.shared.enableReadStatus {
+                Button {
+                    Task { await AppStore.shared.toggleRead(bookmark) }
+                } label: {
+                    Image(systemName: bookmark.isRead ? "envelope.badge" : "envelope.open")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(bookmark.isRead ? "Mark as Unread" : "Mark as Read")
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .help(bookmark.isRead ? "Mark as Unread" : "Mark as Read")
 
             Button {
                 editTitle = bookmark.title
