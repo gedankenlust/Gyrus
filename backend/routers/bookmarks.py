@@ -37,6 +37,7 @@ async def _fetch_meta(bookmark_id: str, url: str) -> None:
         db.close()
 
 
+
 @router.get("/count", response_model=int)
 def bookmark_count(db: Session = Depends(get_db)):
     return db.query(Bookmark).filter(Bookmark.deleted_at.is_(None)).count()
