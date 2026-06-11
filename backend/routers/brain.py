@@ -108,6 +108,10 @@ async def _prepare_context(db: Session, bookmark) -> str:
             _persist_scraped_content(file_path, content)
             from services import bookmark_service
             bookmark_service.store_scraped_content(db, bookmark.id, content)
+            import asyncio
+            asyncio.create_task(
+                bookmark_service.index_bookmark_embedding(bookmark.id, content)
+            )
         elif not context:
             context = f"Title: {bookmark.title}\nDescription: {bookmark.description}\nURL: {bookmark.url}"
 

@@ -1,0 +1,112 @@
+"""Semantic search: embedding indexing, vector store, and the search endpoint."""
+import pytest
+from unittest.mock import AsyncMock, patch
+
+from services import vector_store
+from services.bookmark_service import index_bookmark_embedding
+
+
+BOOKMARK = {"title": "SQLite FTS", "url": "https://sqlite.org/fts5.html", "source": "manual"}
+FAKE_VEC = [0.1] * 768  # placeholder vector — avoids real Ollama calls in tests
+
+
+# ---------------------------------------------------------------------------
+# vector_store unit tests (no DB, no Ollama)
+# ---------------------------------------------------------------------------
+
+def test_vector_store_upsert_and_count():
+    n_before = vector_store.count()
+    vector_store.upsert("test-vs-1", FAKE_VEC)
+    assert vector_store.count() == n_before + 1
+    vector_store.delete("test-vs-1")
+    assert vector_store.count() == n_before
+
+
+def test_vector_store_delete_is_idempotent():
+    vector_store.delete("nonexistent-id")  # must not raise
+
+
+def test_vector_store_search_returns_nearest():
+    vector_store.upsert("vs-a", FAKE_VEC)
+    vector_store.upsert("vs-b", [0.9] * 768)
+    results = vector_store.search(FAKE_VEC, k=5)
+    ids = [r[0] for r in results]
+    assert "vs-a" in ids
+    # clean up
+    vector_store.delete("vs-a")
+    vector_store.delete("vs-b")
+
+
+# ---------------------------------------------------------------------------
+# index_bookmark_embedding (mocks Ollama)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_index_embedding_stores_vector():
+    n_before = vector_store.count()
+    with patch(
+        "services.embedding_service.get_embedding",
+        new=AsyncMock(return_value=FAKE_VEC),
+    ):
+        await index_bookmark_embedding("bm-embed-test", "some page content")
+    assert vector_store.count() == n_before + 1
+    vector_store.delete("bm-embed-test")
+
+
+@pytest.mark.asyncio
+async def test_index_embedding_skips_on_unavailable():
+    """Ollama down → no error, no vector stored."""
+    from services.embedding_service import EmbeddingUnavailableError
+    n_before = vector_store.count()
+    with patch(
+        "services.embedding_service.get_embedding",
+        new=AsyncMock(side_effect=EmbeddingUnavailableError("Ollama down")),
+    ):
+        await index_bookmark_embedding("bm-embed-fail", "content")
+    assert vector_store.count() == n_before
+
+
+# ---------------------------------------------------------------------------
+# /api/search/semantic endpoint
+# ---------------------------------------------------------------------------
+
+def test_semantic_search_empty_query_returns_empty(client):
+    resp = client.get("/api/search/semantic?q=")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_semantic_search_unavailable_returns_empty(client):
+    """When Ollama is unreachable the endpoint returns [] gracefully."""
+    from services.embedding_service import EmbeddingUnavailableError
+    with patch(
+        "services.embedding_service.get_embedding",
+        new=AsyncMock(side_effect=EmbeddingUnavailableError("Ollama down")),
+    ):
+        resp = client.get("/api/search/semantic?q=test")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_semantic_search_returns_indexed_bookmark(client, db):
+    bm = client.post("/api/bookmarks", json=BOOKMARK).json()
+    # Manually insert a vector for this bookmark.
+    vector_store.upsert(bm["id"], FAKE_VEC)
+    with patch(
+        "services.embedding_service.get_embedding",
+        new=AsyncMock(return_value=FAKE_VEC),
+    ):
+        resp = client.get("/api/search/semantic?q=fts5+full+text+search")
+    assert resp.status_code == 200
+    ids = [b["id"] for b in resp.json()]
+    assert bm["id"] in ids
+    vector_store.delete(bm["id"])
+
+
+def test_semantic_status_endpoint(client):
+    resp = client.get("/api/search/status")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "available" in data
+    assert "indexed" in data
+    assert "message" in data

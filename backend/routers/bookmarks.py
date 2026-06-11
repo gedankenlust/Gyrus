@@ -256,8 +256,13 @@ async def get_reader_content(bookmark_id: str, db: Session = Depends(get_db)):
     content = scrape_result.get("content", "")
 
     if content:
-        # Cache the extracted text so full-text search can match the article body.
         bookmark_service.store_scraped_content(db, bookmark_id, content)
+        # Index embedding in the background — semantic search can then find
+        # this bookmark by meaning.  Fire-and-forget; never blocks the reader.
+        import asyncio
+        asyncio.create_task(
+            bookmark_service.index_bookmark_embedding(bookmark_id, content)
+        )
     else:
         content = "Could not extract readable content from this page."
 

@@ -1,7 +1,47 @@
+import asyncio
+import logging
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from models.bookmark import Bookmark, BookmarkNote
 from models.tag import Tag, BookmarkTag
+
+logger = logging.getLogger(__name__)
+
+
+async def search_bookmarks_semantic(
+    db: Session, query: str, limit: int = 20
+) -> list[Bookmark]:
+    """Return bookmarks ranked by semantic similarity to *query*.
+
+    Computes a query embedding via Ollama and performs a KNN search in the
+    bookmarks_vec table.  Falls back to an empty list (not an error) when
+    Ollama is unreachable or no embeddings have been indexed yet.
+    Trashed bookmarks are excluded.
+    """
+    from services.embedding_service import get_embedding, EmbeddingUnavailableError
+    from services import vector_store
+
+    try:
+        query_vec = await get_embedding(query)
+    except EmbeddingUnavailableError as e:
+        logger.info("semantic search unavailable: %s", e)
+        return []
+
+    pairs = vector_store.search(query_vec, k=limit * 2)
+    if not pairs:
+        return []
+
+    ids = [bid for bid, _dist in pairs]
+    # Load in one query, filter trashed, then restore the distance-rank order.
+    bm_map = {
+        bm.id: bm
+        for bm in db.query(Bookmark)
+        .filter(Bookmark.id.in_(ids), Bookmark.deleted_at.is_(None))
+        .all()
+    }
+    ranked = [bm_map[i] for i in ids if i in bm_map]
+    return ranked[:limit]
 
 
 def search_bookmarks(db: Session, query: str, limit: int = 50, offset: int = 0) -> list[Bookmark]:
