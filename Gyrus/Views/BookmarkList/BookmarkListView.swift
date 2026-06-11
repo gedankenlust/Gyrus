@@ -42,6 +42,24 @@ struct BookmarkListView: View {
                 ))
                 .frame(maxWidth: 320)
 
+                // Semantic search toggle — only shown when Ollama is available.
+                if bookmarkStore.semanticSearchAvailable {
+                    @Bindable var bookmarkStore = bookmarkStore
+                    Toggle(isOn: $bookmarkStore.semanticSearchEnabled) {
+                        Image(systemName: "sparkle.magnifyingglass")
+                    }
+                    .toggleStyle(.button)
+                    .buttonStyle(.bordered)
+                    .help(bookmarkStore.semanticSearchEnabled
+                          ? "Semantic search: ON (finds by meaning)"
+                          : "Semantic search: OFF (tap to enable)")
+                    .onChange(of: bookmarkStore.semanticSearchEnabled) {
+                        if !bookmarkStore.searchQuery.isEmpty {
+                            Task { await appStore.loadBookmarks() }
+                        }
+                    }
+                }
+
                 Spacer()
 
                 Button {

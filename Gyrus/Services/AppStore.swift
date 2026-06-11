@@ -55,6 +55,13 @@ final class AppStore {
         if let tr = await trashResult { bookmarksStore.trashCount = tr }
 
         startAutoRefreshPolling()
+
+        // Check semantic search availability (non-blocking).
+        Task {
+            if let status = try? await api.semanticSearchStatus() {
+                bookmarksStore.semanticSearchAvailable = status.available
+            }
+        }
     }
 
     func stopAutoRefreshPolling() {
