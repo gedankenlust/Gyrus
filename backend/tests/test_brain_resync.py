@@ -33,8 +33,10 @@ def test_resync_moves_file_to_current_folder_and_prunes(brain, db):
 
     brain.resync_all(db)
 
-    correct = brain.root_dir / "YouTube" / "Clip.md"
+    # The correct path may now include an ID suffix; resolve from the service.
+    correct = brain._get_bookmark_file_path(db, bm)
     assert correct.exists()             # moved to the current folder
+    assert correct.parent.name == "YouTube"  # in the right collection
     assert not stale_file.exists()      # old copy gone
     assert not stale_dir.exists()       # empty leftover folder pruned
 
@@ -55,7 +57,8 @@ def test_resync_keeps_chat_history_during_move(brain, db):
 
     brain.resync_all(db)
 
-    # No collection → _Unsorted, and the chat history travels with the file.
-    moved = brain.root_dir / "_Unsorted" / "Note.md"
+    # Resolve the correct path from the service (filename may include ID suffix).
+    moved = brain._get_bookmark_file_path(db, bm)
     assert moved.exists()
+    assert moved.parent.name == "_Unsorted"
     assert "Chat Interaction" in moved.read_text()
