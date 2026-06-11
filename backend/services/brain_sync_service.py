@@ -78,7 +78,10 @@ class BrainSyncService:
     def _get_bookmark_file_path(self, db: Session, bookmark: Bookmark) -> Path:
         """Returns the full Path to the bookmark's markdown file."""
         rel_dir = self._get_collection_path(db, bookmark.collection_id)
-        filename = f"{self._sanitize_name(bookmark.title or 'Untitled')}.md"
+        # Append a short ID suffix to prevent filename collisions when two
+        # bookmarks share the same title in the same folder.
+        short_id = bookmark.id[:8]
+        filename = f"{self._sanitize_name(bookmark.title or 'Untitled')}-{short_id}.md"
         final_path = (self.root_dir / rel_dir / filename).resolve()
         
         # Security Check: Ensure path traversal didn't escape root

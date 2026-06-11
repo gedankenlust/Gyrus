@@ -289,12 +289,13 @@ ships with a comprehensive automated test suite.
 
 ## Roadmap
 
-**🧠 A smarter AI Brain.**
-The AI Brain is the core focus: a private, local knowledge base that actually
-helps you think. Upcoming goals:
-- Automatic page summaries when a bookmark is saved
+**🧠 A smarter AI Brain — v0.7.0 focus.**
+Semantic search powered by local embeddings: find bookmarks by meaning, not
+just keywords. Plus automatic summaries when a bookmark is saved — all private,
+all on your Mac.
+- Semantic / meaning-based search (via local embedding model)
+- Automatic page summaries on save
 - "Related bookmarks" suggestions across your library
-- Better chat context (pulling in a page's notes and neighbors)
 - Multi-bookmark queries (ask questions across your whole library)
 
 **⌨️ Faster, keyboard-first workflows.**
