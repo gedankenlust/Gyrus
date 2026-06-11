@@ -17,6 +17,10 @@ final class BookmarkStore {
     var deadBookmarkCount: Int = 0
     var unreadBookmarkCount: Int = 0
     var trashCount: Int = 0
+    /// When true the search bar uses the semantic (embedding) path instead of FTS.
+    var semanticSearchEnabled: Bool = false
+    /// Status from /api/search/status (checked once at startup).
+    var semanticSearchAvailable: Bool = false
     var searchQuery: String = ""
 
     /// IDs that are scheduled for deletion (within the Undo window) 
@@ -79,6 +83,11 @@ final class BookmarkStore {
     func fetchPage(offset: Int, collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "") async throws -> [Bookmark] {
         if showTrash {
             return try await api.trashedBookmarks(limit: pageSize, offset: offset)
+        } else if !query.isEmpty && semanticSearchEnabled {
+            // Semantic search doesn't support pagination — always returns the full ranked list.
+            // Fall back to keyword search when no results come back (Ollama may be down).
+            let results = try await api.searchSemantic(query: query, limit: pageSize)
+            return results.isEmpty ? try await api.search(query: query, limit: pageSize, offset: offset) : results
         } else if !query.isEmpty {
             return try await api.search(query: query, limit: pageSize, offset: offset)
         } else if showDeadOnly {

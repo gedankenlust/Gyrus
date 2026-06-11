@@ -178,6 +178,12 @@ def delete_bookmark(db: Session, bm: Bookmark) -> None:
     until it is purged."""
     db_session = Session.object_session(bm)
     _safe_brain_sync(lambda: brain_sync_service.delete_bookmark_file(db_session, bm))
+    # Remove from vector index so it no longer appears in semantic search.
+    try:
+        from services import vector_store
+        vector_store.delete(bm.id)
+    except Exception:
+        pass
 
     bm.deleted_at = datetime.now(timezone.utc)
     db.commit()
@@ -271,6 +277,23 @@ def store_scraped_content(db: Session, bookmark_id: str, content: str) -> None:
         db.rollback()
 
 
+async def index_bookmark_embedding(bookmark_id: str, text: str) -> None:
+    """Compute and store an embedding for a bookmark (best-effort, never blocks
+    the caller).  Called after page content is scraped so semantic search can
+    find this bookmark by meaning, not just keywords."""
+    if not text or not text.strip():
+        return
+    try:
+        from services.embedding_service import get_embedding, EmbeddingUnavailableError
+        from services import vector_store
+        vec = await get_embedding(text)
+        vector_store.upsert(bookmark_id, vec)
+    except Exception as e:
+        # Ollama down, model missing, DB write error — none of these should
+        # affect the caller; semantic search simply won't find this bookmark.
+        logger.debug("embedding indexing skipped for %s: %s", bookmark_id, e)
+
+
 def _set_tags(db: Session, bm: Bookmark, tag_ids: list[str]) -> None:
     db.query(BookmarkTag).filter(BookmarkTag.bookmark_id == bm.id).delete()
     for tag_id in tag_ids:
@@ -341,8 +364,11 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
     scrape_result = await scraper_service.extract_content(bm.url)
     context = scrape_result.get("content", "")
     if context:
-        # Cache the full text for full-text content search before truncating.
         store_scraped_content(db, bookmark_id, context)
+        # Index embedding in the background so semantic search can find this
+        # bookmark — fire-and-forget, uses the full text before truncation.
+        import asyncio
+        asyncio.create_task(index_bookmark_embedding(bookmark_id, context))
     if len(context) > 10000:
         context = context[:10000]
         

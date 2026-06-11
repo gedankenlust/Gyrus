@@ -8,6 +8,9 @@ struct AISettingsView: View {
     @State private var isLoadingModels = false
     @State private var errorMessage: String? = nil
     @State private var lastLoadSuccessful: Bool? = nil
+    @State private var isReindexing = false
+    @State private var reindexMessage: String? = nil
+    @State private var semanticIndexed: Int = 0
     
     var body: some View {
         Form {
@@ -82,6 +85,47 @@ struct AISettingsView: View {
                     }
                 }
             }
+
+            Section(header: Text("Semantic Search")) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Embedding index")
+                        Text("\(semanticIndexed) bookmark(s) indexed")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        isReindexing = true
+                        reindexMessage = nil
+                        Task {
+                            do {
+                                struct ReindexResp: Decodable { let status: String; let message: String? }
+                                let url = URL(string: "http://127.0.0.1:8080/api/search/reindex")!
+                                var req = URLRequest(url: url)
+                                req.httpMethod = "POST"
+                                _ = try await URLSession.shared.data(for: req)
+                                reindexMessage = "Reindexing started in the background."
+                            } catch {
+                                reindexMessage = "Failed: \(error.localizedDescription)"
+                            }
+                            isReindexing = false
+                        }
+                    } label: {
+                        if isReindexing {
+                            ProgressView().scaleEffect(0.7)
+                        } else {
+                            Text("Reindex")
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isReindexing)
+                    .help("Build the semantic search index from existing bookmark content. Requires nomic-embed-text in Ollama.")
+                }
+                if let msg = reindexMessage {
+                    Text(msg).font(.caption).foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         .onAppear {
@@ -90,6 +134,11 @@ struct AISettingsView: View {
             }
             if settings.aiBrainConfig.llmProvider == AIBrainConfig.LLMProvider.ollama {
                 refreshModels()
+            }
+            Task {
+                if let status = try? await APIClient.shared.semanticSearchStatus() {
+                    semanticIndexed = status.indexed
+                }
             }
         }
         .onChange(of: cloudAPIKey) { _, newValue in

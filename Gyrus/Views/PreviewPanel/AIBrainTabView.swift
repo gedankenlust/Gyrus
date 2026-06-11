@@ -39,6 +39,30 @@ struct AIBrainTabView: View {
                 if isSending {
                     ProgressView().scaleEffect(0.5)
                 }
+                // Summarize button — quick one-tap note generation
+                Button {
+                    Task {
+                        do {
+                            struct Resp: Decodable { let summary: String }
+                            var req = URLRequest(url: URL(string: "http://127.0.0.1:8080/api/brain/summarize/\(bookmark.id)")!)
+                            req.httpMethod = "POST"
+                            req.timeoutInterval = 300
+                            let (data, _) = try await URLSession.shared.data(for: req)
+                            let resp = try JSONDecoder().decode(Resp.self, from: data)
+                            if !resp.summary.isEmpty {
+                                AppStore.shared.uiStateStore.showInfo("Summary added to Notes.")
+                            }
+                        } catch {
+                            AppStore.shared.uiStateStore.showError(error.localizedDescription)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "text.quote")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Generate a summary and save it to Notes")
+                .disabled(isSending)
                 if chat.hasConversation(bookmark.id) {
                     Button {
                         chat.clear(bookmark.id)

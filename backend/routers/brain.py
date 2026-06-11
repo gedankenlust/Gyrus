@@ -108,6 +108,10 @@ async def _prepare_context(db: Session, bookmark) -> str:
             _persist_scraped_content(file_path, content)
             from services import bookmark_service
             bookmark_service.store_scraped_content(db, bookmark.id, content)
+            import asyncio
+            asyncio.create_task(
+                bookmark_service.index_bookmark_embedding(bookmark.id, content)
+            )
         elif not context:
             context = f"Title: {bookmark.title}\nDescription: {bookmark.description}\nURL: {bookmark.url}"
 
@@ -200,3 +204,42 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
                 print(f"Failed to append interaction: {e}")
 
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
+
+
+class SummarizeResponse(BaseModel):
+    summary: str
+
+
+@router.post("/summarize/{bookmark_id}", response_model=SummarizeResponse)
+async def summarize_bookmark(bookmark_id: str, db: Session = Depends(get_db)):
+    """Generate a 2-3 sentence summary of a bookmark's page content using the
+    local LLM, then save it as an AI note. Idempotent: safe to call again to
+    refresh the summary. Requires Ollama and the AI Brain to be enabled."""
+    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+
+    context = await _prepare_context(db, bookmark)
+
+    try:
+        summary = await LLMService.ask_llm(
+            prompt=(
+                "Summarize this page in 2-3 clear, informative sentences. "
+                "Focus on what it's actually about. "
+                "Do not start with 'This page' or 'This article'."
+            ),
+            context=context,
+            provider_config={"provider": "ollama", "model": "llama3"},
+            title=bookmark.title or "",
+            url=bookmark.url or "",
+        )
+    except LLMUnavailableError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM Error: {str(e)}")
+
+    if summary and summary.strip():
+        from services import bookmark_service
+        bookmark_service.add_note(db, bookmark_id, summary.strip(), source="ai")
+
+    return SummarizeResponse(summary=summary or "")

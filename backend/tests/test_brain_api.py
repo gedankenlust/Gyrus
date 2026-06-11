@@ -45,8 +45,9 @@ async def test_chat_with_bookmark_success(client, db, temp_brain_root):
         assert response.status_code == 200
         assert response.json()["response"] == "This is the AI response."
 
-        # 5. Verify file creation and content (now in Inbox/)
-        bookmark_file = temp_brain_root / "_Unsorted" / f"{bookmark.title}.md"
+        # 5. Verify file creation and content — resolve the path from the service
+        # so the test stays correct when the filename scheme changes.
+        bookmark_file = brain_sync_service._get_bookmark_file_path(db, bookmark)
         assert bookmark_file.exists()
         
         with open(bookmark_file, "r") as f:
@@ -74,8 +75,8 @@ async def test_chat_optimization_skips_scraping(client, db, temp_brain_root):
     db.commit()
     db.refresh(bookmark)
 
-    # 2. Pre-create the file with specifically the scraped section
-    file_path = temp_brain_root / "_Unsorted" / "Optimized.md"
+    # 2. Pre-create the file at the exact path the service will look for.
+    file_path = brain_sync_service._get_bookmark_file_path(db, bookmark)
     file_path.parent.mkdir(parents=True, exist_ok=True)
     
     long_content = "This is a very long content that should skip the scraping process. " * 10

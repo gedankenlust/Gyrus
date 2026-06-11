@@ -339,6 +339,27 @@ final class APIClient {
         return try await get(components.url!)
     }
 
+    /// Semantic / meaning-based search. Returns an empty list when Ollama is
+    /// unreachable — the caller should fall back to keyword search silently.
+    func searchSemantic(query: String, limit: Int = 20) async throws -> [Bookmark] {
+        var components = URLComponents(url: base.appending(path: "/api/search/semantic"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [
+            .init(name: "q", value: query),
+            .init(name: "limit", value: "\(limit)"),
+        ]
+        return try await get(components.url!)
+    }
+
+    struct SemanticSearchStatus: Decodable {
+        let available: Bool
+        let indexed: Int
+        let message: String
+    }
+
+    func semanticSearchStatus() async throws -> SemanticSearchStatus {
+        try await get(base.appending(path: "/api/search/status"))
+    }
+
     // MARK: - Export
 
     func exportHTML() async throws -> Data {

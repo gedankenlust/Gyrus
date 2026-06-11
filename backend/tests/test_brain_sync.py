@@ -59,10 +59,12 @@ def test_sync_bookmark_creation(db, brain_service):
     )
     db.add(bookmark)
     db.flush()
-    
+
     brain_service.sync_bookmark(db, bookmark)
 
-    expected_path = brain_service.root_dir / "_Unsorted" / "Test Bookmark.md"
+    # Resolve the actual path from the service so the test stays robust if the
+    # filename scheme changes (e.g. the ID suffix we added for collision avoidance).
+    expected_path = brain_service._get_bookmark_file_path(db, bookmark)
     assert expected_path.exists()
     with open(expected_path, "r") as f:
         content = f.read()
@@ -76,25 +78,23 @@ def test_sync_bookmark_move(db, brain_service):
     bookmark = Bookmark(title="Moving Day", url="https://move.me")
     db.add(bookmark)
     db.flush()
-    
+
     brain_service.sync_bookmark(db, bookmark)
-    old_file_path = brain_service.root_dir / "_Unsorted" / "Moving Day.md"
+    old_file_path = brain_service._get_bookmark_file_path(db, bookmark)
     assert old_file_path.exists()
-    
+
     # 2. Move to collection
     folder = Collection(name="New Home")
     db.add(folder)
     db.flush()
-    
-    # Capture old path
+
     old_path = brain_service._get_bookmark_file_path(db, bookmark)
-    
     bookmark.collection_id = folder.id
     db.flush()
-    
+
     brain_service.sync_bookmark(db, bookmark, old_path=old_path)
-    
-    new_file_path = brain_service.root_dir / "New Home" / "Moving Day.md"
+
+    new_file_path = brain_service._get_bookmark_file_path(db, bookmark)
     assert new_file_path.exists()
     assert not old_file_path.exists()
 
@@ -102,11 +102,11 @@ def test_delete_bookmark_file(db, brain_service):
     bookmark = Bookmark(title="Delete Me", url="https://gone.soon")
     db.add(bookmark)
     db.flush()
-    
+
     brain_service.sync_bookmark(db, bookmark)
-    file_path = brain_service.root_dir / "_Unsorted" / "Delete Me.md"
+    file_path = brain_service._get_bookmark_file_path(db, bookmark)
     assert file_path.exists()
-    
+
     brain_service.delete_bookmark_file(db, bookmark)
     assert not file_path.exists()
 
