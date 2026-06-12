@@ -82,12 +82,19 @@ final class AppStore {
                 do {
                     let serverCount = try await api.bookmarkCount()
                     let localTotal = bookmarksStore.totalBookmarkCount + bookmarksStore.pendingDeletionIds.count
-                    
+
                     if serverCount != localTotal {
                         await loadAll()
                     }
                 } catch {
                     // Ignore background-polling errors.
+                }
+
+                // Re-check semantic availability if Ollama wasn't ready at startup.
+                if !bookmarksStore.semanticSearchAvailable {
+                    if let status = try? await api.semanticSearchStatus() {
+                        bookmarksStore.semanticSearchAvailable = status.available
+                    }
                 }
             }
         }
