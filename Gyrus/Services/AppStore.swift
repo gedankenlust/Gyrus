@@ -109,14 +109,16 @@ final class AppStore {
     // MARK: - Search
 
     private func handleUIError(_ error: Error) {
-        // Suppress "cannot connect" errors if they happen while the app is
-        // returning from background/sleep. recoverConnection() is already 
-        // triggered by these events and will fix the backend silently.
+        // Debounced search cancels in-flight tasks — never show that to the user.
+        if error is CancellationError { return }
+        // Suppress connection errors while the app is returning from background/sleep,
+        // and cancelled URLSessions (debounce / task cancellation).
         if case APIError.networkError(let inner) = error,
            let urlError = inner as? URLError,
-           urlError.code == .cannotConnectToHost || 
+           urlError.code == .cannotConnectToHost ||
            urlError.code == .notConnectedToInternet ||
-           urlError.code == .networkConnectionLost {
+           urlError.code == .networkConnectionLost ||
+           urlError.code == .cancelled {
             return
         }
         uiStateStore.showError(error.localizedDescription)
