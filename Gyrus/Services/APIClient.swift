@@ -360,6 +360,34 @@ final class APIClient {
         try await get(base.appending(path: "/api/search/status"))
     }
 
+    struct ReindexResponse: Decodable {
+        let status: String
+        let message: String?
+    }
+
+    /// Kick off a background rebuild of the semantic search index.
+    func reindexEmbeddings() async throws -> ReindexResponse {
+        var req = URLRequest(url: base.appending(path: "/api/search/reindex"))
+        req.httpMethod = "POST"
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try checkStatus(response)
+        return try decoder.decode(ReindexResponse.self, from: data)
+    }
+
+    struct SummarizeResponse: Decodable {
+        let summary: String
+    }
+
+    /// Generate an LLM summary for a bookmark; the backend saves it to Notes.
+    func summarize(bookmarkId: String) async throws -> SummarizeResponse {
+        var req = URLRequest(url: base.appending(path: "/api/brain/summarize/\(bookmarkId)"))
+        req.httpMethod = "POST"
+        req.timeoutInterval = APIClient.llmTimeout
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try checkStatus(response)
+        return try decoder.decode(SummarizeResponse.self, from: data)
+    }
+
     // MARK: - Export
 
     func exportHTML() async throws -> Data {

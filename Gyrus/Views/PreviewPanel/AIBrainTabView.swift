@@ -43,12 +43,7 @@ struct AIBrainTabView: View {
                 Button {
                     Task {
                         do {
-                            struct Resp: Decodable { let summary: String }
-                            var req = URLRequest(url: URL(string: "http://127.0.0.1:8080/api/brain/summarize/\(bookmark.id)")!)
-                            req.httpMethod = "POST"
-                            req.timeoutInterval = 300
-                            let (data, _) = try await URLSession.shared.data(for: req)
-                            let resp = try JSONDecoder().decode(Resp.self, from: data)
+                            let resp = try await APIClient.shared.summarize(bookmarkId: bookmark.id)
                             if !resp.summary.isEmpty {
                                 AppStore.shared.uiStateStore.showInfo("Summary added to Notes.")
                             }

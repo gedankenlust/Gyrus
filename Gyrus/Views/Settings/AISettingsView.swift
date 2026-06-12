@@ -90,7 +90,8 @@ struct AISettingsView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Embedding index")
-                        Text("\(semanticIndexed) bookmark(s) indexed")
+                        Text(semanticIndexed == 1 ? "1 bookmark indexed"
+                                                  : "\(semanticIndexed) bookmarks indexed")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -99,11 +100,7 @@ struct AISettingsView: View {
                         reindexMessage = nil
                         Task {
                             do {
-                                struct ReindexResp: Decodable { let status: String; let message: String? }
-                                let url = URL(string: "http://127.0.0.1:8080/api/search/reindex")!
-                                var req = URLRequest(url: url)
-                                req.httpMethod = "POST"
-                                _ = try await URLSession.shared.data(for: req)
+                                _ = try await APIClient.shared.reindexEmbeddings()
                                 reindexMessage = "Reindexing started in the background."
                             } catch {
                                 reindexMessage = "Failed: \(error.localizedDescription)"

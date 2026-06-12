@@ -85,8 +85,9 @@ final class BookmarkStore {
             return try await api.trashedBookmarks(limit: pageSize, offset: offset)
         } else if !query.isEmpty && semanticSearchEnabled {
             // Semantic search doesn't support pagination — always returns the full ranked list.
-            // Fall back to keyword search when no results come back (Ollama may be down).
-            let results = try await api.searchSemantic(query: query, limit: pageSize)
+            // Degrade to keyword search when it returns nothing OR throws
+            // (Ollama down only yields [], but network/server errors throw).
+            let results = (try? await api.searchSemantic(query: query, limit: pageSize)) ?? []
             return results.isEmpty ? try await api.search(query: query, limit: pageSize, offset: offset) : results
         } else if !query.isEmpty {
             return try await api.search(query: query, limit: pageSize, offset: offset)
