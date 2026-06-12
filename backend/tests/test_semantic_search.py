@@ -110,3 +110,78 @@ def test_semantic_status_endpoint(client):
     assert "available" in data
     assert "indexed" in data
     assert "message" in data
+
+
+# ---------------------------------------------------------------------------
+# Vector lifecycle: trash / restore / purge must keep the index in sync
+# ---------------------------------------------------------------------------
+
+def test_single_trash_removes_vector(client):
+    bm = client.post("/api/bookmarks", json=BOOKMARK).json()
+    vector_store.upsert(bm["id"], FAKE_VEC)
+    n_before = vector_store.count()
+    client.delete(f"/api/bookmarks/{bm['id']}")
+    assert vector_store.count() == n_before - 1
+
+
+def test_bulk_trash_removes_vectors(client):
+    a = client.post("/api/bookmarks", json={**BOOKMARK, "url": "https://vec-a.com"}).json()
+    b = client.post("/api/bookmarks", json={**BOOKMARK, "url": "https://vec-b.com"}).json()
+    vector_store.upsert(a["id"], FAKE_VEC)
+    vector_store.upsert(b["id"], FAKE_VEC)
+    n_before = vector_store.count()
+    resp = client.post("/api/bookmarks/delete-batch", json={"ids": [a["id"], b["id"]]})
+    assert resp.status_code == 204
+    assert vector_store.count() == n_before - 2
+
+
+def test_purge_removes_orphan_vectors(client, db):
+    """A vector that survived trashing must not outlive the hard delete."""
+    bm = client.post("/api/bookmarks", json={**BOOKMARK, "url": "https://vec-purge.com"}).json()
+    client.delete(f"/api/bookmarks/{bm['id']}")
+    # Simulate a stale index entry left behind (e.g. created pre-fix).
+    vector_store.upsert(bm["id"], FAKE_VEC)
+    n_before = vector_store.count()
+    resp = client.post("/api/bookmarks/trash/purge", json={"ids": [bm["id"]]})
+    assert resp.json()["purged"] == 1
+    assert vector_store.count() == n_before - 1
+
+
+def test_purge_expired_removes_vectors(db):
+    from datetime import datetime, timezone, timedelta
+    from models.bookmark import Bookmark
+    from services import bookmark_service
+
+    bm = Bookmark(title="Old", url="https://vec-expired.com", source="manual")
+    bm.deleted_at = datetime.now(timezone.utc) - timedelta(days=99)
+    db.add(bm)
+    db.commit()
+    vector_store.upsert(bm.id, FAKE_VEC)
+    n_before = vector_store.count()
+    assert bookmark_service.purge_expired(db, days=30) == 1
+    assert vector_store.count() == n_before - 1
+
+
+@pytest.mark.asyncio
+async def test_restore_reindexes_embedding(db):
+    """Restoring from Trash rebuilds the vector that trashing removed."""
+    from models.bookmark import Bookmark
+    from services import bookmark_service, background
+
+    bm = Bookmark(title="Restored", url="https://vec-restore.com", source="manual")
+    bm.scraped_content = "some scraped page content"
+    db.add(bm)
+    db.commit()
+
+    bookmark_service.delete_bookmark(db, bm)
+    n_trashed = vector_store.count()
+
+    with patch(
+        "services.embedding_service.get_embedding",
+        new=AsyncMock(return_value=FAKE_VEC),
+    ):
+        assert bookmark_service.restore_bookmarks(db, [bm.id]) == 1
+        await background.drain()
+
+    assert vector_store.count() == n_trashed + 1
+    vector_store.delete(bm.id)

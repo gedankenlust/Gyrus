@@ -58,15 +58,3 @@ async def get_embedding(
             "Is the model installed? (ollama pull nomic-embed-text)"
         )
     return vec
-
-
-def serialize(vec: list[float]) -> bytes:
-    """Pack a float list as a little-endian IEEE-754 byte string for sqlite-vec."""
-    import struct
-    return struct.pack(f"{len(vec)}f", *vec)
-
-
-def deserialize(data: bytes) -> list[float]:
-    import struct
-    n = len(data) // 4
-    return list(struct.unpack(f"{n}f", data))

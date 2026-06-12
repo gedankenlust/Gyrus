@@ -6,6 +6,9 @@ from routers import bookmarks, collections, tags, search, import_, export_, file
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Let sync route handlers (worker threads) hand coroutines to this loop.
+    from services import background
+    background.capture_loop()
     # Snapshot the database before migrations touch the schema, so a bad
     # migration or an accidental bulk delete is always recoverable.
     from services.backup_service import run_daily_backup

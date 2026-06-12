@@ -158,7 +158,8 @@ def update_bookmark(db: Session, bm: Bookmark, data: BookmarkUpdate) -> Bookmark
     except Exception:
         old_path = None
 
-    for field, value in data.model_dump(exclude_unset=True, exclude={"tag_ids"}).items():
+    changed = data.model_dump(exclude_unset=True, exclude={"tag_ids"})
+    for field, value in changed.items():
         setattr(bm, field, value)
     if data.tag_ids is not None:
         _set_tags(db, bm, data.tag_ids)
@@ -168,6 +169,15 @@ def update_bookmark(db: Session, bm: Bookmark, data: BookmarkUpdate) -> Bookmark
     # Sync with AI Brain (best-effort — never block the update)
     _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm, old_path=old_path))
     _safe_brain_sync(lambda: brain_sync_service.rebuild_index(db))
+
+    # Re-embed when text the vector is built from changed, so semantic search
+    # doesn't keep ranking by the old content. Same text selection as reindex:
+    # scraped content if present, else title + description.
+    if changed.keys() & {"title", "description", "notes", "scraped_content"}:
+        text = bm.scraped_content or f"{bm.title or ''} {bm.description or ''}".strip()
+        if text:
+            from services import background
+            background.schedule(index_bookmark_embedding(bm.id, text))
 
     return bm
 
@@ -198,12 +208,26 @@ def delete_bookmarks(db: Session, ids: list[str]) -> None:
     ).all()
     for bm in bms:
         _safe_brain_sync(lambda: brain_sync_service.delete_bookmark_file(db, bm))
+    _drop_vectors([bm.id for bm in bms])
 
     db.query(Bookmark).filter(
         Bookmark.id.in_(ids), Bookmark.deleted_at.is_(None)
     ).update({Bookmark.deleted_at: datetime.now(timezone.utc)}, synchronize_session=False)
     db.commit()
     _safe_brain_sync(lambda: brain_sync_service.rebuild_index(db))
+
+
+def _drop_vectors(ids: list[str]) -> None:
+    """Best-effort removal of semantic-search vectors for the given bookmarks.
+    Trashed/purged bookmarks must not occupy KNN slots or leave orphan rows."""
+    if not ids:
+        return
+    try:
+        from services import vector_store
+        for bm_id in ids:
+            vector_store.delete(bm_id)
+    except Exception:
+        pass
 
 
 def get_trashed(db: Session, limit: int = 200, offset: int = 0) -> list[Bookmark]:
@@ -232,6 +256,11 @@ def restore_bookmarks(db: Session, ids: list[str]) -> int:
     db.commit()
     for bm in bms:
         _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm))
+        # The vector was dropped when the bookmark was trashed — rebuild it
+        # so the restored bookmark is findable by semantic search again.
+        if bm.scraped_content:
+            from services import background
+            background.schedule(index_bookmark_embedding(bm.id, bm.scraped_content))
     _safe_brain_sync(lambda: brain_sync_service.rebuild_index(db))
     return len(bms)
 
@@ -242,6 +271,9 @@ def purge_bookmarks(db: Session, ids: list[str] | None = None) -> int:
     q = db.query(Bookmark).filter(Bookmark.deleted_at.is_not(None))
     if ids is not None:
         q = q.filter(Bookmark.id.in_(ids))
+    # Vectors are normally dropped on trashing, but clean up stragglers so a
+    # hard delete never leaves orphan rows in bookmarks_vec.
+    _drop_vectors([row.id for row in q.with_entities(Bookmark.id).all()])
     n = q.count()
     q.delete(synchronize_session=False)
     db.commit()
@@ -256,6 +288,7 @@ def purge_expired(db: Session, days: int = TRASH_RETENTION_DAYS) -> int:
     )
     n = q.count()
     if n:
+        _drop_vectors([row.id for row in q.with_entities(Bookmark.id).all()])
         q.delete(synchronize_session=False)
         db.commit()
     return n
@@ -367,8 +400,8 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
         store_scraped_content(db, bookmark_id, context)
         # Index embedding in the background so semantic search can find this
         # bookmark — fire-and-forget, uses the full text before truncation.
-        import asyncio
-        asyncio.create_task(index_bookmark_embedding(bookmark_id, context))
+        from services import background
+        background.schedule(index_bookmark_embedding(bookmark_id, context))
     if len(context) > 10000:
         context = context[:10000]
         

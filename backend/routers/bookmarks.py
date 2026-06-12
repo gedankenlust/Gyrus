@@ -260,8 +260,8 @@ async def get_reader_content(bookmark_id: str, db: Session = Depends(get_db)):
         bookmark_service.store_scraped_content(db, bookmark_id, content)
         # Index embedding in the background — semantic search can then find
         # this bookmark by meaning.  Fire-and-forget; never blocks the reader.
-        import asyncio
-        asyncio.create_task(
+        from services import background
+        background.schedule(
             bookmark_service.index_bookmark_embedding(bookmark_id, content)
         )
     else:

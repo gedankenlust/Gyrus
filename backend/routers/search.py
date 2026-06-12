@@ -37,17 +37,36 @@ async def search_semantic(q: str = "", limit: int = 20, db: Session = Depends(ge
 @router.get("/status")
 async def semantic_search_status():
     """Check whether semantic search is currently available (Ollama reachable +
-    embedding model installed + at least some vectors indexed)."""
+    embedding model installed + at least some vectors indexed).
+
+    Uses Ollama's lightweight /api/tags listing instead of running a real
+    embedding inference — a cold model would otherwise make this check take
+    seconds on every app start."""
+    import httpx
     from services import vector_store
-    from services.embedding_service import get_embedding, EmbeddingUnavailableError
+    from services.embedding_service import DEFAULT_MODEL, DEFAULT_BASE_URL
+
     indexed = vector_store.count()
     try:
-        await get_embedding("test")
-        available = True
-        message = f"Ready — {indexed} bookmark(s) indexed."
-    except EmbeddingUnavailableError as e:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(f"{DEFAULT_BASE_URL}/api/tags")
+            resp.raise_for_status()
+            models = [m.get("name", "") for m in resp.json().get("models", [])]
+        if any(name.split(":")[0] == DEFAULT_MODEL for name in models):
+            available = True
+            message = f"Ready — {indexed} bookmarks indexed."
+        else:
+            available = False
+            message = (
+                f"Embedding model '{DEFAULT_MODEL}' is not installed. "
+                f"Run: ollama pull {DEFAULT_MODEL}"
+            )
+    except Exception:
         available = False
-        message = str(e)
+        message = (
+            f"Couldn't reach Ollama at {DEFAULT_BASE_URL}. "
+            "Make sure it's running to use semantic search."
+        )
     return {"available": available, "indexed": indexed, "message": message}
 
 
@@ -56,17 +75,20 @@ _reindex_running = False
 
 @router.post("/reindex")
 async def reindex_embeddings(db: Session = Depends(get_db)):
-    """Compute embeddings for all bookmarks that have scraped content but no
-    vector yet.  Runs as a background asyncio task so the request returns
-    immediately.  Idempotent: safe to call multiple times."""
+    """Recompute embeddings for every non-trashed bookmark with scraped
+    content (a repair button: also refreshes stale vectors).  Runs as a
+    background asyncio task so the request returns immediately."""
     global _reindex_running
     if _reindex_running:
         from services import vector_store
         return {"status": "already_running", "indexed": vector_store.count()}
+    # Set the flag here, not inside the task — create_task doesn't start the
+    # coroutine immediately, so a quick second POST could otherwise pass the
+    # check above and start a duplicate run.
+    _reindex_running = True
 
     async def _run():
         global _reindex_running
-        _reindex_running = True
         try:
             from models.bookmark import Bookmark
             from services.bookmark_service import index_bookmark_embedding
@@ -87,6 +109,6 @@ async def reindex_embeddings(db: Session = Depends(get_db)):
         finally:
             _reindex_running = False
 
-    import asyncio
-    asyncio.create_task(_run())
+    from services import background
+    background.schedule(_run())
     return {"status": "started", "message": "Reindexing embeddings in the background."}

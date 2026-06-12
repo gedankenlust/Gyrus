@@ -106,10 +106,9 @@ async def _prepare_context(db: Session, bookmark) -> str:
         if content:
             context = content
             _persist_scraped_content(file_path, content)
-            from services import bookmark_service
+            from services import bookmark_service, background
             bookmark_service.store_scraped_content(db, bookmark.id, content)
-            import asyncio
-            asyncio.create_task(
+            background.schedule(
                 bookmark_service.index_bookmark_embedding(bookmark.id, content)
             )
         elif not context:
