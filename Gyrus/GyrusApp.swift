@@ -98,10 +98,16 @@ struct GyrusApp: App {
             // Recover the backend connection (and favicons) when the Mac wakes
             // or the app returns to the foreground. Only after the initial start.
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-                if launcher.isRunning { Task { await store.recoverConnection() } }
+                if launcher.isRunning {
+                    store.uiStateStore.beginResumeGrace()
+                    Task { await store.recoverConnection() }
+                }
             }
             .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in
-                if launcher.isRunning { Task { await store.recoverConnection() } }
+                if launcher.isRunning {
+                    store.uiStateStore.beginResumeGrace()
+                    Task { await store.recoverConnection() }
+                }
             }
         }
         .windowStyle(.titleBar)
@@ -128,6 +134,10 @@ struct GyrusApp: App {
             Button("Open Gyrus") {
                 NSApp.activate(ignoringOtherApps: true)
                 NSApp.windows.first?.makeKeyAndOrderFront(nil)
+            }
+
+            SettingsLink {
+                Text("Settings…")
             }
 
             Divider()

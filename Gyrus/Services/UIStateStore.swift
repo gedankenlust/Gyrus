@@ -24,9 +24,24 @@ final class UIStateStore {
     private var infoTask: Task<Void, Never>?
     private var undoTimerTask: Task<Void, Never>?
 
+    /// While the app is returning from sleep / regaining focus, in-flight
+    /// requests can briefly fail (404/5xx/connection) before the backend has
+    /// reconnected. Error toasts are swallowed until this moment passes.
+    private var suppressErrorsUntil: Date = .distantPast
+
+    /// Start a short window during which transient error toasts are suppressed.
+    /// Called when the app becomes active or the Mac wakes.
+    func beginResumeGrace(_ seconds: TimeInterval = 4) {
+        suppressErrorsUntil = Date().addingTimeInterval(seconds)
+        errorMessage = nil   // clear anything already on screen
+        errorTask?.cancel()
+    }
+
     // MARK: - Toasts
 
     func showError(_ message: String) {
+        // Don't alarm the user with transient failures right after resume.
+        if Date() < suppressErrorsUntil { return }
         errorMessage = message
         errorTask?.cancel()
         errorTask = Task {

@@ -3766,6 +3766,16 @@
           }
         }
       }
+    },
+    "Settings…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen…"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

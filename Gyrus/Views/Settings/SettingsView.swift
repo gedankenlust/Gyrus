@@ -388,7 +388,14 @@ private struct AboutPane: View {
 
             Section {
                 Link(destination: URL(string: "https://github.com/gedankenlust/Gyrus")!) {
-                    Label("View Source on GitHub", systemImage: "code.branch")
+                    Label {
+                        Text("View Source on GitHub")
+                    } icon: {
+                        Image("GitHubMark")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 16, height: 16)
+                    }
                 }
                 Link(destination: URL(string: "https://github.com/gedankenlust/Gyrus/issues")!) {
                     Label("Report an Issue", systemImage: "exclamationmark.bubble")
