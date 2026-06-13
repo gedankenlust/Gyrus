@@ -213,15 +213,29 @@ final class AppStore {
         isRecovering = true
         defer { isRecovering = false }
 
-        // Clear a stale "couldn't reach server" toast immediately.
-        if uiStateStore.errorMessage != nil { uiStateStore.errorMessage = nil }
+        // Mute transient error toasts for the whole recovery, not just the
+        // brief grace set on wake — an actual restart can take a few seconds.
+        uiStateStore.beginResumeGrace(8)
 
-        let healthy = (try? await api.health()) == true
+        // Right after wake-from-sleep the backend can be momentarily slow to
+        // answer (its process was suspended). Retry the lightweight health
+        // check a few times before concluding it must be restarted — otherwise
+        // we needlessly kill a perfectly alive backend, and that restart window
+        // is exactly what produced the transient "Server error 404".
+        var healthy = false
+        for attempt in 0..<4 {
+            if (try? await api.health()) == true { healthy = true; break }
+            if attempt < 3 { try? await Task.sleep(nanoseconds: 500_000_000) }
+        }
+
         if !healthy {
             await BackendLauncher.shared.start()
             guard BackendLauncher.shared.isRunning else { return }
             try? await api.updateAIBrainConfig(AppSettings.shared.aiBrainConfig)
             await loadAll()
+            // A real restart briefly failed in-flight requests; keep them muted
+            // a moment longer now that the backend is back up.
+            uiStateStore.beginResumeGrace(3)
         }
         FaviconCache.shared.refresh()
     }
