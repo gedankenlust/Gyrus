@@ -3,7 +3,6 @@ import Observation
 
 struct AISettingsView: View {
     @Bindable private var settings = AppSettings.shared
-    @State private var cloudAPIKey: String = ""
     @State private var availableModels: [String] = []
     @State private var isLoadingModels = false
     @State private var errorMessage: String? = nil
@@ -32,57 +31,41 @@ struct AISettingsView: View {
                 }
             }
             
-            Section(header: Text("LLM Provider")) {
-                Picker("Provider", selection: $settings.aiBrainConfig.llmProvider) {
-                    ForEach(AIBrainConfig.LLMProvider.allCases, id: \.self) { provider in
-                        Text(provider.displayName).tag(provider)
-                    }
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                
-                if settings.aiBrainConfig.llmProvider == AIBrainConfig.LLMProvider.ollama {
-                    TextField("Ollama URL", text: $settings.aiBrainConfig.ollamaURL)
-                    
-                    HStack {
-                        Circle()
-                            .fill(statusColor)
-                            .frame(width: 8, height: 8)
-                            .shadow(color: statusColor.opacity(0.5), radius: 2)
-                            .help(statusTooltip)
+            Section(header: Text("Local Model (Ollama)")) {
+                TextField("Ollama URL", text: $settings.aiBrainConfig.ollamaURL)
 
-                        Picker("Model Name", selection: $settings.aiBrainConfig.ollamaModel) {
-                            if availableModels.isEmpty {
-                                Text("No models found").tag("")
-                            } else {
-                                ForEach(availableModels, id: \.self) { model in
-                                    Text(model).tag(model)
-                                }
+                HStack {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: statusColor.opacity(0.5), radius: 2)
+                        .help(statusTooltip)
+
+                    Picker("Model Name", selection: $settings.aiBrainConfig.ollamaModel) {
+                        if availableModels.isEmpty {
+                            Text("No models found").tag("")
+                        } else {
+                            ForEach(availableModels, id: \.self) { model in
+                                Text(model).tag(model)
                             }
                         }
-                        
-                        Button {
-                            refreshModels()
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .rotationEffect(.degrees(isLoadingModels ? 360 : 0))
-                                .animation(isLoadingModels ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isLoadingModels)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Refresh models")
                     }
 
-                    if let error = errorMessage {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundColor(.red)
+                    Button {
+                        refreshModels()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .rotationEffect(.degrees(isLoadingModels ? 360 : 0))
+                            .animation(isLoadingModels ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isLoadingModels)
                     }
-                } else {
-                    VStack(alignment: .leading, spacing: 8) {
-                        SecureField("API Key", text: $cloudAPIKey)
-                        Text("Cloud integration (OpenAI/Anthropic) coming soon.")
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                    }
+                    .buttonStyle(.plain)
+                    .help("Refresh models")
+                }
+
+                if let error = errorMessage {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
                 }
             }
 
@@ -126,21 +109,11 @@ struct AISettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear {
-            if let keyData = KeychainHelper.shared.read(), let key = String(data: keyData, encoding: .utf8) {
-                cloudAPIKey = key
-            }
-            if settings.aiBrainConfig.llmProvider == AIBrainConfig.LLMProvider.ollama {
-                refreshModels()
-            }
+            refreshModels()
             Task {
                 if let status = try? await APIClient.shared.semanticSearchStatus() {
                     semanticIndexed = status.indexed
                 }
-            }
-        }
-        .onChange(of: cloudAPIKey) { _, newValue in
-            if let data = newValue.data(using: .utf8) {
-                KeychainHelper.shared.save(data)
             }
         }
     }
@@ -162,7 +135,7 @@ struct AISettingsView: View {
     }
 
     private func refreshModels() {
-        guard settings.aiBrainConfig.llmProvider == AIBrainConfig.LLMProvider.ollama, !settings.aiBrainConfig.ollamaURL.isEmpty else { return }
+        guard !settings.aiBrainConfig.ollamaURL.isEmpty else { return }
         
         isLoadingModels = true
         errorMessage = nil

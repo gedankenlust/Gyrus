@@ -52,11 +52,11 @@ class LLMService:
 
         if provider == "ollama":
             return await LLMService._ask_ollama(prompt, context, provider_config, title, url, history)
-        # Cloud providers aren't implemented yet — be honest instead of returning
-        # a fake stub answer (which looked like a real reply to the user).
+        # Gyrus is local-only by design — there is no cloud provider. This guards
+        # against an unexpected/legacy provider value in a stored config.
         raise LLMUnavailableError(
-            "Cloud AI providers aren't available yet. Switch to Ollama in "
-            "Settings → AI to chat with a local model."
+            "Gyrus uses a local model. Configure Ollama in Settings → AI to "
+            "chat with the Brain."
         )
 
     @staticmethod

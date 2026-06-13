@@ -213,7 +213,7 @@ final class APIClient {
         struct ReaderResponse: Decodable { let content: String }
         let pc = ProviderConfig(
             provider: config.llmProvider.rawValue,
-            model: config.llmProvider == .ollama ? config.ollamaModel : "gpt-4o",
+            model: config.ollamaModel,
             ollama_url: config.ollamaURL
         )
         let res: ReaderResponse = try await post(
@@ -233,19 +233,13 @@ final class APIClient {
             let provider_config: ProviderConfig
         }
         
-        var apiKey = ""
-        if config.llmProvider == .cloud {
-            if let keyData = KeychainHelper.shared.read(), let key = String(data: keyData, encoding: .utf8) {
-                apiKey = key
-            }
-        }
         let providerConfig = ProviderConfig(
             provider: config.llmProvider.rawValue,
-            model: config.llmProvider == AIBrainConfig.LLMProvider.ollama ? config.ollamaModel : "gpt-4o",
+            model: config.ollamaModel,
             ollama_url: config.ollamaURL,
-            api_key: apiKey
+            api_key: ""
         )
-        
+
         return try await post(base.appending(path: "/api/bookmarks/\(bookmarkId)/auto-tag"), body: Body(provider_config: providerConfig), timeout: APIClient.llmTimeout)
     }
 
@@ -498,18 +492,11 @@ final class APIClient {
             let response: String
         }
 
-        var apiKey = ""
-        if config.llmProvider == .cloud {
-            if let keyData = KeychainHelper.shared.read(), let key = String(data: keyData, encoding: .utf8) {
-                apiKey = key
-            }
-        }
-
         let providerConfig = ProviderConfig(
             provider: config.llmProvider.rawValue,
-            model: config.llmProvider == AIBrainConfig.LLMProvider.ollama ? config.ollamaModel : "gpt-4o",
+            model: config.ollamaModel,
             ollama_url: config.ollamaURL,
-            api_key: apiKey
+            api_key: ""
         )
 
         let body = ChatRequest(
@@ -540,7 +527,7 @@ final class APIClient {
 
         let providerConfig = ProviderConfig(
             provider: config.llmProvider.rawValue,
-            model: config.llmProvider == .ollama ? config.ollamaModel : "gpt-4o",
+            model: config.ollamaModel,
             ollama_url: config.ollamaURL
         )
         let body = ChatRequest(

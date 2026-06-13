@@ -23,7 +23,8 @@ async def test_ask_llm_ollama():
 
 @pytest.mark.asyncio
 async def test_cloud_provider_raises_clear_error():
-    # Cloud is not implemented yet — must raise a clear, user-facing error
+    # Gyrus is local-only by design — any non-ollama provider (e.g. a legacy
+    # "cloud" value in a stored config) must raise a clear, user-facing error
     # instead of returning a fake stub answer.
     for provider in ("cloud", "openai", "anthropic", "google"):
         with pytest.raises(LLMUnavailableError) as exc:

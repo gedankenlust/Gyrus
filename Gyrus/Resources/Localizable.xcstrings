@@ -3776,6 +3776,16 @@
           }
         }
       }
+    },
+    "Local Model (Ollama)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lokales Modell (Ollama)"
+          }
+        }
+      }
     }
   },
   "version": "1.1"
