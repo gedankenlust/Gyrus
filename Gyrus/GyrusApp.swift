@@ -126,7 +126,7 @@ struct GyrusApp: App {
                 .environment(\.locale, settings.resolvedLocale)
         }
 
-        MenuBarExtra("Gyrus", systemImage: "bookmark.fill", isInserted: $settings.showMenuBarItem) {
+        MenuBarExtra("Gyrus", image: "MenuBarIcon", isInserted: $settings.showMenuBarItem) {
             Button("Quick Add… (\(settings.quickAddHotkey.displayString))") {
                 QuickAddController.shared.show()
             }
