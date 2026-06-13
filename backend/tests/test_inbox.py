@@ -35,6 +35,22 @@ def test_extension_bookmark_goes_to_inbox(client, db):
     assert inbox is not None
     assert inbox.name == "Inbox"
 
+def test_menubar_bookmark_goes_to_inbox(client, db):
+    # GIVEN: A bookmark created via the menu-bar quick-add (source="menubar")
+    resp = client.post("/api/bookmarks", json={
+        "title": "Menubar Bookmark",
+        "url": "https://menubar.com",
+        "source": "menubar"
+    })
+    assert resp.status_code == 201
+    data = resp.json()
+
+    # THEN: It is auto-assigned to the Inbox, same as the extension path.
+    assert data["collection_id"] is not None
+    inbox = db.query(Collection).filter(Collection.id == data["collection_id"]).first()
+    assert inbox is not None and inbox.name == "Inbox"
+
+
 def test_extension_bookmark_reuses_inbox(client, db):
     # GIVEN: One bookmark already in Inbox
     client.post("/api/bookmarks", json={

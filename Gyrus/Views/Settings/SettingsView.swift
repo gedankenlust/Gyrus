@@ -71,11 +71,28 @@ private struct GeneralPane: View {
                 HStack {
                     Text("Global Search Shortcut")
                     Spacer()
-                    HotkeyRecorder(hotkey: $settings.searchHotkey) {
-                        // Re-register hotkey immediately when changed
-                        GlobalHotkey.shared.register(config: settings.searchHotkey)
-                    }
+                    // Setting the binding fires AppSettings.didSet, which
+                    // re-registers the hotkey and updates the conflict flag.
+                    HotkeyRecorder(hotkey: $settings.searchHotkey) { }
                 }
+                if settings.searchHotkeyConflict {
+                    Text("This shortcut is already in use — pick another.")
+                        .font(.caption).foregroundStyle(.red)
+                }
+
+                HStack {
+                    Text("Quick Add Shortcut")
+                    Spacer()
+                    HotkeyRecorder(hotkey: $settings.quickAddHotkey) { }
+                }
+                .help("Open the quick-add panel from anywhere to save the URL in your clipboard.")
+                if settings.quickAddHotkeyConflict {
+                    Text("This shortcut is already in use — pick another.")
+                        .font(.caption).foregroundStyle(.red)
+                }
+
+                Toggle("Show Gyrus in the menu bar", isOn: $settings.showMenuBarItem)
+                    .help("A menu-bar icon for quick-adding bookmarks without opening the main window.")
             }
 
             Section("Export Defaults") {

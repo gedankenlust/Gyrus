@@ -9,6 +9,15 @@ public struct HotkeyConfig: Codable, Equatable {
     public var keyString: String
     
     public static let defaultSearch = HotkeyConfig(keyCode: 49, modifiers: UInt32(optionKey), keyString: "Space")
+
+    /// Quick-add default: ⌃⌥⌘B. A three-modifier combo with a letter is
+    /// practically never claimed by the system (⌥Space is already the search
+    /// shortcut, ⌘Space is Spotlight). keyCode 11 = "B".
+    public static let defaultQuickAdd = HotkeyConfig(
+        keyCode: 11,
+        modifiers: UInt32(controlKey) | UInt32(optionKey) | UInt32(cmdKey),
+        keyString: "B"
+    )
     
     public var displayString: String {
         var str = ""
@@ -47,6 +56,8 @@ public final class AppSettings {
         static let aiBrainConfig = "aiBrainConfig"
         static let didCompleteBrainOnboarding = "didCompleteBrainOnboarding"
         static let searchHotkey = "searchHotkey"
+        static let quickAddHotkey = "quickAddHotkey"
+        static let showMenuBarItem = "showMenuBarItem"
     }
 
     // MARK: - General Settings
@@ -97,10 +108,32 @@ public final class AppSettings {
             if let data = try? JSONEncoder().encode(searchHotkey) {
                 defaults.set(data, forKey: Keys.searchHotkey)
             }
-            // Trigger dynamic re-registration
-            GlobalHotkey.shared.register(config: searchHotkey)
+            // Re-register with the same callback; remember if the combo is taken.
+            searchHotkeyConflict = !GlobalHotkey.shared.reregister(
+                id: GlobalHotkey.searchID, config: searchHotkey)
         }
     }
+
+    public var quickAddHotkey: HotkeyConfig {
+        didSet {
+            if let data = try? JSONEncoder().encode(quickAddHotkey) {
+                defaults.set(data, forKey: Keys.quickAddHotkey)
+            }
+            quickAddHotkeyConflict = !GlobalHotkey.shared.reregister(
+                id: GlobalHotkey.quickAddID, config: quickAddHotkey)
+        }
+    }
+
+    /// Show the Gyrus icon in the macOS menu bar (quick-add + open). Default on.
+    public var showMenuBarItem: Bool {
+        didSet { defaults.set(showMenuBarItem, forKey: Keys.showMenuBarItem) }
+    }
+
+    /// Transient (not persisted): true when the last re-registration of the
+    /// corresponding hotkey failed because the combination is already taken.
+    /// Drives an inline warning in Settings.
+    public var searchHotkeyConflict: Bool = false
+    public var quickAddHotkeyConflict: Bool = false
 
     // MARK: - AI Brain Settings
 
@@ -144,6 +177,13 @@ public final class AppSettings {
         } else {
             searchHotkey = .defaultSearch
         }
+        if let data = d.data(forKey: Keys.quickAddHotkey),
+           let config = try? JSONDecoder().decode(HotkeyConfig.self, from: data) {
+            quickAddHotkey = config
+        } else {
+            quickAddHotkey = .defaultQuickAdd
+        }
+        showMenuBarItem = d.object(forKey: Keys.showMenuBarItem) as? Bool ?? true
         if let data = d.data(forKey: Keys.aiBrainConfig),
            let config = try? JSONDecoder().decode(AIBrainConfig.self, from: data) {
             aiBrainConfig = config

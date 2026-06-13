@@ -115,8 +115,8 @@ def create_bookmark(db: Session, data: BookmarkCreate) -> Bookmark:
 
     collection_id = data.collection_id
 
-    # Extension logic: automatic Inbox assignment
-    if data.source == "extension" and not collection_id:
+    # Extension / menu-bar quick-add: automatic Inbox assignment
+    if data.source in ("extension", "menubar") and not collection_id:
         inbox = db.query(Collection).filter(Collection.name == "Inbox", Collection.parent_id == None).first()
         if not inbox:
             try:

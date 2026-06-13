@@ -38,13 +38,22 @@ struct GyrusApp: App {
             }
         }
 
-        GlobalHotkey.shared.onTrigger = {
+        // Global search shortcut → open the command palette.
+        GlobalHotkey.shared.register(id: GlobalHotkey.searchID,
+                                     config: AppSettings.shared.searchHotkey) {
             DispatchQueue.main.async {
                 NSApp.activate(ignoringOtherApps: true)
                 NotificationCenter.default.post(name: .showCommandPalette, object: nil)
             }
         }
-        GlobalHotkey.shared.register(config: AppSettings.shared.searchHotkey)
+        // Global quick-add shortcut → floating quick-add panel (works even when
+        // the main window is closed or Gyrus isn't frontmost).
+        GlobalHotkey.shared.register(id: GlobalHotkey.quickAddID,
+                                     config: AppSettings.shared.quickAddHotkey) {
+            DispatchQueue.main.async {
+                QuickAddController.shared.show()
+            }
+        }
     }
 
     private var resolvedScheme: ColorScheme? {
@@ -110,5 +119,23 @@ struct GyrusApp: App {
             SettingsView()
                 .environment(\.locale, settings.resolvedLocale)
         }
+
+        MenuBarExtra("Gyrus", systemImage: "bookmark.fill", isInserted: $settings.showMenuBarItem) {
+            Button("Quick Add… (\(settings.quickAddHotkey.displayString))") {
+                QuickAddController.shared.show()
+            }
+
+            Button("Open Gyrus") {
+                NSApp.activate(ignoringOtherApps: true)
+                NSApp.windows.first?.makeKeyAndOrderFront(nil)
+            }
+
+            Divider()
+
+            Button("Quit Gyrus") {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+        .environment(\.locale, settings.resolvedLocale)
     }
 }

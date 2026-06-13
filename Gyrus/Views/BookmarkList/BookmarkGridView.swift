@@ -77,7 +77,16 @@ struct BookmarkGridView: View {
         .dropDestination(for: URL.self) { urls, _ in
             if let url = urls.first,
                (url.scheme == "https" || url.scheme == "http") {
-                Task { try? await bookmarkStore.addBookmarkFromURL(url.absoluteString) }
+                Task {
+                    do {
+                        _ = try await bookmarkStore.addBookmarkFromURL(url.absoluteString)
+                        AppStore.shared.uiStateStore.showInfo("Bookmark added.")
+                    } catch APIError.duplicate {
+                        AppStore.shared.uiStateStore.showInfo("Already saved.")
+                    } catch {
+                        AppStore.shared.uiStateStore.showError(error.localizedDescription)
+                    }
+                }
                 return true
             }
             return false

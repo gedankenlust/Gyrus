@@ -5,6 +5,40 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.8.0] – 2026-06-13
+
+### Added
+- **Menu-bar quick-add** — a Gyrus icon in the macOS menu bar to save a
+  bookmark without opening the main window. The quick-add panel pre-fills the
+  URL from your clipboard and drops it into the Inbox. Can be hidden in
+  Settings → Behavior.
+- **Global quick-add shortcut** (default ⌃⌥⌘B, freely configurable) — opens the
+  quick-add panel from anywhere, even when Gyrus isn't frontmost.
+- Hotkey settings now warn when a chosen combination is already in use.
+
+### Fixed
+- No more transient "Server error 404" toast when returning to the app after
+  the Mac wakes from sleep — the background poll now waits for the backend to
+  reconnect.
+- Dragging a URL onto the grid now confirms success (or reports a duplicate)
+  instead of failing silently.
+
+---
+
+## [0.7.1] – 2026-06-12
+
+### Fixed
+- Semantic-search vector index now stays in sync when bookmarks are trashed in
+  bulk, restored, or purged (previously only single-delete cleaned up).
+- Summarize and reindex now route through the shared API client instead of
+  hardcoded URLs.
+- Semantic search falls back to keyword search on errors instead of failing.
+- The semantic-search toggle now appears automatically when Ollama is started
+  after Gyrus is already running.
+- Completed the German localization (no untranslated strings remaining).
+
+---
+
 ## [0.7.0] – 2026-06-11
 
 ### Added

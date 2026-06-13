@@ -76,8 +76,12 @@ final class AppStore {
                 try? await Task.sleep(nanoseconds: 5_000_000_000) // poll every 5 seconds
                 guard !Task.isCancelled else { return }
 
-                // Skip while we're actively loading or running a link check.
-                guard !uiStateStore.isLoading && uiStateStore.linkCheckStatus?.running != true else { continue }
+                // Skip while we're actively loading, recovering the backend
+                // (wake-from-sleep), or running a link check — otherwise the
+                // poll can race the reconnect and surface a transient 404.
+                guard !uiStateStore.isLoading,
+                      !isRecovering,
+                      uiStateStore.linkCheckStatus?.running != true else { continue }
                 
                 do {
                     let serverCount = try await api.bookmarkCount()
@@ -119,6 +123,13 @@ final class AppStore {
            urlError.code == .notConnectedToInternet ||
            urlError.code == .networkConnectionLost ||
            urlError.code == .cancelled {
+            return
+        }
+        // While the backend is being restarted after wake-from-sleep, a request
+        // can briefly hit a 404/5xx before the server is ready. Don't alarm the
+        // user — recoverConnection() is already fixing it.
+        if isRecovering, case APIError.serverError(let code) = error,
+           code == 404 || code >= 500 {
             return
         }
         uiStateStore.showError(error.localizedDescription)

@@ -3616,6 +3616,156 @@
           }
         }
       }
+    },
+    "https://…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://…"
+          }
+        }
+      }
+    },
+    "Quick Add": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schnell hinzufügen"
+          }
+        }
+      }
+    },
+    "Inbox": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inbox"
+          }
+        }
+      }
+    },
+    "Saved to bookmarks": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zu Lesezeichen hinzugefügt"
+          }
+        }
+      }
+    },
+    "Already saved": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereits gespeichert"
+          }
+        }
+      }
+    },
+    "Quick Add… (%@)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schnell hinzufügen … (%@)"
+          }
+        }
+      }
+    },
+    "Open Gyrus": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gyrus öffnen"
+          }
+        }
+      }
+    },
+    "Quit Gyrus": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gyrus beenden"
+          }
+        }
+      }
+    },
+    "Quick Add Shortcut": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schnelles Hinzufügen"
+          }
+        }
+      }
+    },
+    "This shortcut is already in use — pick another.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Kurzbefehl ist bereits belegt — wähle einen anderen."
+          }
+        }
+      }
+    },
+    "Open the quick-add panel from anywhere to save the URL in your clipboard.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Öffnet von überall das Schnell-Hinzufügen-Fenster, um die URL aus der Zwischenablage zu speichern."
+          }
+        }
+      }
+    },
+    "Show Gyrus in the menu bar": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gyrus in der Menüleiste anzeigen"
+          }
+        }
+      }
+    },
+    "A menu-bar icon for quick-adding bookmarks without opening the main window.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Menüleisten-Symbol zum schnellen Hinzufügen von Lesezeichen, ohne das Hauptfenster zu öffnen."
+          }
+        }
+      }
+    },
+    "Bookmark added.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen hinzugefügt."
+          }
+        }
+      }
+    },
+    "Already saved.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereits gespeichert."
+          }
+        }
+      }
     }
   },
   "version": "1.1"

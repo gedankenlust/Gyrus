@@ -3,25 +3,25 @@
    <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES">
       <BuildActionEntries>
          <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="284753B76D994313B1A0946C" BuildableName="Gyrus.app" BlueprintName="Gyrus" ReferencedContainer="container:Gyrus.xcodeproj"/>
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="9E152320E09D4355A7BD28D2" BuildableName="Gyrus.app" BlueprintName="Gyrus" ReferencedContainer="container:Gyrus.xcodeproj"/>
          </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES">
       <Testables>
          <TestableReference skipped="NO">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="7BB066A08998404396141EEE" BuildableName="GyrusTests.xctest" BlueprintName="GyrusTests" ReferencedContainer="container:Gyrus.xcodeproj"/>
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="78DF89D7B6EF4592AE88E4E5" BuildableName="GyrusTests.xctest" BlueprintName="GyrusTests" ReferencedContainer="container:Gyrus.xcodeproj"/>
          </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO" ignoresPersistentStateOnLaunch="NO" debugDocumentVersioning="YES" debugServiceExtension="internal" allowLocationSimulation="YES">
       <BuildableProductRunnable runnableDebuggingMode="0">
-         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="284753B76D994313B1A0946C" BuildableName="Gyrus.app" BlueprintName="Gyrus" ReferencedContainer="container:Gyrus.xcodeproj"/>
+         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="9E152320E09D4355A7BD28D2" BuildableName="Gyrus.app" BlueprintName="Gyrus" ReferencedContainer="container:Gyrus.xcodeproj"/>
       </BuildableProductRunnable>
    </LaunchAction>
    <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES">
       <BuildableProductRunnable runnableDebuggingMode="0">
-         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="284753B76D994313B1A0946C" BuildableName="Gyrus.app" BlueprintName="Gyrus" ReferencedContainer="container:Gyrus.xcodeproj"/>
+         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="9E152320E09D4355A7BD28D2" BuildableName="Gyrus.app" BlueprintName="Gyrus" ReferencedContainer="container:Gyrus.xcodeproj"/>
       </BuildableProductRunnable>
    </ProfileAction>
    <AnalyzeAction buildConfiguration="Debug"/>
