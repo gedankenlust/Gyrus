@@ -80,7 +80,9 @@ on, Gyrus is a plain, fast bookmark manager.
 | 🗂️ **Folders & tags** | Native source-list sidebar: drag to reorder/nest folders and color them; colored tags; bulk-assign tags via right-click |
 | 🪄 **AI Auto-Tags** | Magic tagging that automatically categorizes links using local LLMs (via Ollama) |
 | 🔎 **Full-text search** | A search bar (and a ⌘K command palette) over titles, URLs, notes **and tags**, powered by SQLite FTS5 |
+| ✨ **Semantic search** | Find bookmarks by *meaning*, not just keywords — local embeddings (`nomic-embed-text` via Ollama). Toggle next to the search bar; falls back to keyword search when Ollama is off |
 | ⌨️ **Global Search** | Access your library from anywhere in macOS with a customizable system-wide hotkey (default `⌥ Space`) |
+| ⚡ **Menu-bar quick-add** | A menu-bar icon and a configurable global shortcut save the URL in your clipboard straight to the Inbox — without opening the main window |
 | 📖 **Reader Mode** | A distraction-free reading experience that extracts article text and images |
 | ✅ **Multi-select & bulk actions** | Rubber-band (marquee), Shift- and ⌘-click, or "Select all" — then drag many bookmarks into a folder, tag or delete them at once |
 | 👁️ **Live preview** | Open any page in an embedded `WKWebView`, read its Open Graph metadata, or choose which tab a bookmark opens to |
@@ -286,22 +288,26 @@ pytest
 
 ## Project status
 
-Gyrus is in active development (**v0.7.0**). It is stable for daily use and
-ships with a comprehensive automated test suite.
+Gyrus is in active development (**v0.8.0**, on the road to 1.0). It is stable
+for daily use and ships with a comprehensive automated test suite (160+ tests
+across the backend and the app).
 
 ## Roadmap
 
-**🧠 A smarter AI Brain — v0.7.0 focus.**
-Semantic search powered by local embeddings: find bookmarks by meaning, not
-just keywords. Plus automatic summaries when a bookmark is saved — all private,
-all on your Mac.
-- Semantic / meaning-based search (via local embedding model)
-- Automatic page summaries on save
+**On the way to 1.0 — hardening & polish.**
+The core is feature-complete; the focus now is on the things that make a 1.0
+feel like a 1.0:
+- Robustness under stress (Ollama offline, large imports, recovery)
+- Verified performance with tens of thousands of bookmarks
+- Code signing & notarization for a friction-free install *(planned)*
+
+**Later — a smarter AI Brain.**
 - "Related bookmarks" suggestions across your library
 - Multi-bookmark queries (ask questions across your whole library)
 
-**⌨️ Faster, keyboard-first workflows.**
-- Full keyboard-driven navigation throughout the entire app
+> Already shipped: semantic (meaning-based) search, automatic summaries on
+> demand, streaming local AI chat, soft-delete Trash, read/unread, and
+> menu-bar quick-add.
 
 ## FAQ
 
