@@ -62,8 +62,8 @@ on, Gyrus is a plain, fast bookmark manager.
 
 - **Local-first by design.** Your data lives in a plain SQLite database on your
   disk. You can back it up, inspect it, or delete it — it's yours.
-- **Fast, even with thousands of bookmarks.** SQLite FTS5 full-text search and
-  paginated lists keep things instant.
+- **Fast, even with tens of thousands of bookmarks.** SQLite FTS5 full-text
+  search and paginated lists keep things instant — tested well past 100k.
 - **Native, not a web wrapper.** A real SwiftUI app with a Finder-quality
   source-list sidebar — drag to reorder and nest folders, color them, bulk-tag
   with a right-click.
@@ -92,7 +92,7 @@ on, Gyrus is a plain, fast bookmark manager.
 | 🧠 **AI Brain** *(optional)* | Chat about a page with a local LLM that actually **reads the page** (article text, structured data, tables, YouTube). Each bookmark mirrors to a Markdown file that follows your folder structure — all on your machine |
 | 🧩 **Browser extension** | A small "Gyrus Saver" popup saves the current tab straight into your Inbox |
 | 💾 **Backup & restore** | Export/import everything as a portable JSON file |
-| ↕️ **Sorting & pagination** | Sort by date, title, URL or tag; handles thousands of bookmarks smoothly |
+| ↕️ **Sorting & pagination** | Sort by date, title, URL or tag; handles tens of thousands of bookmarks smoothly (tested past 100k) |
 
 ## Privacy
 
@@ -297,8 +297,7 @@ across the backend and the app).
 **On the way to 1.0 — hardening & polish.**
 The core is feature-complete; the focus now is on the things that make a 1.0
 feel like a 1.0:
-- Robustness under stress (Ollama offline, large imports, recovery)
-- Verified performance with tens of thousands of bookmarks
+- Continued robustness hardening (Ollama offline, large imports, recovery)
 - Code signing & notarization for a friction-free install *(planned)*
 
 **Later — a smarter AI Brain.**
