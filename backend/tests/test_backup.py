@@ -58,4 +58,31 @@ def test_prunes_to_keep_limit(tmp_backup, monkeypatch):
     for i in range(5):
         (backups / f"gyrus-2026010{i}-000000.db").write_bytes(b"old")
     backup_service.run_daily_backup()
-    assert len(list(backups.glob("gyrus-*.db"))) == 3
+    assert len(list(backups.glob(backup_service.DAILY_GLOB))) == 3
+
+
+def test_premigration_backup_ignores_daily_throttle(tmp_backup):
+    """A schema change must always be preceded by a fresh snapshot, even if a
+    daily backup already ran moments ago."""
+    _, backups = tmp_backup
+    backup_service.run_daily_backup()                 # daily snapshot now exists
+    backup_service.backup_before_migration()          # must still snapshot
+    pre = list(backups.glob(backup_service.PREMIGRATION_GLOB))
+    assert len(pre) == 1
+    con = sqlite3.connect(pre[0])
+    assert con.execute("SELECT COUNT(*) FROM t").fetchone()[0] == 1
+    con.close()
+
+
+def test_premigration_ring_is_independent_of_daily(tmp_backup, monkeypatch):
+    """Pre-migration snapshots prune on their own ring and never delete daily
+    backups (and vice-versa)."""
+    _, backups = tmp_backup
+    monkeypatch.setattr(backup_service, "KEEP_PREMIGRATION", 2)
+    backups.mkdir(parents=True, exist_ok=True)
+    # Seed a daily backup that must survive premigration pruning.
+    (backups / "gyrus-20260101-000000.db").write_bytes(b"daily")
+    for _ in range(4):
+        backup_service.backup_before_migration()
+    assert len(list(backups.glob(backup_service.PREMIGRATION_GLOB))) == 2
+    assert (backups / "gyrus-20260101-000000.db").exists()

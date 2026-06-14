@@ -18,15 +18,21 @@ BACKUP_DIR = DATA_DIR / "db" / "backups"
 KEEP = 7
 MIN_INTERVAL = timedelta(hours=20)
 
+# Daily snapshots are named with a leading date digit; pre-migration ones carry
+# a distinct prefix so the two rings prune independently.
+DAILY_GLOB = "gyrus-[0-9]*.db"
+PREMIGRATION_GLOB = "gyrus-premigration-*.db"
+KEEP_PREMIGRATION = 3
+
 
 def run_daily_backup() -> None:
-    """Write a DB snapshot if the newest one is older than MIN_INTERVAL."""
+    """Write a DB snapshot if the newest daily one is older than MIN_INTERVAL."""
     try:
         if not DB_PATH.exists():
             return
         BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
-        existing = sorted(BACKUP_DIR.glob("gyrus-*.db"))
+        existing = sorted(BACKUP_DIR.glob(DAILY_GLOB))
         if existing:
             age = datetime.now() - datetime.fromtimestamp(existing[-1].stat().st_mtime)
             if age < MIN_INTERVAL:
@@ -36,11 +42,35 @@ def run_daily_backup() -> None:
         _snapshot(DB_PATH, dst)
         logger.info("DB backup written: %s", dst.name)
 
-        # Keep only the most recent KEEP snapshots.
-        for old in sorted(BACKUP_DIR.glob("gyrus-*.db"))[:-KEEP]:
+        # Keep only the most recent KEEP daily snapshots.
+        for old in sorted(BACKUP_DIR.glob(DAILY_GLOB))[:-KEEP]:
             old.unlink(missing_ok=True)
     except Exception as e:
         logger.warning("DB backup failed: %s", e)
+
+
+def backup_before_migration() -> None:
+    """Snapshot taken right before a schema migration runs.
+
+    Unlike :func:`run_daily_backup`, this ignores the daily throttle — a schema
+    change must ALWAYS be preceded by a fresh, recoverable copy, even if a daily
+    backup already happened earlier today. Kept in a separate small ring.
+    """
+    try:
+        if not DB_PATH.exists():
+            return
+        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+
+        # Microseconds keep the name unique even if two migrations run in the
+        # same second (and lets tests snapshot in a tight loop).
+        dst = BACKUP_DIR / f"gyrus-premigration-{datetime.now():%Y%m%d-%H%M%S-%f}.db"
+        _snapshot(DB_PATH, dst)
+        logger.info("Pre-migration DB backup written: %s", dst.name)
+
+        for old in sorted(BACKUP_DIR.glob(PREMIGRATION_GLOB))[:-KEEP_PREMIGRATION]:
+            old.unlink(missing_ok=True)
+    except Exception as e:
+        logger.warning("Pre-migration backup failed: %s", e)
 
 
 def _snapshot(src_path: Path, dst_path: Path) -> None:
