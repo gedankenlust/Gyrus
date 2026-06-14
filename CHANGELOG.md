@@ -5,6 +5,25 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.9.0] – 2026-06-14
+
+### Changed
+- **Gyrus is now strictly local-only.** Removed the unfinished cloud LLM
+  (OpenAI/Anthropic) provider option from Settings — the AI Brain runs entirely
+  on your local Ollama model. Old configs that referenced "cloud" fall back to
+  Ollama automatically.
+
+### Hardened
+- A full database snapshot is now **guaranteed before any schema migration**,
+  independent of the once-a-day backup throttle. An update can never apply a
+  migration without first leaving a fresh, recoverable copy.
+
+### Docs
+- README brought in line with what actually ships (semantic search, menu-bar
+  quick-add) and the validated scale — smooth past 100,000 bookmarks.
+
+---
+
 ## [0.8.0] – 2026-06-13
 
 ### Added
