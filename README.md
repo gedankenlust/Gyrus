@@ -45,6 +45,13 @@ shortcut away, no matter which app you're in.
 **Just want to use the app?**  
 Download the latest **`Gyrus.dmg`** from the [Releases](https://github.com/gedankenlust/Gyrus/releases) page. Open the disk image and drag Gyrus to your Applications folder.
 
+**First launch (the app is open-source and unsigned):** macOS will refuse to open it the first time because it isn't from an "identified developer." This is expected — to allow it:
+
+- **macOS 15 (Sequoia) and newer:** double-click Gyrus, dismiss the warning, then go to **System Settings → Privacy & Security**, scroll down, and click **"Open Anyway"**. Confirm once.
+- **Older macOS:** **right-click (or Control-click) Gyrus.app → "Open"**, then click **"Open"** in the dialog.
+
+You only need to do this once per install/update. (Gyrus isn't notarized because it ships without a paid Apple Developer account — everything still runs 100% locally on your Mac.)
+
 *Note: Gyrus requires macOS 26 (Tahoe) or newer.*
 
 ---
