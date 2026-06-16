@@ -161,8 +161,10 @@ A small popup that saves the current tab into your **Inbox**.
 1. Open `chrome://extensions` (Chrome / Brave / Edge).
 2. Turn on **Developer mode** (top-right).
 3. Click **Load unpacked** and select the `extension/` folder of this project.
-4. Make sure the Gyrus app is running, then click the extension icon to save
-   the current tab.
+4. Click the extension icon to save the current tab. Gyrus's local backend
+   keeps running in the background, so this works even with the Gyrus window
+   closed — you don't need it in the foreground. (Just open Gyrus once after a
+   reboot so the backend is up.)
 
 ### 8. Where your data lives (privacy)
 
@@ -351,8 +353,10 @@ Ein kleines Popup, das die aktuelle Seite in deine **Inbox** speichert.
 1. `chrome://extensions` öffnen (Chrome / Brave / Edge).
 2. **Entwicklermodus** oben rechts einschalten.
 3. **Entpackt laden** klicken und den Ordner `extension/` dieses Projekts wählen.
-4. Sicherstellen, dass die Gyrus-App läuft, dann auf das Extension-Symbol klicken,
-   um die aktuelle Seite zu speichern.
+4. Auf das Extension-Symbol klicken, um die aktuelle Seite zu speichern. Das
+   lokale Gyrus-Backend läuft im Hintergrund weiter — das funktioniert also
+   auch bei geschlossenem Gyrus-Fenster, du musst Gyrus nicht im Vordergrund
+   haben. (Öffne Gyrus nach einem Neustart einmal, damit das Backend läuft.)
 
 ### 8. Wo deine Daten liegen (Datenschutz)
 

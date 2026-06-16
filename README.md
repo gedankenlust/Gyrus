@@ -163,7 +163,7 @@ The **Gyrus Saver** is a lightweight companion for your browser. It allows you t
 
 ### How to Install (Chrome, Brave, Arc, Edge)
 
-Since Gyrus is privacy-focused and doesn't use a central cloud, the extension talks directly to the app on your Mac. You can install it in a few seconds:
+Since Gyrus is privacy-focused and doesn't use a central cloud, the extension talks directly to the local Gyrus backend on your Mac. You can install it in a few seconds:
 
 1.  **Open Extension Settings:** In your browser, go to the extensions page (e.g., `chrome://extensions` or `brave://extensions`).
 2.  **Enable Developer Mode:** Toggle the **"Developer mode"** switch (usually in the top right corner).
@@ -173,7 +173,7 @@ Since Gyrus is privacy-focused and doesn't use a central cloud, the extension ta
 ### How it works
 *   **One-Click Save:** Click the icon while browsing, and the page is instantly sent to your local Gyrus database.
 *   **Private by Design:** The extension only has permission to talk to `127.0.0.1:8080` (your own Mac). It never connects to the internet or any third-party server.
-*   **Requirements:** Gyrus must be running on your Mac for the extension to save bookmarks.
+*   **Works in the background:** Once you've launched Gyrus, its local backend keeps running on your Mac — so you can save from your browser even with the Gyrus window closed or the app not in the foreground. You don't need to bring Gyrus to the front. (If you've never opened Gyrus since rebooting, open it once so the backend is up.)
 
 ## AI Brain (optional)
 
