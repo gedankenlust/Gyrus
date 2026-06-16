@@ -125,11 +125,16 @@ final class AppStore {
            urlError.code == .cancelled {
             return
         }
-        // While the backend is being restarted after wake-from-sleep, a request
-        // can briefly hit a 404/5xx before the server is ready. Don't alarm the
-        // user — recoverConnection() is already fixing it.
-        if isRecovering, case APIError.serverError(let code) = error,
-           code == 404 || code >= 500 {
+        // A background list/count/search refresh that hits a transient
+        // infrastructure error (the backend briefly restarting after the Mac
+        // wakes — 404 on a normally-valid route, 501, or any 5xx) is
+        // self-healing: the poll and recoverConnection() refetch moments later.
+        // These are never actionable, so never toast them. (A genuine backend
+        // outage surfaces via the StartupView / retry path instead.) This is
+        // unconditional on purpose — the old isRecovering/grace check raced with
+        // errors that land at the exact focus moment.
+        if case APIError.serverError(let code) = error,
+           code == 404 || code == 501 || code >= 500 {
             return
         }
         uiStateStore.showError(error.localizedDescription)
