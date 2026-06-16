@@ -17,5 +17,6 @@ class TagOut(BaseModel):
     name: str
     color: str | None
     created_at: datetime
+    bookmark_count: int = 0
 
     model_config = {"from_attributes": True}

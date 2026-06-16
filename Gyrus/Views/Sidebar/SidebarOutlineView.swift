@@ -122,7 +122,7 @@ struct SidebarOutlineView: NSViewRepresentable {
 
             let tags = node(id: "group:tags", kind: .group(title: "Tags", add: .tag))
             tags.children = parent.tagStore.tags.map { tag in
-                node(id: "tag:\(tag.name)", kind: .tag(tag))
+                node(id: "tag:\(tag.name)", kind: .tag(tag), count: tag.bookmarkCount)
             }
             newRoots.append(tags)
 
@@ -216,7 +216,7 @@ struct SidebarOutlineView: NSViewRepresentable {
                 let cell = (ov.makeView(withIdentifier: id, owner: self) as? TagCellView) ?? {
                     let c = TagCellView(); c.identifier = id; return c
                 }()
-                cell.configure(name: t.name, color: nsColor(hex: t.color))
+                cell.configure(name: t.name, color: nsColor(hex: t.color), count: n.count)
                 return cell
             }
         }
@@ -568,6 +568,7 @@ final class ItemCellView: NSTableCellView {
 final class TagCellView: NSTableCellView {
     private let dot = NSView()
     private let name = NSTextField(labelWithString: "")
+    private let count = NSTextField(labelWithString: "")
     override init(frame: NSRect) {
         super.init(frame: frame)
         dot.wantsLayer = true
@@ -576,7 +577,10 @@ final class TagCellView: NSTableCellView {
         name.font = .systemFont(ofSize: 13)
         name.lineBreakMode = .byTruncatingTail
         name.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(dot); addSubview(name)
+        count.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+        count.textColor = .secondaryLabelColor
+        count.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(dot); addSubview(name); addSubview(count)
         NSLayoutConstraint.activate([
             dot.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
             dot.centerYAnchor.constraint(equalTo: centerYAnchor),
@@ -584,12 +588,16 @@ final class TagCellView: NSTableCellView {
             dot.heightAnchor.constraint(equalToConstant: 10),
             name.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 8),
             name.centerYAnchor.constraint(equalTo: centerYAnchor),
-            name.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -6),
+            count.leadingAnchor.constraint(greaterThanOrEqualTo: name.trailingAnchor, constant: 6),
+            count.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+            count.centerYAnchor.constraint(equalTo: centerYAnchor),
         ])
+        name.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     }
     required init?(coder: NSCoder) { fatalError() }
-    func configure(name: String, color: NSColor) {
+    func configure(name: String, color: NSColor, count: Int) {
         self.name.stringValue = name
         dot.layer?.backgroundColor = color.cgColor
+        self.count.stringValue = count > 0 ? count.formatted() : ""
     }
 }

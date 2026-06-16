@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from database import get_db
-from models.tag import Tag
+from models.tag import Tag, BookmarkTag
+from models.bookmark import Bookmark
 from schemas.tag import TagCreate, TagUpdate, TagOut
 
 router = APIRouter(prefix="/api/tags", tags=["tags"])
@@ -9,7 +11,24 @@ router = APIRouter(prefix="/api/tags", tags=["tags"])
 
 @router.get("", response_model=list[TagOut])
 def list_tags(db: Session = Depends(get_db)):
-    return db.query(Tag).order_by(Tag.name).all()
+    tags = db.query(Tag).order_by(Tag.name).all()
+
+    # Count non-trashed bookmarks per tag (mirrors how folders are counted).
+    rows = (
+        db.query(BookmarkTag.tag_id, func.count(BookmarkTag.bookmark_id))
+        .join(Bookmark, Bookmark.id == BookmarkTag.bookmark_id)
+        .filter(Bookmark.deleted_at.is_(None))
+        .group_by(BookmarkTag.tag_id)
+        .all()
+    )
+    counts = {tid: cnt for tid, cnt in rows}
+
+    out = []
+    for t in tags:
+        item = TagOut.model_validate(t)
+        item.bookmark_count = counts.get(t.id, 0)
+        out.append(item)
+    return out
 
 
 @router.post("", response_model=TagOut, status_code=201)
