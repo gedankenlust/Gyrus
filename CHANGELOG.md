@@ -5,13 +5,26 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [0.9.0] – 2026-06-14
+## [0.9.0] – 2026-06-16
+
+### Added
+- **Bookmark counts next to tags** in the sidebar, matching the folder counts —
+  so you can see at a glance how many bookmarks carry each tag (trashed ones are
+  not counted).
 
 ### Changed
 - **Gyrus is now strictly local-only.** Removed the unfinished cloud LLM
   (OpenAI/Anthropic) provider option from Settings — the AI Brain runs entirely
   on your local Ollama model. Old configs that referenced "cloud" fall back to
   Ollama automatically.
+
+### Fixed
+- No more transient "Server error 404" toast when returning to the app: a
+  background list/count refresh that briefly hits the backend mid-restart is now
+  silently retried instead of alarming you.
+- Sidebar counts (tags and folders) now refresh immediately when they change —
+  e.g. trashing a tagged bookmark drops that tag's count right away instead of
+  showing a stale number.
 
 ### Hardened
 - A full database snapshot is now **guaranteed before any schema migration**,
@@ -21,6 +34,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Docs
 - README brought in line with what actually ships (semantic search, menu-bar
   quick-add) and the validated scale — smooth past 100,000 bookmarks.
+- Clarified that the browser extension saves in the background: once Gyrus has
+  been launched, its local backend keeps running, so you can save from your
+  browser even with the Gyrus window closed.
 
 ---
 
