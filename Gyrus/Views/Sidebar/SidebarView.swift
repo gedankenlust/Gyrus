@@ -28,9 +28,16 @@ struct SidebarView: View {
     @State private var recolorFolderPick: Color = .blue
 
     var body: some View {
-        // Observe so the source list rebuilds when the read-status setting is
-        // toggled (the AppKit outline view refreshes on this view's re-render).
+        // The AppKit outline view only rebuilds when THIS SwiftUI view re-renders,
+        // so we must read every piece of data it displays here — otherwise e.g. a
+        // tag's bookmark count changes in the store but the sidebar keeps showing
+        // the stale number. Touch the read-status setting, the tag/folder lists,
+        // and the sidebar counts so any change triggers a rebuild.
         let _ = AppSettings.shared.enableReadStatus
+        let _ = tagStore.tags
+        let _ = collectionStore.collections
+        let _ = (bookmarkStore.totalBookmarkCount, bookmarkStore.trashCount,
+                 bookmarkStore.deadBookmarkCount, bookmarkStore.unreadBookmarkCount)
         VStack(spacing: 0) {
             SidebarOutlineView(
                 selection: $selection,
