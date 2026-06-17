@@ -37,9 +37,14 @@ async def fetch_metadata(url: str) -> dict:
             # bot-protected site) must NOT abort the favicon, which often lives
             # at a well-known path that's still reachable.
             soup = None
+            page_url = url
             try:
                 resp = await client.get(url)
                 resp.raise_for_status()
+                # Final URL after redirects — e.g. GitHub Pages project sites
+                # redirect "/project" to "/project/", which is what relative
+                # favicon hrefs and well-known paths must resolve against.
+                page_url = str(resp.url)
                 soup = BeautifulSoup(resp.text, "html.parser")
             except Exception as e:
                 logger.info("page fetch failed for %s (will still try favicon): %s", url, e)
@@ -56,7 +61,7 @@ async def fetch_metadata(url: str) -> dict:
                 elif meta_desc and meta_desc.get("content"):
                     result["description"] = meta_desc["content"][:500]
 
-            result["favicon_path"] = await _fetch_favicon(url, soup, client)
+            result["favicon_path"] = await _fetch_favicon(page_url, soup, client)
             if result["og_image_url"]:
                 result["og_image_path"] = await _fetch_og_image(result["og_image_url"], url, client)
 
@@ -80,14 +85,22 @@ _IMAGE_EXT_BY_CONTENT_TYPE = {
 }
 
 
-def _favicon_candidates(soup, base_url: str) -> list[str]:
+def _favicon_candidates(soup, page_url: str) -> list[str]:
     """Build an ordered list of favicon URLs to try, best first.
 
     Prefers icons the page explicitly declares (and raster formats over SVG),
     then falls back to conventional well-known paths. `soup` may be None when
     the page itself was blocked (e.g. 403) — the well-known paths often still
     work in that case.
+
+    Declared hrefs and the page-relative well-known paths resolve against the
+    full page URL (not just the domain root), so project sites served under a
+    sub-path — e.g. `user.github.io/project/`, whose favicon lives at
+    `/project/favicon.ico` — are found instead of 404ing at the domain root.
     """
+    parsed = urlparse(page_url)
+    domain_root = f"{parsed.scheme}://{parsed.netloc}"
+
     scored: list[tuple[int, str]] = []
     for link in (soup.find_all("link") if soup is not None else []):
         rel = " ".join(link.get("rel", []) or []).lower()
@@ -96,7 +109,7 @@ def _favicon_candidates(soup, base_url: str) -> list[str]:
         href = link.get("href")
         if not href:
             continue
-        abs_url = urljoin(base_url, href)
+        abs_url = urljoin(page_url, href)
         type_attr = (link.get("type") or "").lower()
         is_svg = "svg" in type_attr or abs_url.lower().split("?")[0].endswith(".svg")
         # apple-touch-icon is reliably a decently sized PNG → best raster choice.
@@ -106,12 +119,19 @@ def _favicon_candidates(soup, base_url: str) -> list[str]:
             priority = 4 if is_svg else 1
         scored.append((priority, abs_url))
 
-    # Always try the conventional well-known locations (works even when the
+    # Conventional well-known locations at the domain root (works even when the
     # page is blocked and we have no declared <link> tags).
-    scored.append((2, urljoin(base_url, "/apple-touch-icon.png")))
-    scored.append((3, urljoin(base_url, "/favicon.ico")))
-    scored.append((3, urljoin(base_url, "/favicon.png")))
-    scored.append((4, urljoin(base_url, "/favicon.svg")))
+    scored.append((2, urljoin(domain_root, "/apple-touch-icon.png")))
+    scored.append((3, urljoin(domain_root, "/favicon.ico")))
+    scored.append((3, urljoin(domain_root, "/favicon.png")))
+    scored.append((4, urljoin(domain_root, "/favicon.svg")))
+
+    # ...and relative to the page directory, for sub-path project sites.
+    if parsed.path not in ("", "/"):
+        scored.append((2, urljoin(page_url, "apple-touch-icon.png")))
+        scored.append((3, urljoin(page_url, "favicon.ico")))
+        scored.append((3, urljoin(page_url, "favicon.png")))
+        scored.append((4, urljoin(page_url, "favicon.svg")))
 
     scored.sort(key=lambda x: x[0])
     seen: set[str] = set()
@@ -154,12 +174,11 @@ def _image_extension(content: bytes, content_type: str) -> str | None:
     return None
 
 
-async def _fetch_favicon(url: str, soup, client: httpx.AsyncClient) -> str | None:
-    parsed = urlparse(url)
-    base = f"{parsed.scheme}://{parsed.netloc}"
+async def _fetch_favicon(page_url: str, soup, client: httpx.AsyncClient) -> str | None:
+    parsed = urlparse(page_url)
     file_hash = hashlib.sha256(parsed.netloc.encode()).hexdigest()[:16]
 
-    for candidate in _favicon_candidates(soup, base):
+    for candidate in _favicon_candidates(soup, page_url):
         try:
             resp = await client.get(candidate, timeout=5.0)
             if resp.status_code != 200 or not resp.content:
