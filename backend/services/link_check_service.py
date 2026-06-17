@@ -5,11 +5,37 @@ Runs as a background asyncio task; stores progress in a module-level dict
 so the API can poll it. One run at a time — if already running, /start is a no-op.
 """
 import asyncio
+import ipaddress
 import httpx
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from models.bookmark import Bookmark
+
+
+def is_local_host(url: str) -> bool:
+    """True for localhost / loopback / private-LAN / .local / bare hostnames.
+
+    Whether such a URL "works" depends on a local server being up right now —
+    that's transient, not a property of the bookmark — so these must never be
+    flagged as dead links.
+    """
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return False
+    if not host:
+        return False
+    if host in {"localhost", "0.0.0.0"} or host.endswith(".local"):
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+        return ip.is_loopback or ip.is_private or ip.is_link_local
+    except ValueError:
+        pass
+    # A single-label hostname (no dot) is a local network name, not a public site.
+    return "." not in host
 
 
 _state: dict = {
@@ -47,6 +73,10 @@ async def _check_url(client: httpx.AsyncClient, url: str) -> bool:
     Marking dead on a single timeout produces different results on every
     run and causes healthy bookmarks to be flagged and deleted.
     """
+    # Local / private addresses depend on a transient local server being up —
+    # never treat them as dead links.
+    if is_local_host(url):
+        return False
     for attempt in range(RETRIES):
         try:
             # HEAD first to save bandwidth

@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 from services import link_check_service
-from services.link_check_service import _check_url
+from services.link_check_service import _check_url, is_local_host
 
 
 def _client(handler):
@@ -62,6 +62,43 @@ async def test_persistent_connect_error_is_dead(monkeypatch):
 
     async with _client(handler) as c:
         assert await _check_url(c, "https://gone.invalid/") is True
+
+
+@pytest.mark.parametrize("url", [
+    "http://localhost:3000",
+    "http://127.0.0.1:8080/app",
+    "http://[::1]:9000",
+    "http://192.168.1.5",
+    "http://10.0.0.2/x",
+    "http://172.16.5.5",
+    "http://nas.local",
+    "http://devbox/dashboard",  # bare hostname = local network name
+])
+def test_local_hosts_are_recognized(url):
+    assert is_local_host(url) is True
+
+
+@pytest.mark.parametrize("url", [
+    "https://example.com",
+    "https://github.com/x",
+    "http://172.32.0.1",  # just outside the private 172.16/12 range
+])
+def test_public_hosts_are_not_local(url):
+    assert is_local_host(url) is False
+
+
+@pytest.mark.asyncio
+async def test_localhost_is_never_dead(monkeypatch):
+    monkeypatch.setattr(link_check_service, "RETRY_DELAY", 0)
+
+    def handler(request):
+        # A local dev server that's currently off → connection refused.
+        raise httpx.ConnectError("connection refused", request=request)
+
+    async with _client(handler) as c:
+        # Would be "dead" by the persistent-ConnectError rule, but local hosts
+        # are skipped entirely — a stopped dev server is not a dead link.
+        assert await _check_url(c, "http://localhost:3000") is False
 
 
 @pytest.mark.asyncio
