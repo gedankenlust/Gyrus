@@ -1,7 +1,13 @@
+import re
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from routers import bookmarks, collections, tags, search, import_, export_, files, brain, data
+
+# The only legitimate cross-origin caller is the browser extension. The native
+# app sends no Origin header at all.
+_ALLOWED_ORIGIN = re.compile(r"^(chrome-extension|moz-extension|safari-web-extension)://")
 
 
 @asynccontextmanager
@@ -56,6 +62,25 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Gyrus API", version="0.1.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def block_cross_site_origin(request: Request, call_next):
+    """Reject requests from web pages — a localhost CSRF guard.
+
+    CORS stops a malicious site from *reading* our responses, but not from
+    firing state-changing "simple" requests (no preflight) at the backend
+    running on 127.0.0.1 — e.g. a one-line `fetch()` to /api/data/factory-reset
+    could wipe everything. CORS can't prevent the side effect; we must.
+
+    Allowed callers: the browser extension (Origin chrome/moz/safari-extension)
+    and the native app (no Origin header). Any http(s) web Origin is blocked.
+    """
+    origin = request.headers.get("origin")
+    if origin and not _ALLOWED_ORIGIN.match(origin):
+        return JSONResponse(status_code=403, content={"detail": "Cross-site request blocked"})
+    return await call_next(request)
+
 
 app.add_middleware(
     CORSMiddleware,
