@@ -5,6 +5,24 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.9.1] – 2026-06-16
+
+### Security
+- **Blocked cross-site requests to the local backend.** A website you visited
+  could previously fire a bodyless request (e.g. `factory-reset`) at the backend
+  on `127.0.0.1` and wipe your data — CORS only stops reading the response, not
+  the side effect. The backend now rejects any web-page Origin; only the browser
+  extension and the app itself are allowed.
+
+### Fixed
+- `localhost` / private-LAN URLs are no longer flagged as dead links — a stopped
+  local dev server is not a dead link. Existing false positives clear on the
+  next check.
+- Favicons are now found on project sites served under a sub-path (e.g.
+  `user.github.io/project/`), which previously 404'd at the domain root.
+
+---
+
 ## [0.9.0] – 2026-06-16
 
 ### Added
