@@ -21,7 +21,7 @@ struct SettingsView: View {
             AboutPane()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 540, height: 430)
+        .frame(width: 560, height: 480)
         .environment(\.locale, settings.resolvedLocale)
     }
 }
@@ -174,19 +174,21 @@ private struct DataPane: View {
     var body: some View {
         Form {
             Section("Backups") {
-                Button {
-                    createBackup()
-                } label: {
-                    Label("Create Backup...", systemImage: "arrow.down.doc")
-                }
-                .disabled(isExporting)
+                HStack {
+                    Button {
+                        createBackup()
+                    } label: {
+                        Label("Create Backup...", systemImage: "arrow.down.doc")
+                    }
+                    .disabled(isExporting)
 
-                Button {
-                    pickRestoreFile()
-                } label: {
-                    Label("Restore from Backup…", systemImage: "arrow.up.doc")
+                    Button {
+                        pickRestoreFile()
+                    } label: {
+                        Label("Restore from Backup…", systemImage: "arrow.up.doc")
+                    }
+                    .disabled(isExporting)
                 }
-                .disabled(isExporting)
 
                 Text("Export all bookmarks, collections, and tags as a Gyrus backup file, or restore from one.")
                     .font(.caption)
@@ -222,22 +224,26 @@ private struct DataPane: View {
             }
 
             Section("Cleanup") {
-                Button("Clear Image Cache") {
-                    confirmReset(.cache)
-                }
-                Button("Reset AI Brain Files") {
-                    confirmReset(.brain)
+                HStack {
+                    Button("Clear Image Cache") {
+                        confirmReset(.cache)
+                    }
+                    Button("Reset AI Brain Files") {
+                        confirmReset(.brain)
+                    }
                 }
             }
-            
+
             Section {
-                Button("Clear All Bookmarks", role: .destructive) {
-                    confirmReset(.bookmarks)
+                HStack {
+                    Button("Clear All Bookmarks", role: .destructive) {
+                        confirmReset(.bookmarks)
+                    }
+                    Button("Factory Reset Gyrus", role: .destructive) {
+                        confirmReset(.factory)
+                    }
+                    .fontWeight(.bold)
                 }
-                Button("Factory Reset Gyrus", role: .destructive) {
-                    confirmReset(.factory)
-                }
-                .fontWeight(.bold)
             } header: {
                 Text("Danger Zone")
             } footer: {
