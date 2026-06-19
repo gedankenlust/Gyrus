@@ -3786,6 +3786,46 @@
           }
         }
       }
+    },
+    "Search by meaning…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Bedeutung suchen…"
+          }
+        }
+      }
+    },
+    "Select All": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle auswählen"
+          }
+        }
+      }
+    },
+    "Meaning-based search is ON — finds by concept, not just words. Click for keyword search.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bedeutungssuche ist AN — findet nach Konzept, nicht nur nach Wörtern. Klicken für Stichwortsuche."
+          }
+        }
+      }
+    },
+    "Click to search by meaning (semantic), not just keywords.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Klicken, um nach Bedeutung zu suchen (semantisch), nicht nur nach Stichwörtern."
+          }
+        }
+      }
     }
   },
   "version": "1.1"

@@ -36,36 +36,37 @@ struct BookmarkListView: View {
                 .labelsHidden()
                 .frame(width: 80)
 
-                SearchField(text: Binding(
-                    get: { bookmarkStore.searchQuery },
-                    set: { appStore.scheduleSearch($0) }
-                ))
-                .frame(maxWidth: 320)
-
-                // Semantic search toggle — only shown when Ollama is available.
-                if bookmarkStore.semanticSearchAvailable {
-                    @Bindable var bookmarkStore = bookmarkStore
-                    Toggle(isOn: $bookmarkStore.semanticSearchEnabled) {
-                        Image(systemName: "sparkle.magnifyingglass")
-                    }
-                    .toggleStyle(.button)
-                    .buttonStyle(.bordered)
-                    .help(bookmarkStore.semanticSearchEnabled
-                          ? "Semantic search: ON (finds by meaning)"
-                          : "Semantic search: OFF (tap to enable)")
-                    .onChange(of: bookmarkStore.semanticSearchEnabled) {
+                SearchField(
+                    text: Binding(
+                        get: { bookmarkStore.searchQuery },
+                        set: { appStore.scheduleSearch($0) }
+                    ),
+                    semanticAvailable: bookmarkStore.semanticSearchAvailable,
+                    semanticEnabled: Binding(
+                        get: { bookmarkStore.semanticSearchEnabled },
+                        set: { bookmarkStore.semanticSearchEnabled = $0 }
+                    ),
+                    onToggleSemantic: {
                         if !bookmarkStore.searchQuery.isEmpty {
                             Task { await appStore.loadBookmarks() }
                         }
                     }
-                }
+                )
+                .frame(maxWidth: 360)
 
                 Spacer()
 
                 Button {
                     Task { await appStore.selectAllInCurrentView() }
                 } label: {
-                    Image(systemName: "checklist")
+                    HStack(spacing: 4) {
+                        Image(systemName: "checklist")
+                            .frame(width: 16, height: 16)
+                        if !bookmarkStore.selectedIds.isEmpty {
+                            Text("\(bookmarkStore.selectedIds.count)")
+                                .font(.caption.monospacedDigit())
+                        }
+                    }
                 }
                 .buttonStyle(.bordered)
                 .disabled(bookmarkStore.bookmarks.isEmpty)
@@ -108,12 +109,14 @@ struct BookmarkListView: View {
                     showAddBookmark = true
                 } label: {
                     Image(systemName: "plus")
+                        .frame(width: 16, height: 16)
                 }
                 .buttonStyle(.bordered)
                 .help("Add bookmark (⌘N)")
 
                 SettingsLink {
                     Image(systemName: "gearshape")
+                        .frame(width: 16, height: 16)
                 }
                 .buttonStyle(.bordered)
                 .help("Settings (⌘,)")
@@ -195,7 +198,16 @@ struct BookmarkListView: View {
 /// titles, URLs, descriptions, notes and tags — via the backend.
 struct SearchField: View {
     @Binding var text: String
+    /// When available, a ✨ toggle inside the field switches between keyword and
+    /// meaning-based (semantic) search — far clearer than a separate cryptic
+    /// toolbar button, and it puts the control where searching happens.
+    var semanticAvailable: Bool = false
+    @Binding var semanticEnabled: Bool
+    var onToggleSemantic: () -> Void = {}
+
     @FocusState private var focused: Bool
+
+    private var isSemantic: Bool { semanticAvailable && semanticEnabled }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -203,7 +215,7 @@ struct SearchField: View {
                 .foregroundStyle(.secondary)
                 .font(.callout)
 
-            TextField("Search bookmarks & tags…", text: $text)
+            TextField(isSemantic ? "Search by meaning…" : "Search bookmarks & tags…", text: $text)
                 .textFieldStyle(.plain)
                 .focused($focused)
                 .onSubmit { focused = false }
@@ -218,6 +230,24 @@ struct SearchField: View {
                 .buttonStyle(.plain)
                 .help("Clear search")
             }
+
+            if semanticAvailable {
+                Button {
+                    semanticEnabled.toggle()
+                    onToggleSemantic()
+                } label: {
+                    Image(systemName: "sparkles")
+                        .font(.callout)
+                        .foregroundStyle(isSemantic ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
+                        .padding(3)
+                        .background(isSemantic ? Color.accentColor.opacity(0.15) : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 5))
+                }
+                .buttonStyle(.plain)
+                .help(isSemantic
+                      ? "Meaning-based search is ON — finds by concept, not just words. Click for keyword search."
+                      : "Click to search by meaning (semantic), not just keywords.")
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
@@ -227,7 +257,7 @@ struct SearchField: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 7)
-                .strokeBorder(focused ? Color.accentColor.opacity(0.6) : Color.secondary.opacity(0.25),
+                .strokeBorder((focused || isSemantic) ? Color.accentColor.opacity(0.6) : Color.secondary.opacity(0.25),
                               lineWidth: 1)
         )
     }

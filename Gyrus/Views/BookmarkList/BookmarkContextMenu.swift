@@ -19,6 +19,17 @@ struct BookmarkContextMenu: View {
 
     var body: some View {
         Group {
+            // Select all in the current view (same as ⌘A) — discoverable here
+            // for mouse users who don't know the shortcut.
+            Button {
+                Task { await appStore.selectAllInCurrentView() }
+            } label: {
+                Label("Select All", systemImage: "checklist")
+            }
+            .disabled(bookmarkStore.bookmarks.isEmpty)
+
+            Divider()
+
             // Open
             Button {
                 appStore.requestOpenInBrowser(ids: ids)
