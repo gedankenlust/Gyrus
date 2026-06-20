@@ -19,4 +19,5 @@ public struct AIBrainConfig: Codable, Equatable {
     public var llmProvider: LLMProvider = .ollama
     public var ollamaURL: String = "http://localhost:11434"
     public var ollamaModel: String = "llama3"
+    public var embeddingModel: String = "nomic-embed-text"
 }

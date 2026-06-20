@@ -62,6 +62,16 @@ struct AISettingsView: View {
                     .help("Refresh models")
                 }
 
+                Picker("Embedding Model", selection: $settings.aiBrainConfig.embeddingModel) {
+                    if availableModels.isEmpty {
+                        Text("No models found").tag("")
+                    } else {
+                        ForEach(availableModels, id: \.self) { model in
+                            Text(model).tag(model)
+                        }
+                    }
+                }
+
                 if let error = errorMessage {
                     Text(error)
                         .font(.caption)

@@ -1,8 +1,9 @@
 import asyncio
+import httpx
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from pydantic import BaseModel
 
 from database import get_db, SessionLocal
@@ -242,3 +243,35 @@ async def summarize_bookmark(bookmark_id: str, db: Session = Depends(get_db)):
         bookmark_service.add_note(db, bookmark_id, summary.strip(), source="ai")
 
     return SummarizeResponse(summary=summary or "")
+
+
+class AvailableModelsResponse(BaseModel):
+    """List of available Ollama models (name + description)."""
+    models: List[str] = []
+    error: Optional[str] = None
+
+
+@router.get("/available-models", response_model=AvailableModelsResponse)
+async def get_available_models():
+    """Fetch available models from Ollama. Returns model names (e.g. 'llama3.2:latest')
+    that can be used for text generation or embedding. Falls back to empty list if Ollama
+    is unreachable. Probes http://localhost:11434 (Ollama default) and returns all available
+    models so the app can show dropdowns for user selection."""
+    try:
+        # Try to connect to Ollama on the standard local port.
+        ollama_url = "http://localhost:11434"
+
+        # Query Ollama's /api/tags endpoint.
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(f"{ollama_url}/api/tags")
+            resp.raise_for_status()
+            data = resp.json()
+            models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+            return AvailableModelsResponse(models=sorted(models))
+    except httpx.HTTPError as e:
+        return AvailableModelsResponse(
+            models=[],
+            error=f"Ollama unreachable at {ollama_url}"
+        )
+    except Exception as e:
+        return AvailableModelsResponse(models=[], error=f"Failed to list models: {str(e)}")
