@@ -3826,6 +3826,16 @@
           }
         }
       }
+    },
+    "Factory Reset": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf Werkseinstellungen zurücksetzen"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

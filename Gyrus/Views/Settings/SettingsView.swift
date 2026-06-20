@@ -320,23 +320,23 @@ private struct DataPane: View {
     
     private func resetButtonTitle(for type: AppStore.ResetType) -> String {
         switch type {
-        case .cache: return "Clear Cache"
-        case .brain: return "Reset Brain Files"
-        case .bookmarks: return "Clear All Bookmarks"
-        case .factory: return "Factory Reset"
+        case .cache: return String(localized: "Clear Cache")
+        case .brain: return String(localized: "Reset Brain Files")
+        case .bookmarks: return String(localized: "Clear All Bookmarks")
+        case .factory: return String(localized: "Factory Reset")
         }
     }
-    
+
     private func resetMessage(for type: AppStore.ResetType) -> String {
         switch type {
         case .cache:
-            return "This will delete all downloaded favicons and preview images. They will be re-downloaded when needed."
+            return String(localized: "This will delete all downloaded favicons and preview images. They will be re-downloaded when needed.")
         case .brain:
-            return "This will delete all AI-generated notes and summaries from your brain directory."
+            return String(localized: "This will delete all AI-generated notes and summaries from your brain directory.")
         case .bookmarks:
-            return "This will permanently delete all bookmarks, collections, and tags. This action cannot be undone."
+            return String(localized: "This will permanently delete all bookmarks, collections, and tags. This action cannot be undone.")
         case .factory:
-            return "This will wipe all data and reset Gyrus to its initial state. All settings and bookmarks will be lost."
+            return String(localized: "This will wipe all data and reset Gyrus to its initial state. All settings and bookmarks will be lost.")
         }
     }
     
