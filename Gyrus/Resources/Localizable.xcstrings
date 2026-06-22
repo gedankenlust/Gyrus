@@ -3836,6 +3836,56 @@
           }
         }
       }
+    },
+    "Text Model": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text-Modell"
+          }
+        }
+      }
+    },
+    "Embedding Model": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Embedding-Modell"
+          }
+        }
+      }
+    },
+    "Used for AI chat, summaries and auto-tagging.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für KI-Chat, Zusammenfassungen und Auto-Tags."
+          }
+        }
+      }
+    },
+    "Used for semantic (meaning-based) search. Pick a dedicated embedding model like nomic-embed-text — chat models like llava won't work well here.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für die semantische (bedeutungsbasierte) Suche. Wähle ein dediziertes Embedding-Modell wie nomic-embed-text — Chat-Modelle wie llava funktionieren hier schlecht."
+          }
+        }
+      }
+    },
+    "Refresh the model list from Ollama": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modell-Liste von Ollama neu laden"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

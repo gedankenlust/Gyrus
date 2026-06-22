@@ -34,6 +34,7 @@ struct AISettingsView: View {
             Section(header: Text("Local Model (Ollama)")) {
                 TextField("Ollama URL", text: $settings.aiBrainConfig.ollamaURL)
 
+                // Text model — drives chat, summaries and auto-tags.
                 HStack {
                     Circle()
                         .fill(statusColor)
@@ -41,7 +42,7 @@ struct AISettingsView: View {
                         .shadow(color: statusColor.opacity(0.5), radius: 2)
                         .help(statusTooltip)
 
-                    Picker("Model Name", selection: $settings.aiBrainConfig.ollamaModel) {
+                    Picker("Text Model", selection: $settings.aiBrainConfig.ollamaModel) {
                         if availableModels.isEmpty {
                             Text("No models found").tag("")
                         } else {
@@ -54,14 +55,19 @@ struct AISettingsView: View {
                     Button {
                         refreshModels()
                     } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .rotationEffect(.degrees(isLoadingModels ? 360 : 0))
-                            .animation(isLoadingModels ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isLoadingModels)
+                        if isLoadingModels {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
                     }
                     .buttonStyle(.plain)
-                    .help("Refresh models")
+                    .help("Refresh the model list from Ollama")
                 }
+                Text("Used for AI chat, summaries and auto-tagging.")
+                    .font(.caption).foregroundStyle(.secondary)
 
+                // Embedding model — drives semantic (meaning-based) search.
                 Picker("Embedding Model", selection: $settings.aiBrainConfig.embeddingModel) {
                     if availableModels.isEmpty {
                         Text("No models found").tag("")
@@ -71,6 +77,8 @@ struct AISettingsView: View {
                         }
                     }
                 }
+                Text("Used for semantic (meaning-based) search. Pick a dedicated embedding model like nomic-embed-text — chat models like llava won't work well here.")
+                    .font(.caption).foregroundStyle(.secondary)
 
                 if let error = errorMessage {
                     Text(error)
@@ -154,8 +162,19 @@ struct AISettingsView: View {
                 let models = try await APIClient.shared.fetchOllamaModels(url: settings.aiBrainConfig.ollamaURL)
                 await MainActor.run {
                     self.availableModels = models
+                    // Keep the user's pick if still installed; otherwise fall back
+                    // to the first available text model.
                     if !models.contains(settings.aiBrainConfig.ollamaModel), let first = models.first {
                         settings.aiBrainConfig.ollamaModel = first
+                    }
+                    // Embedding needs a *dedicated* embedding model — prefer one
+                    // whose name says so (e.g. nomic-embed-text) over a chat model.
+                    if !models.contains(settings.aiBrainConfig.embeddingModel) {
+                        if let embed = models.first(where: { $0.lowercased().contains("embed") }) {
+                            settings.aiBrainConfig.embeddingModel = embed
+                        } else if let first = models.first {
+                            settings.aiBrainConfig.embeddingModel = first
+                        }
                     }
                     self.isLoadingModels = false
                     self.lastLoadSuccessful = true
