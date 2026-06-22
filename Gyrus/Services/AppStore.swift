@@ -16,6 +16,7 @@ final class AppStore {
     private var pendingDeleteTask: Task<Void, Never>?
     private var autoRefreshTask: Task<Void, Never>?
     private var metadataRefreshTask: Task<Void, Never>?
+    private var batchAutoTagTask: Task<Void, Never>?
     static let undoWindow: TimeInterval = 5
 
     func loadAll() async {
@@ -302,6 +303,50 @@ final class AppStore {
         } catch {
             handleUIError(error)
         }
+    }
+
+    /// Auto-tag a set of bookmarks with AI in the background. Polls progress,
+    /// reloads the list as tags land so they appear live, and reports the count.
+    func startBatchAutoTag(ids: [String]) async {
+        guard uiStateStore.batchAutoTagStatus?.running != true else { return }
+        guard !ids.isEmpty else { return }
+        let config = AppSettings.shared.aiBrainConfig
+        do {
+            uiStateStore.batchAutoTagStatus = try await api.startBatchAutoTag(ids: ids, config: config)
+            uiStateStore.showInfo("Generating tags for \(ids.count) bookmarks…")
+            batchAutoTagTask?.cancel()
+            batchAutoTagTask = Task { [weak self] in
+                guard let self else { return }
+                var ticks = 0
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                    guard !Task.isCancelled else { return }
+                    guard let status = try? await self.api.batchAutoTagStatus() else { continue }
+                    self.uiStateStore.batchAutoTagStatus = status
+                    ticks += 1
+                    // Reload every few ticks so new tags show up progressively.
+                    if status.running && ticks % 3 == 0 {
+                        await self.loadBookmarks()
+                        try? await self.tagsStore.fetchTags()
+                    }
+                    if !status.running {
+                        await self.loadBookmarks()
+                        try? await self.tagsStore.fetchTags()
+                        self.uiStateStore.showInfo("Tagged \(status.tagged) of \(status.total) bookmarks.")
+                        self.uiStateStore.batchAutoTagStatus = nil
+                        return
+                    }
+                }
+            }
+        } catch {
+            handleUIError(error)
+        }
+    }
+
+    func cancelBatchAutoTag() async {
+        batchAutoTagTask?.cancel()
+        _ = try? await api.cancelBatchAutoTag()
+        uiStateStore.batchAutoTagStatus = nil
     }
 
     // MARK: - Batch Actions & Undo

@@ -3906,6 +3906,26 @@
           }
         }
       }
+    },
+    "Generate Tags with AI": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags mit KI erzeugen"
+          }
+        }
+      }
+    },
+    "Generate Tags with AI (%lld)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags mit KI erzeugen (%lld)"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

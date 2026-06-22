@@ -191,6 +191,38 @@ final class APIClient {
         try await post(base.appending(path: "/api/bookmarks/refresh-metadata/cancel"), body: EmptyBody())
     }
 
+    func startBatchAutoTag(ids: [String], config: AIBrainConfig) async throws -> BatchAutoTagStatus {
+        struct ProviderConfig: Encodable {
+            let provider: String
+            let model: String
+            let ollama_url: String
+            let api_key: String
+        }
+        struct Body: Encodable {
+            let bookmark_ids: [String]
+            let provider_config: ProviderConfig
+        }
+        let body = Body(
+            bookmark_ids: ids,
+            provider_config: ProviderConfig(
+                provider: config.llmProvider.rawValue,
+                model: config.ollamaModel,
+                ollama_url: config.ollamaURL,
+                api_key: ""
+            )
+        )
+        return try await post(base.appending(path: "/api/bookmarks/auto-tag-batch"), body: body)
+    }
+
+    func batchAutoTagStatus() async throws -> BatchAutoTagStatus {
+        try await get(base.appending(path: "/api/bookmarks/auto-tag-batch/status"))
+    }
+
+    @discardableResult
+    func cancelBatchAutoTag() async throws -> BatchAutoTagStatus {
+        try await post(base.appending(path: "/api/bookmarks/auto-tag-batch/cancel"), body: EmptyBody())
+    }
+
     func fetchMeta(id: String) async throws -> Bookmark {
         try await post(base.appending(path: "/api/bookmarks/\(id)/fetch-meta"), body: EmptyBody())
     }
@@ -749,6 +781,13 @@ struct MetadataRefreshStatus: Decodable {
     let processed: Int
     let total: Int
     let updated: Int
+}
+
+struct BatchAutoTagStatus: Decodable {
+    let running: Bool
+    let processed: Int
+    let total: Int
+    let tagged: Int
 }
 
 struct ImportResult: Decodable {

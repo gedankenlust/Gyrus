@@ -94,6 +94,31 @@ async def cancel_metadata_refresh():
     return metadata_refresh_service.cancel()
 
 
+class AutoTagBatchRequest(BaseModel):
+    bookmark_ids: list[str]
+    provider_config: dict | None = {"provider": "ollama", "model": "llama3"}
+
+
+@router.post("/auto-tag-batch")
+async def start_auto_tag_batch(request: AutoTagBatchRequest):
+    """Auto-tag a list of bookmarks in the background (one run at a time).
+    Returns immediately with the initial status; poll /auto-tag-batch/status."""
+    from services import auto_tag_batch_service
+    return await auto_tag_batch_service.start(request.bookmark_ids, request.provider_config)
+
+
+@router.get("/auto-tag-batch/status")
+async def auto_tag_batch_status():
+    from services import auto_tag_batch_service
+    return auto_tag_batch_service.get_status()
+
+
+@router.post("/auto-tag-batch/cancel")
+async def cancel_auto_tag_batch():
+    from services import auto_tag_batch_service
+    return auto_tag_batch_service.cancel()
+
+
 @router.get("/ids", response_model=list[str])
 def list_bookmark_ids(
     collection_id: str | None = None,

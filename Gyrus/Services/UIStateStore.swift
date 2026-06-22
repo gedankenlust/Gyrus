@@ -12,6 +12,7 @@ final class UIStateStore {
     var undoGeneration: Int = 0
     var linkCheckStatus: LinkCheckStatus? = nil
     var metadataRefreshStatus: MetadataRefreshStatus? = nil
+    var batchAutoTagStatus: BatchAutoTagStatus? = nil
 
     // Batch selection for confirmations
     var pendingBatchDelete: Set<String>? = nil
