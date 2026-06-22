@@ -381,6 +381,30 @@ def delete_note(db: Session, bookmark_id: str, note_id: str):
     return False
 
 
+# A small palette of distinct, dark-mode-friendly colors. Auto-tags pick from
+# it deterministically by name, so the same tag is always the same color but
+# different tags look visually distinct (instead of every tag being purple).
+_TAG_PALETTE = [
+    "#8B5CF6",  # violet
+    "#3B82F6",  # blue
+    "#10B981",  # emerald
+    "#F59E0B",  # amber
+    "#EF4444",  # red
+    "#EC4899",  # pink
+    "#14B8A6",  # teal
+    "#F97316",  # orange
+    "#6366F1",  # indigo
+    "#84CC16",  # lime
+]
+
+
+def _color_for_tag(name: str) -> str:
+    """Stable color for a tag name — same name → same color, spread across the palette."""
+    import hashlib
+    h = int(hashlib.sha256(name.encode("utf-8")).hexdigest(), 16)
+    return _TAG_PALETTE[h % len(_TAG_PALETTE)]
+
+
 async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict | None = None) -> Bookmark:
     from services.scraper_service import scraper_service
     from services.llm_service import LLMService
@@ -408,12 +432,17 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
     if not context:
         context = f"Title: {bm.title}\nDescription: {bm.description}"
 
-    # 3. Prompt the LLM
+    # 3. Prompt the LLM. We want a FEW BROAD, reusable tags (topics that group
+    # many bookmarks) — not hyper-specific ones like "list-comprehensions" or
+    # "single-page-application", which clutter the sidebar and never repeat.
     prompt = (
-        f"You are a tagging assistant. Based on the following content, suggest up to 3 concise, relevant tags. "
-        f"Prefer these existing tags if they fit: {', '.join(all_tags)}. "
-        f"If no existing tags fit, suggest new ones. "
-        f"Reply ONLY with the tag names, separated by commas, in lowercase. No other text."
+        "You are a tagging assistant. Suggest 1-3 broad, reusable topic tags that group "
+        "this content with similar bookmarks (e.g. 'python', 'ai', 'design', 'database', 'frontend'). "
+        "Prefer general categories over narrow specifics: use 'python' not 'list-comprehensions', "
+        "'frontend' not 'single-page-application'. Fewer, broader tags are better than many narrow ones. "
+        f"Strongly prefer reusing these existing tags when any fit: {', '.join(all_tags)}. "
+        "Only invent a new tag if none of the existing ones fit. "
+        "Reply ONLY with lowercase tag names separated by commas. No other text."
     )
     
     try:
@@ -434,7 +463,7 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
         if not tag_name: continue
         tag = db.query(Tag).filter(Tag.name == tag_name).first()
         if not tag:
-            tag = Tag(name=tag_name, color="#8B5CF6") # Default purple for AI tags
+            tag = Tag(name=tag_name, color=_color_for_tag(tag_name))
             db.add(tag)
             db.flush()
         if tag.id not in current_tag_ids:
