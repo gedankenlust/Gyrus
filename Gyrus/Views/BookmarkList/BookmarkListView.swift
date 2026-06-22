@@ -267,6 +267,7 @@ struct SelectionStatusBar: View {
     @Environment(AppStore.self) private var appStore
     @Environment(BookmarkStore.self) private var bookmarkStore
     @Environment(CollectionStore.self) private var collectionStore
+    @Environment(UIStateStore.self) private var uiStateStore
 
     var body: some View {
         @Bindable var bookmarkStore = bookmarkStore
@@ -278,6 +279,29 @@ struct SelectionStatusBar: View {
                 .font(.callout.weight(.medium))
 
             Spacer()
+
+            // Bulk AI tag generation — visible next to the other bulk actions so
+            // it's discoverable (not just buried in the right-click menu).
+            if let status = uiStateStore.batchAutoTagStatus, status.running {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Tagging \(status.processed)/\(status.total)…")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            } else if !collectionStore.showTrash {
+                // Auto-tagging only needs Ollama (like the single-bookmark wand),
+                // not the AI-Brain markdown mirror — so it's always offered here.
+                Button {
+                    let ids = Array(bookmarkStore.selectedIds)
+                    Task { await appStore.startBatchAutoTag(ids: ids) }
+                } label: {
+                    Label("Generate Tags", systemImage: "wand.and.stars")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(.purple)
+                .help("Auto-tag the selected bookmarks with AI")
+            }
 
             if collectionStore.showTrash {
                 Button {

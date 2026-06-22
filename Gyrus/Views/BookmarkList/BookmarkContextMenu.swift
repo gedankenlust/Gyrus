@@ -28,17 +28,15 @@ struct BookmarkContextMenu: View {
             }
             .disabled(bookmarkStore.bookmarks.isEmpty)
 
-            // Auto-tag the whole selection with AI (background job). Only when
-            // the AI Brain is on — it needs a local Ollama model.
-            if AppSettings.shared.aiBrainConfig.isEnabled {
-                Button {
-                    Task { await appStore.startBatchAutoTag(ids: Array(ids)) }
-                } label: {
-                    Label(single ? "Generate Tags with AI" : "Generate Tags with AI (\(count))",
-                          systemImage: "wand.and.stars")
-                }
-                .disabled(uiStateStore.batchAutoTagStatus?.running == true)
+            // Auto-tag the whole selection with AI (background job). Needs only
+            // Ollama (like the single-bookmark wand), so it's always offered.
+            Button {
+                Task { await appStore.startBatchAutoTag(ids: Array(ids)) }
+            } label: {
+                Label(single ? "Generate Tags with AI" : "Generate Tags with AI (\(count))",
+                      systemImage: "wand.and.stars")
             }
+            .disabled(uiStateStore.batchAutoTagStatus?.running == true)
 
             Divider()
 
