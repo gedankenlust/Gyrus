@@ -19,6 +19,30 @@ DEFAULT_MODEL = "nomic-embed-text"
 DEFAULT_BASE_URL = "http://localhost:11434"
 TIMEOUT = 30.0
 
+# Active embedding config, pushed from the app via /api/brain/config. Embeddings
+# are generated server-side (background indexing + search) with no per-request
+# model, so the chosen model/URL live here as module state. Different models
+# produce different vector sizes (nomic = 768, bge-m3 = 1024), which is why a
+# model change requires a full reindex (see vector_store.reset_table).
+_active_model = DEFAULT_MODEL
+_active_base_url = DEFAULT_BASE_URL
+
+
+def set_active_model(model: Optional[str]) -> None:
+    global _active_model
+    if model and model.strip():
+        _active_model = model.strip()
+
+
+def set_active_base_url(url: Optional[str]) -> None:
+    global _active_base_url
+    if url and url.strip():
+        _active_base_url = url.strip()
+
+
+def current_model() -> str:
+    return _active_model
+
 
 class EmbeddingUnavailableError(Exception):
     """Raised when the embedding model cannot be reached or returns no vector."""
@@ -26,16 +50,20 @@ class EmbeddingUnavailableError(Exception):
 
 async def get_embedding(
     text: str,
-    model: str = DEFAULT_MODEL,
-    base_url: str = DEFAULT_BASE_URL,
+    model: Optional[str] = None,
+    base_url: Optional[str] = None,
 ) -> list[float]:
     """Return a vector for *text* using Ollama's /api/embeddings endpoint.
 
+    Defaults to the active configured model/URL (set via /api/brain/config).
     Truncates the input to 8 000 characters before sending so we never hit
     the model's context limit (nomic-embed-text supports ~8 192 tokens).
     """
     if not text or not text.strip():
         raise EmbeddingUnavailableError("Empty text — cannot embed.")
+
+    model = model or _active_model
+    base_url = base_url or _active_base_url
 
     payload = {"model": model, "prompt": text[:8_000]}
     try:

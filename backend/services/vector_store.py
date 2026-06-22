@@ -36,6 +36,30 @@ def _get_conn():
     return conn
 
 
+def reset_table(dim: int) -> None:
+    """Drop and recreate bookmarks_vec for a given embedding dimension.
+
+    Different embedding models output different vector sizes (nomic-embed-text =
+    768, bge-m3 = 1024). sqlite-vec fixes the dimension at table creation, so a
+    full reindex with a new model must first rebuild the table to the new size —
+    otherwise every insert fails with a dimension mismatch. Called at the start
+    of a full reindex, which rebuilds all vectors anyway.
+    """
+    dim = int(dim)
+    if dim <= 0:
+        raise ValueError(f"Invalid embedding dimension: {dim}")
+    conn = _get_conn()
+    conn.execute("DROP TABLE IF EXISTS bookmarks_vec")
+    conn.execute(
+        f"""
+        CREATE VIRTUAL TABLE bookmarks_vec USING vec0(
+            bookmark_id TEXT PRIMARY KEY,
+            embedding   FLOAT[{dim}]
+        )
+        """
+    )
+
+
 def upsert(bookmark_id: str, vector: list[float]) -> None:
     """Store or replace the embedding for a bookmark."""
     if not vector:

@@ -3,7 +3,8 @@ import Observation
 
 struct AISettingsView: View {
     @Bindable private var settings = AppSettings.shared
-    @State private var availableModels: [String] = []
+    @State private var textModels: [String] = []
+    @State private var embeddingModels: [String] = []
     @State private var isLoadingModels = false
     @State private var errorMessage: String? = nil
     @State private var lastLoadSuccessful: Bool? = nil
@@ -43,10 +44,10 @@ struct AISettingsView: View {
                         .help(statusTooltip)
 
                     Picker("Text Model", selection: $settings.aiBrainConfig.ollamaModel) {
-                        if availableModels.isEmpty {
+                        if textModels.isEmpty {
                             Text("No models found").tag("")
                         } else {
-                            ForEach(availableModels, id: \.self) { model in
+                            ForEach(textModels, id: \.self) { model in
                                 Text(model).tag(model)
                             }
                         }
@@ -69,15 +70,15 @@ struct AISettingsView: View {
 
                 // Embedding model — drives semantic (meaning-based) search.
                 Picker("Embedding Model", selection: $settings.aiBrainConfig.embeddingModel) {
-                    if availableModels.isEmpty {
-                        Text("No models found").tag("")
+                    if embeddingModels.isEmpty {
+                        Text("No embedding models found").tag("")
                     } else {
-                        ForEach(availableModels, id: \.self) { model in
+                        ForEach(embeddingModels, id: \.self) { model in
                             Text(model).tag(model)
                         }
                     }
                 }
-                Text("Used for semantic (meaning-based) search. Pick a dedicated embedding model like nomic-embed-text — chat models like llava won't work well here.")
+                Text("Used for semantic (meaning-based) search. Only dedicated embedding models are listed (e.g. nomic-embed-text, bge-m3). Changing it needs a reindex below.")
                     .font(.caption).foregroundStyle(.secondary)
 
                 if let error = errorMessage {
@@ -159,22 +160,20 @@ struct AISettingsView: View {
         errorMessage = nil
         Task {
             do {
-                let models = try await APIClient.shared.fetchOllamaModels(url: settings.aiBrainConfig.ollamaURL)
+                let (text, embedding) = try await APIClient.shared
+                    .fetchModelsByCapability(ollamaURL: settings.aiBrainConfig.ollamaURL)
                 await MainActor.run {
-                    self.availableModels = models
-                    // Keep the user's pick if still installed; otherwise fall back
-                    // to the first available text model.
-                    if !models.contains(settings.aiBrainConfig.ollamaModel), let first = models.first {
+                    self.textModels = text
+                    self.embeddingModels = embedding
+                    // Keep each pick if still installed; otherwise fall back to
+                    // the first model of the matching kind — the lists are already
+                    // capability-filtered, so the embedding pick can't become a
+                    // chat model by accident.
+                    if !text.contains(settings.aiBrainConfig.ollamaModel), let first = text.first {
                         settings.aiBrainConfig.ollamaModel = first
                     }
-                    // Embedding needs a *dedicated* embedding model — prefer one
-                    // whose name says so (e.g. nomic-embed-text) over a chat model.
-                    if !models.contains(settings.aiBrainConfig.embeddingModel) {
-                        if let embed = models.first(where: { $0.lowercased().contains("embed") }) {
-                            settings.aiBrainConfig.embeddingModel = embed
-                        } else if let first = models.first {
-                            settings.aiBrainConfig.embeddingModel = first
-                        }
+                    if !embedding.contains(settings.aiBrainConfig.embeddingModel), let first = embedding.first {
+                        settings.aiBrainConfig.embeddingModel = first
                     }
                     self.isLoadingModels = false
                     self.lastLoadSuccessful = true

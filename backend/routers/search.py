@@ -1,8 +1,12 @@
+import logging
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from database import get_db
 from schemas.bookmark import BookmarkOut
 from services.search_service import search_bookmarks, search_bookmarks_semantic
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/search", tags=["search"])
 
@@ -102,6 +106,28 @@ async def reindex_embeddings(db: Session = Depends(get_db)):
                     .all()
                 )
             import asyncio
+            from services.embedding_service import get_embedding
+
+            # Rebuild the vector table to match the active embedding model's
+            # dimension first — switching models (e.g. nomic 768 → bge-m3 1024)
+            # would otherwise make every insert fail. We learn the dimension
+            # from the first embeddable row; if embedding is unavailable we bail
+            # out and leave the existing index untouched (keyword search still works).
+            sample_vec = None
+            for _, content, title, desc in rows:
+                text = content or f"{title or ''} {desc or ''}".strip()
+                if not text:
+                    continue
+                try:
+                    sample_vec = await get_embedding(text)
+                except Exception as e:
+                    logger.warning("reindex: embedding unavailable, leaving index as-is: %s", e)
+                    return
+                break
+            if sample_vec is None:
+                return  # nothing to index
+            vector_store.reset_table(len(sample_vec))
+
             for bm_id, content, title, desc in rows:
                 text = content or f"{title or ''} {desc or ''}".strip()
                 await index_bookmark_embedding(bm_id, text)

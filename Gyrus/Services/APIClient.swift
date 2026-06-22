@@ -438,15 +438,32 @@ final class APIClient {
             let llm_provider: String
             let ollama_url: String
             let ollama_model: String
+            let embedding_model: String
         }
         let body = Body(
             root_dir: config.rootDirectoryPath,
             is_enabled: config.isEnabled,
             llm_provider: config.llmProvider.rawValue,
             ollama_url: config.ollamaURL,
-            ollama_model: config.ollamaModel
+            ollama_model: config.ollamaModel,
+            embedding_model: config.embeddingModel
         )
         let _: [String: String] = try await post(base.appending(path: "/api/brain/config"), body: body)
+    }
+
+    /// Installed Ollama models split by capability, so the UI can offer chat
+    /// models for the LLM and embedding models for semantic search separately.
+    func fetchModelsByCapability(ollamaURL: String) async throws -> (text: [String], embedding: [String]) {
+        struct Response: Decodable {
+            let text_models: [String]
+            let embedding_models: [String]
+            let error: String?
+        }
+        var comps = URLComponents(url: base.appending(path: "/api/brain/available-models"),
+                                  resolvingAgainstBaseURL: false)!
+        comps.queryItems = [URLQueryItem(name: "url", value: ollamaURL)]
+        let r: Response = try await get(comps.url!)
+        return (r.text_models, r.embedding_models)
     }
 
     func updateBrainConfig(rootDir: String, isEnabled: Bool) async throws {

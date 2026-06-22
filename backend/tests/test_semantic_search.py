@@ -37,6 +37,29 @@ def test_vector_store_search_returns_nearest():
     vector_store.delete("vs-b")
 
 
+def test_reset_table_supports_switching_dimensions():
+    """Switching embedding models changes the vector size (nomic 768 ↔ bge-m3
+    1024). reset_table must rebuild the table so the new size inserts cleanly."""
+    try:
+        # A 1024-dim model like bge-m3.
+        vector_store.reset_table(1024)
+        vector_store.upsert("dim-1024", [0.2] * 1024)
+        assert vector_store.count() == 1
+        # Back to a 768-dim model like nomic — table is rebuilt, old vectors gone.
+        vector_store.reset_table(768)
+        assert vector_store.count() == 0
+        vector_store.upsert("dim-768", [0.1] * 768)
+        assert vector_store.count() == 1
+    finally:
+        # Leave a clean 768-dim table for the other tests.
+        vector_store.reset_table(768)
+
+
+def test_reset_table_rejects_invalid_dimension():
+    with pytest.raises(ValueError):
+        vector_store.reset_table(0)
+
+
 # ---------------------------------------------------------------------------
 # index_bookmark_embedding (mocks Ollama)
 # ---------------------------------------------------------------------------

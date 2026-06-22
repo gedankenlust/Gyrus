@@ -58,6 +58,8 @@ class ChatResponse(BaseModel):
 class BrainConfigUpdate(BaseModel):
     root_dir: Optional[str] = None
     is_enabled: bool = False
+    embedding_model: Optional[str] = None
+    ollama_url: Optional[str] = None
 
 def _reconcile_brain_blocking():
     """Reconcile folder structure + rebuild the index, with its own session.
@@ -74,6 +76,13 @@ def _reconcile_brain_blocking():
 @router.post("/config")
 async def update_brain_config(config: BrainConfigUpdate):
     brain_sync_service.update_config(config.root_dir, config.is_enabled)
+    # Embeddings run server-side with no per-request model, so remember the
+    # chosen embedding model / Ollama URL here. A model change takes effect for
+    # new bookmarks immediately; existing ones need a reindex (different vector
+    # size), which the app prompts for.
+    from services import embedding_service
+    embedding_service.set_active_model(config.embedding_model)
+    embedding_service.set_active_base_url(config.ollama_url)
     # The app pushes the config on every launch. Reconciling + rebuilding the
     # index can be heavy with many bookmarks, so run it on a worker thread —
     # otherwise it blocks the event loop and the app shows an empty list at
@@ -246,32 +255,52 @@ async def summarize_bookmark(bookmark_id: str, db: Session = Depends(get_db)):
 
 
 class AvailableModelsResponse(BaseModel):
-    """List of available Ollama models (name + description)."""
+    """Installed Ollama models, split by capability so the app can offer the
+    right models in each picker: chat/text models for the LLM, embedding models
+    for semantic search. (`models` is kept as the flat union for compatibility.)"""
     models: List[str] = []
+    text_models: List[str] = []
+    embedding_models: List[str] = []
     error: Optional[str] = None
 
 
 @router.get("/available-models", response_model=AvailableModelsResponse)
-async def get_available_models():
-    """Fetch available models from Ollama. Returns model names (e.g. 'llama3.2:latest')
-    that can be used for text generation or embedding. Falls back to empty list if Ollama
-    is unreachable. Probes http://localhost:11434 (Ollama default) and returns all available
-    models so the app can show dropdowns for user selection."""
-    try:
-        # Try to connect to Ollama on the standard local port.
-        ollama_url = "http://localhost:11434"
+async def get_available_models(url: str = "http://localhost:11434"):
+    """List installed Ollama models, classified by capability via /api/show.
 
-        # Query Ollama's /api/tags endpoint.
+    A model is an *embedding* model if its capabilities include 'embedding'
+    (e.g. nomic-embed-text, bge-m3); otherwise it's offered as a *text* model
+    (completion/chat). Showing only embedding models in the embedding picker
+    prevents picking a chat model like llava that can't embed."""
+    try:
         async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(f"{ollama_url}/api/tags")
+            resp = await client.get(f"{url}/api/tags")
             resp.raise_for_status()
-            data = resp.json()
-            models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
-            return AvailableModelsResponse(models=sorted(models))
-    except httpx.HTTPError as e:
+            names = [m.get("name", "") for m in resp.json().get("models", []) if m.get("name")]
+
+            async def caps(name: str):
+                try:
+                    r = await client.post(f"{url}/api/show", json={"model": name})
+                    r.raise_for_status()
+                    return name, (r.json().get("capabilities") or [])
+                except Exception:
+                    return name, []
+
+            classified = await asyncio.gather(*[caps(n) for n in names])
+
+        text_models, embedding_models = [], []
+        for name, cap_list in classified:
+            if "embedding" in cap_list:
+                embedding_models.append(name)
+            else:
+                # completion / tools / vision / unknown → usable as a text model
+                text_models.append(name)
         return AvailableModelsResponse(
-            models=[],
-            error=f"Ollama unreachable at {ollama_url}"
+            models=sorted(names),
+            text_models=sorted(text_models),
+            embedding_models=sorted(embedding_models),
         )
+    except httpx.HTTPError:
+        return AvailableModelsResponse(error=f"Ollama unreachable at {url}")
     except Exception as e:
-        return AvailableModelsResponse(models=[], error=f"Failed to list models: {str(e)}")
+        return AvailableModelsResponse(error=f"Failed to list models: {str(e)}")
