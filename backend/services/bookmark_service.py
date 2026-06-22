@@ -405,7 +405,8 @@ def _color_for_tag(name: str) -> str:
     return _TAG_PALETTE[h % len(_TAG_PALETTE)]
 
 
-async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict | None = None) -> Bookmark:
+async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict | None = None,
+                            scrape: bool = True) -> Bookmark:
     from services.scraper_service import scraper_service
     from services.llm_service import LLMService
     from fastapi import HTTPException
@@ -413,24 +414,29 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
     bm = get_bookmark(db, bookmark_id)
     if not bm:
         raise HTTPException(status_code=404, detail="Bookmark not found")
-        
+
     # 1. Get existing tags to give the LLM context
     all_tags = [t.name for t in db.query(Tag).all()]
-    
-    # 2. Extract content
-    scrape_result = await scraper_service.extract_content(bm.url)
-    context = scrape_result.get("content", "")
-    if context:
-        store_scraped_content(db, bookmark_id, context)
-        # Index embedding in the background so semantic search can find this
-        # bookmark — fire-and-forget, uses the full text before truncation.
-        from services import background
-        background.schedule(index_bookmark_embedding(bookmark_id, context))
-    if len(context) > 10000:
-        context = context[:10000]
-        
+
+    # 2. Build context. Scraping the full page gives the best tags but is the
+    # slow part (a network fetch per bookmark) — bulk tagging skips it and tags
+    # from the title/URL/description, which is plenty for broad topic tags and
+    # an order of magnitude faster across a large selection.
+    context = ""
+    if scrape:
+        scrape_result = await scraper_service.extract_content(bm.url)
+        context = scrape_result.get("content", "")
+        if context:
+            store_scraped_content(db, bookmark_id, context)
+            # Index embedding in the background so semantic search can find this
+            # bookmark — fire-and-forget, uses the full text before truncation.
+            from services import background
+            background.schedule(index_bookmark_embedding(bookmark_id, context))
+        if len(context) > 10000:
+            context = context[:10000]
+
     if not context:
-        context = f"Title: {bm.title}\nDescription: {bm.description}"
+        context = f"Title: {bm.title}\nURL: {bm.url}\nDescription: {bm.description or ''}"
 
     # 3. Prompt the LLM. We want a FEW BROAD, reusable tags (topics that group
     # many bookmarks) — not hyper-specific ones like "list-comprehensions" or

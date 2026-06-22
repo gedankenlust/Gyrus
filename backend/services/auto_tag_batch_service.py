@@ -61,7 +61,9 @@ async def _run(ids: list[str], provider_config: dict | None) -> None:
             # to share across concurrent coroutines.
             db = SessionLocal()
             try:
-                await bookmark_service.auto_tag_bookmark(db, bm_id, provider_config)
+                # scrape=False: tag from title/URL/description, skipping the
+                # per-page network fetch — far faster across a big selection.
+                await bookmark_service.auto_tag_bookmark(db, bm_id, provider_config, scrape=False)
                 tagged += 1
             except Exception:
                 pass  # one failure (missing bookmark, LLM hiccup) must not abort the batch
