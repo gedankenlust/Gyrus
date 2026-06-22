@@ -54,12 +54,14 @@ struct BookmarkTableView: View {
                         ForEach(bm.tags.prefix(3)) { TagChip(tag: $0) }
                     }
                 }
-                .width(120)
+                // Flexible width (not a fixed value) so the Tags/Date boundary
+                // is user-resizable, like the Title column.
+                .width(min: 80, ideal: 120, max: 400)
                 TableColumn("Date Added", value: \.createdAt) { bm in
                     Text(bm.createdAt, style: .date)
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                .width(90)
+                .width(min: 70, ideal: 90, max: 220)
             } rows: {
                 ForEach(bookmarkStore.bookmarks) { bm in
                     TableRow(bm)
