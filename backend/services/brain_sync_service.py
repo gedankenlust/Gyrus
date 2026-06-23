@@ -110,19 +110,56 @@ class BrainSyncService:
         # Ensure directory exists for new file
         new_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Write content (simple frontmatter for now)
-        content = f"""---
-title: {bookmark.title}
-url: {bookmark.url}
-created_at: {bookmark.created_at}
----
-
-# {bookmark.title}
-
-{bookmark.description or ""}
-"""
         with open(new_path, "w", encoding="utf-8") as f:
-            f.write(content)
+            f.write(self._render_markdown(bookmark))
+
+    @staticmethod
+    def _yaml_quote(s: str) -> str:
+        s = (s or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
+        return f'"{s}"'
+
+    def _render_markdown(self, bookmark) -> str:
+        """Render a bookmark as an Obsidian-friendly Markdown note: frontmatter
+        with tags (so the vault indexes them), the description, a link back to
+        the original, any AI summary and user notes, and [[wikilinks]] for the
+        tags so a knowledge graph forms. Scraped page content and chat history
+        are appended later on demand by the brain/chat code, not here."""
+        tags = [bt.tag.name for bt in bookmark.bookmark_tags]
+        created = bookmark.created_at.strftime("%Y-%m-%d") if bookmark.created_at else ""
+
+        lines = [
+            "---",
+            f"title: {self._yaml_quote(bookmark.title or 'Untitled')}",
+            f"url: {bookmark.url}",
+            f"created: {created}",
+            f"tags: [{', '.join(self._yaml_quote(t) for t in tags)}]",
+            "---",
+            "",
+            f"# {bookmark.title or 'Untitled'}",
+            "",
+        ]
+        if bookmark.description:
+            lines += [bookmark.description.strip(), ""]
+        lines += [f"[Open original]({bookmark.url})", ""]
+
+        ai_notes = [n.content.strip() for n in bookmark.bookmark_notes
+                    if n.source == "ai" and n.content]
+        if ai_notes:
+            lines += ["## Summary", ""] + [c for note in ai_notes for c in (note, "")]
+
+        user_notes = [n.content.strip() for n in bookmark.bookmark_notes
+                      if n.source != "ai" and n.content]
+        note_field = bookmark.notes.strip() if bookmark.notes else ""
+        if note_field or user_notes:
+            lines += ["## Notes", ""]
+            if note_field:
+                lines += [note_field, ""]
+            lines += [c for note in user_notes for c in (note, "")]
+
+        if tags:
+            lines += ["Tags: " + " ".join(f"[[{t}]]" for t in tags), ""]
+
+        return "\n".join(lines).rstrip() + "\n"
 
     def update_config(self, new_root: Optional[str], is_enabled: bool):
         """Applies the brain location and on/off state pushed from the app.

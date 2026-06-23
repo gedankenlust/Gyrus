@@ -68,7 +68,7 @@ def test_sync_bookmark_creation(db, brain_service):
     assert expected_path.exists()
     with open(expected_path, "r") as f:
         content = f.read()
-        assert "title: Test Bookmark" in content
+        assert 'title: "Test Bookmark"' in content
         assert "url: https://example.com" in content
         assert "# Test Bookmark" in content
         assert "A test description" in content
