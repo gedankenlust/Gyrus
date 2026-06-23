@@ -11,6 +11,12 @@
             "state": "translated",
             "value": "%lld"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
         }
       }
     },
@@ -22,6 +28,12 @@
             "state": "translated",
             "value": "%lld Lesezeichen ausgewählt"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld bookmark selected"
+          }
         }
       }
     },
@@ -32,6 +44,12 @@
             "state": "translated",
             "value": "%lld Lesezeichen ausgewählt"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld bookmarks selected"
+          }
         }
       }
     },
@@ -41,6 +59,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld tot"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld dead"
           }
         }
       }
@@ -53,6 +77,12 @@
             "state": "translated",
             "value": "%lld Ordner ausgewählt"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld folders selected"
+          }
         }
       }
     },
@@ -63,6 +93,12 @@
             "state": "translated",
             "value": "%lld ausgewählt"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld selected"
+          }
         }
       }
     },
@@ -72,6 +108,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "⌘K → Schnellsuche"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘K → quick search"
           }
         }
       }
@@ -84,6 +126,12 @@
             "state": "translated",
             "value": "⌘K → Schnellsuche"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘K → Quick Search"
+          }
         }
       }
     },
@@ -93,6 +141,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "⌘N → Lesezeichen manuell hinzufügen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘N → add a bookmark manually"
           }
         }
       }
@@ -105,6 +159,12 @@
             "state": "translated",
             "value": "⌘N → Lesezeichen manuell hinzufügen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⌘N → Add bookmark manually"
+          }
         }
       }
     },
@@ -115,6 +175,12 @@
             "state": "translated",
             "value": "1 Lesezeichen ausgewählt"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 bookmark selected"
+          }
         }
       }
     },
@@ -124,6 +190,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Über"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
           }
         }
       }
@@ -137,6 +209,12 @@
             "state": "translated",
             "value": "Danksagungen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acknowledgments"
+          }
         }
       }
     },
@@ -146,6 +224,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hinzufügen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add"
           }
         }
       }
@@ -159,6 +243,12 @@
             "state": "translated",
             "value": "Notiz hinzufügen…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add a note..."
+          }
         }
       }
     },
@@ -169,6 +259,12 @@
             "state": "translated",
             "value": "Lesezeichen hinzufügen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Bookmark"
+          }
         }
       }
     },
@@ -178,6 +274,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lesezeichen hinzufügen (⌘N)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add bookmark (⌘N)"
           }
         }
       }
@@ -191,6 +293,12 @@
             "state": "translated",
             "value": "Zu Notizen hinzufügen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add to Notes"
+          }
         }
       }
     },
@@ -200,6 +308,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Erstes Lesezeichen mit ⌘N hinzufügen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add your first bookmark with ⌘N"
           }
         }
       }
@@ -213,6 +327,12 @@
             "state": "translated",
             "value": "Hinzugefügt"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Added"
+          }
         }
       }
     },
@@ -221,6 +341,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI Brain"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "AI Brain"
@@ -235,6 +361,12 @@
             "state": "translated",
             "value": "Alle %lld Links sind erreichbar"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All %lld links are reachable"
+          }
         }
       }
     },
@@ -245,6 +377,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Alle Lesezeichen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All Bookmarks"
           }
         }
       }
@@ -258,6 +396,12 @@
             "state": "translated",
             "value": "Alles gelesen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All caught up"
+          }
         }
       }
     },
@@ -269,6 +413,12 @@
             "state": "translated",
             "value": "Alle enthaltenen Unterordner werden ebenfalls gelöscht. Lesezeichen bleiben erhalten."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All nested subfolders are deleted too. Bookmarks are kept."
+          }
         }
       }
     },
@@ -277,6 +427,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "API Key"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "API Key"
@@ -291,6 +447,12 @@
             "state": "translated",
             "value": "Darstellung"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance"
+          }
         }
       }
     },
@@ -302,6 +464,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bist du sicher?"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Are you sure?"
           }
         }
       }
@@ -315,6 +483,12 @@
             "state": "translated",
             "value": "Stelle Fragen zu diesem Lesezeichen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask anything about this bookmark"
+          }
         }
       }
     },
@@ -326,6 +500,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Frag das Brain…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ask the Brain..."
           }
         }
       }
@@ -339,6 +519,12 @@
             "state": "translated",
             "value": "Automatisch mit KI taggen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto-tag with AI"
+          }
         }
       }
     },
@@ -348,6 +534,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Automatisch aus URL"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic from URL"
           }
         }
       }
@@ -360,6 +552,12 @@
             "state": "translated",
             "value": "Zurück zur Info-Ansicht"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to Info View"
+          }
         }
       }
     },
@@ -370,6 +568,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Backup wiederhergestellt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup restored."
           }
         }
       }
@@ -383,6 +587,12 @@
             "state": "translated",
             "value": "Datensicherung"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backups"
+          }
         }
       }
     },
@@ -393,6 +603,12 @@
             "state": "translated",
             "value": "Verhalten"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Behavior"
+          }
         }
       }
     },
@@ -401,6 +617,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brain"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Brain"
@@ -417,6 +639,12 @@
             "state": "translated",
             "value": "Speicherort"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brain Storage"
+          }
         }
       }
     },
@@ -426,6 +654,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Browser-kompatibel (Chrome, Firefox, Safari)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Browser-compatible (Chrome, Firefox, Safari)"
           }
         }
       }
@@ -439,6 +673,12 @@
             "state": "translated",
             "value": "Erstellt den semantischen Suchindex aus vorhandenen Lesezeichen-Inhalten. Benötigt nomic-embed-text in Ollama."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build the semantic search index from existing bookmark content. Requires nomic-embed-text in Ollama."
+          }
         }
       }
     },
@@ -451,6 +691,12 @@
             "state": "translated",
             "value": "Gebaut mit SwiftUI, FastAPI, SQLAlchemy, BeautifulSoup4 und Readability-lxml."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Built with SwiftUI, FastAPI, SQLAlchemy, BeautifulSoup4, and Readability-lxml."
+          }
         }
       }
     },
@@ -460,6 +706,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abbrechen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
           }
         }
       }
@@ -471,6 +723,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Farbe ändern"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change Color"
           }
         }
       }
@@ -484,6 +742,12 @@
             "state": "translated",
             "value": "Ändern…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Change…"
+          }
         }
       }
     },
@@ -496,6 +760,12 @@
             "state": "translated",
             "value": "Änderungen an Menüleisten und Systemdialogen erfordern einen Neustart der App."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes to menu bars and system dialogs require an app restart."
+          }
         }
       }
     },
@@ -505,6 +775,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Alle Links prüfen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check All Links"
           }
         }
       }
@@ -516,6 +792,12 @@
             "state": "translated",
             "value": "Links werden geprüft…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking links…"
+          }
         }
       }
     },
@@ -525,6 +807,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Links werden geprüft… %lld / %lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking links… %lld / %lld"
           }
         }
       }
@@ -537,6 +825,12 @@
             "state": "translated",
             "value": "Backup-Datei auswählen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Backup File"
+          }
         }
       }
     },
@@ -546,6 +840,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Datei auswählen…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose File…"
           }
         }
       }
@@ -559,6 +859,12 @@
             "state": "translated",
             "value": "Bereinigung"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cleanup"
+          }
         }
       }
     },
@@ -571,6 +877,12 @@
             "state": "translated",
             "value": "Alle Lesezeichen löschen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear All Bookmarks"
+          }
         }
       }
     },
@@ -581,6 +893,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cache leeren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Cache"
           }
         }
       }
@@ -594,6 +912,12 @@
             "state": "translated",
             "value": "Bild-Cache leeren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Image Cache"
+          }
         }
       }
     },
@@ -605,6 +929,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Suche löschen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear search"
           }
         }
       }
@@ -618,6 +948,12 @@
             "state": "translated",
             "value": "Diese Unterhaltung löschen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear this conversation"
+          }
         }
       }
     },
@@ -627,6 +963,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lesezeichen anklicken → Info & Vorschau"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click a bookmark → info & preview"
           }
         }
       }
@@ -639,6 +981,12 @@
             "state": "translated",
             "value": "Lesezeichen klicken → Info & Vorschau"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click a bookmark → Info & Preview"
+          }
         }
       }
     },
@@ -649,6 +997,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Klicke ein Lesezeichen an, um Details zu sehen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click a bookmark to see its details"
           }
         }
       }
@@ -662,6 +1016,12 @@
             "state": "translated",
             "value": "Cloud-Integration (OpenAI/Anthropic) folgt in Kürze."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cloud integration (OpenAI/Anthropic) coming soon."
+          }
         }
       }
     },
@@ -671,6 +1031,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Farbe"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color"
           }
         }
       }
@@ -682,6 +1048,12 @@
             "state": "translated",
             "value": "Farbe für \"%@\""
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color for \"%@\""
+          }
         }
       }
     },
@@ -691,6 +1063,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vor dem Löschen nachfragen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm before deleting"
           }
         }
       }
@@ -703,6 +1081,12 @@
             "state": "translated",
             "value": "Mit Ollama verbunden"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected to Ollama"
+          }
         }
       }
     },
@@ -714,6 +1098,12 @@
             "state": "translated",
             "value": "Verbindung wird hergestellt..."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting..."
+          }
         }
       }
     },
@@ -724,6 +1114,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Verbindung fehlgeschlagen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connection failed"
           }
         }
       }
@@ -737,6 +1133,12 @@
             "state": "translated",
             "value": "Kopieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
         }
       }
     },
@@ -746,6 +1148,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Titel kopieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Title"
           }
         }
       }
@@ -757,6 +1165,12 @@
             "state": "translated",
             "value": "URL kopieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy URL"
+          }
         }
       }
     },
@@ -766,6 +1180,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "URLs kopieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy URLs"
           }
         }
       }
@@ -778,6 +1198,12 @@
             "state": "translated",
             "value": "Verbindung zu Ollama fehlgeschlagen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not connect to Ollama"
+          }
         }
       }
     },
@@ -789,6 +1215,12 @@
             "state": "translated",
             "value": "Metadaten konnten nicht geladen werden."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load metadata."
+          }
         }
       }
     },
@@ -799,6 +1231,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Erstellen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create"
           }
         }
       }
@@ -812,6 +1250,12 @@
             "state": "translated",
             "value": "Backup erstellen…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create Backup..."
+          }
         }
       }
     },
@@ -822,6 +1266,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Neuen Ordner erstellen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create new folder"
           }
         }
       }
@@ -834,6 +1284,12 @@
             "state": "translated",
             "value": "Neuen Tag erstellen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create new tag"
+          }
         }
       }
     },
@@ -845,6 +1301,12 @@
             "state": "translated",
             "value": "Tag erstellen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create Tag"
+          }
         }
       }
     },
@@ -853,6 +1315,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CSV (.csv)"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "CSV (.csv)"
@@ -869,6 +1337,12 @@
             "state": "translated",
             "value": "Eigene Farbe"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Custom color"
+          }
         }
       }
     },
@@ -880,6 +1354,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gefahrenzone"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Danger Zone"
           }
         }
       }
@@ -893,6 +1373,12 @@
             "state": "translated",
             "value": "Dunkel"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dark"
+          }
         }
       }
     },
@@ -905,6 +1391,12 @@
             "state": "translated",
             "value": "Daten"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data"
+          }
         }
       }
     },
@@ -914,6 +1406,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hinzugefügt"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Date Added"
           }
         }
       }
@@ -926,6 +1424,12 @@
             "state": "translated",
             "value": "Hinzugefügt (neueste zuerst)"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Date Added (newest first)"
+          }
         }
       }
     },
@@ -937,6 +1441,12 @@
             "state": "translated",
             "value": "Hinzugefügt (älteste zuerst)"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Date Added (oldest first)"
+          }
         }
       }
     },
@@ -946,6 +1456,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toter Link"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dead Link"
           }
         }
       }
@@ -958,6 +1474,12 @@
             "state": "translated",
             "value": "Tote Links"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dead Links"
+          }
         }
       }
     },
@@ -968,6 +1490,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Standard-Exportformat"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default export format"
           }
         }
       }
@@ -980,6 +1508,12 @@
             "state": "translated",
             "value": "Standardansicht"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default view"
+          }
         }
       }
     },
@@ -989,6 +1523,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Löschen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete"
           }
         }
       }
@@ -1003,6 +1543,12 @@
             "state": "translated",
             "value": "\"%@\" löschen?"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete \"%@\"?"
+          }
         }
       }
     },
@@ -1012,6 +1558,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld Lesezeichen löschen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete %lld Bookmarks"
           }
         }
       }
@@ -1025,6 +1577,12 @@
             "state": "translated",
             "value": "%lld Lesezeichen löschen?"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete %lld bookmarks?"
+          }
         }
       }
     },
@@ -1035,6 +1593,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld Ordner löschen?"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete %lld folders?"
           }
         }
       }
@@ -1048,6 +1612,12 @@
             "state": "translated",
             "value": "%lld endgültig löschen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete %lld Permanently"
+          }
         }
       }
     },
@@ -1060,6 +1630,12 @@
             "state": "translated",
             "value": "Alle löschen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete All"
+          }
         }
       }
     },
@@ -1070,6 +1646,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Alle Lesezeichen löschen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete All Bookmarks"
           }
         }
       }
@@ -1082,6 +1664,12 @@
             "state": "translated",
             "value": "Alle toten Links löschen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete All Dead Links"
+          }
         }
       }
     },
@@ -1091,6 +1679,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Löschen fehlgeschlagen: %@"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete failed: %@"
           }
         }
       }
@@ -1104,6 +1698,12 @@
             "state": "translated",
             "value": "Endgültig löschen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Permanently"
+          }
         }
       }
     },
@@ -1114,6 +1714,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tag \"%@\" löschen?"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete tag \"%@\"?"
           }
         }
       }
@@ -1127,6 +1733,12 @@
             "state": "translated",
             "value": "Gelöschte Lesezeichen bleiben hier 30 Tage, bevor sie endgültig entfernt werden"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deleted bookmarks appear here for 30 days before they're removed for good"
+          }
         }
       }
     },
@@ -1137,6 +1749,12 @@
             "state": "translated",
             "value": "Beschreibung"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Description"
+          }
         }
       }
     },
@@ -1146,6 +1764,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Auswahl aufheben"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deselect all"
           }
         }
       }
@@ -1159,6 +1783,12 @@
             "state": "translated",
             "value": "Diese Aktionen können nicht rückgängig gemacht werden. Bitte erstelle vorher ein Backup."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Destructive actions cannot be undone. Please make sure you have a backup."
+          }
         }
       }
     },
@@ -1167,6 +1797,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Details"
@@ -1183,6 +1819,12 @@
             "state": "translated",
             "value": "Deutsch"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deutsch"
+          }
         }
       }
     },
@@ -1191,6 +1833,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Domain"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Domain"
@@ -1205,6 +1853,12 @@
             "state": "translated",
             "value": "Fertig"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
         }
       }
     },
@@ -1214,6 +1868,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ziehe die Lesezeichen-Exportdatei deines Browsers hier rein"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag & drop your browser's bookmark export file"
           }
         }
       }
@@ -1225,6 +1885,12 @@
             "state": "translated",
             "value": "Lesezeichen hierher ziehen oder neue hinzufügen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag bookmarks here or add new ones"
+          }
         }
       }
     },
@@ -1234,6 +1900,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "bookmarks.html hier ablegen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drop bookmarks.html here"
           }
         }
       }
@@ -1245,6 +1917,12 @@
             "state": "translated",
             "value": "z.B. Brave"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. Brave"
+          }
         }
       }
     },
@@ -1255,6 +1933,12 @@
             "state": "translated",
             "value": "z.B. wichtig"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. important"
+          }
         }
       }
     },
@@ -1264,6 +1948,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bearbeiten"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit"
           }
         }
       }
@@ -1277,6 +1967,12 @@
             "state": "translated",
             "value": "Embedding-Index"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Embedding index"
+          }
         }
       }
     },
@@ -1286,6 +1982,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Leerer Ordner"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empty folder"
           }
         }
       }
@@ -1299,6 +2001,12 @@
             "state": "translated",
             "value": "Papierkorb leeren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empty Trash"
+          }
         }
       }
     },
@@ -1311,6 +2019,12 @@
             "state": "translated",
             "value": "AI Brain aktivieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable AI Brain"
+          }
         }
       }
     },
@@ -1319,6 +2033,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "English"
@@ -1335,6 +2055,12 @@
             "state": "translated",
             "value": "Alles bleibt auf deinem Mac. Nichts wird hochgeladen."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everything stays on your Mac. Nothing is uploaded."
+          }
         }
       }
     },
@@ -1344,6 +2070,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Exportieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export"
           }
         }
       }
@@ -1357,6 +2089,12 @@
             "state": "translated",
             "value": "Alle Lesezeichen, Ordner und Tags als Gyrus-Backup exportieren oder daraus wiederherstellen."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export all bookmarks, collections, and tags as a Gyrus backup file, or restore from one."
+          }
         }
       }
     },
@@ -1366,6 +2104,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Als .%@ exportieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export as .%@"
           }
         }
       }
@@ -1378,6 +2122,12 @@
             "state": "translated",
             "value": "Lesezeichen exportieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export bookmarks"
+          }
         }
       }
     },
@@ -1387,6 +2137,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lesezeichen exportieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Bookmarks"
           }
         }
       }
@@ -1399,6 +2155,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Export-Standardwerte"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Defaults"
           }
         }
       }
@@ -1413,6 +2175,12 @@
             "state": "translated",
             "value": "Ordner exportieren…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Folder…"
+          }
         }
       }
     },
@@ -1422,6 +2190,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Exportiere…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exporting…"
           }
         }
       }
@@ -1435,6 +2209,12 @@
             "state": "translated",
             "value": "Gyrus zurücksetzen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Factory Reset Gyrus"
+          }
         }
       }
     },
@@ -1444,6 +2224,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Findet tote Links (404, Timeout). Dauert einige Minuten bei großen Sammlungen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finds dead links (404, timeout). Takes a few minutes for large collections."
           }
         }
       }
@@ -1455,6 +2241,12 @@
             "state": "translated",
             "value": "Ordner"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder"
+          }
         }
       }
     },
@@ -1464,6 +2256,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ordner: \"%@\""
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folder: \"%@\""
           }
         }
       }
@@ -1475,6 +2273,12 @@
             "state": "translated",
             "value": "Ordner"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folders"
+          }
         }
       }
     },
@@ -1483,6 +2287,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Format"
@@ -1497,6 +2307,12 @@
             "state": "translated",
             "value": "Allgemein"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "General"
+          }
         }
       }
     },
@@ -1509,6 +2325,12 @@
             "state": "translated",
             "value": "Zusammenfassung erstellen und in Notizen speichern"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generate a summary and save it to Notes"
+          }
         }
       }
     },
@@ -1518,6 +2340,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Systemweite Suche"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Global Search Shortcut"
           }
         }
       }
@@ -1530,6 +2358,12 @@
             "state": "translated",
             "value": "Raster"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grid"
+          }
         }
       }
     },
@@ -1539,6 +2373,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kachel-Ansicht"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grid cards"
           }
         }
       }
@@ -1550,12 +2390,24 @@
             "state": "translated",
             "value": "Nach Ordner gruppiert, mit Titel und URL"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grouped by folder, with title and URL"
+          }
         }
       }
     },
     "Gyrus": {
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gyrus"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Gyrus"
@@ -1572,6 +2424,12 @@
             "state": "translated",
             "value": "Gyrus kann zu jedem Lesezeichen eine Markdown-Notiz führen und dich mit einer lokalen KI (Ollama) über eine Seite chatten lassen. Optional — jederzeit in den Einstellungen ein- oder ausschaltbar."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gyrus can keep a Markdown note for each bookmark and let you chat about a page with a local AI (Ollama). It's optional — you can turn it on or off anytime in Settings."
+          }
         }
       }
     },
@@ -1580,6 +2438,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HTML (.html)"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "HTML (.html)"
@@ -1596,6 +2460,12 @@
             "state": "translated",
             "value": "https://..."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://..."
+          }
         }
       }
     },
@@ -1604,6 +2474,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://example.com"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "https://example.com"
@@ -1618,12 +2494,24 @@
             "state": "translated",
             "value": "Importieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import"
+          }
         }
       }
     },
     "Import → Brave, Chrome, Firefox, Safari": {
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import → Brave, Chrome, Firefox, Safari"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Import → Brave, Chrome, Firefox, Safari"
@@ -1638,6 +2526,12 @@
             "state": "translated",
             "value": "Lesezeichen importieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import Bookmarks"
+          }
         }
       }
     },
@@ -1647,6 +2541,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lesezeichen aus einem Browser importieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import bookmarks from a browser"
           }
         }
       }
@@ -1659,6 +2559,12 @@
             "state": "translated",
             "value": "Lesezeichen importieren oder manuell hinzufügen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import bookmarks or add them manually"
+          }
         }
       }
     },
@@ -1668,6 +2574,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lesezeichen importieren…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import Bookmarks…"
           }
         }
       }
@@ -1679,6 +2591,12 @@
             "state": "translated",
             "value": "Import abgeschlossen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import complete"
+          }
         }
       }
     },
@@ -1688,6 +2606,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "In Ordner importieren (optional)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import into folder (optional)"
           }
         }
       }
@@ -1699,6 +2623,12 @@
             "state": "translated",
             "value": "Importiert"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imported"
+          }
         }
       }
     },
@@ -1709,6 +2639,12 @@
             "state": "translated",
             "value": "Wird importiert…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importing…"
+          }
         }
       }
     },
@@ -1717,6 +2653,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Info"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Info"
@@ -1731,6 +2673,12 @@
             "state": "translated",
             "value": "Sprache"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language"
+          }
         }
       }
     },
@@ -1741,6 +2689,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zuletzt geändert"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last Modified"
           }
         }
       }
@@ -1754,6 +2708,12 @@
             "state": "translated",
             "value": "Hell"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Light"
+          }
         }
       }
     },
@@ -1762,6 +2722,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Link"
@@ -1777,6 +2743,12 @@
             "state": "translated",
             "value": "Liste"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "List"
+          }
         }
       }
     },
@@ -1789,6 +2761,12 @@
             "state": "translated",
             "value": "LLM Anbieter"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LLM Provider"
+          }
         }
       }
     },
@@ -1799,6 +2777,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Live-Vorschau laden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Load Live Preview"
           }
         }
       }
@@ -1812,6 +2796,12 @@
             "state": "translated",
             "value": "Lesezeichen werden geladen…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading bookmarks…"
+          }
         }
       }
     },
@@ -1822,6 +2812,12 @@
             "state": "translated",
             "value": "Lade mehr…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading more…"
+          }
         }
       }
     },
@@ -1831,6 +2827,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lokaler Lesezeichen-Manager für macOS"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local-first bookmark manager for macOS"
           }
         }
       }
@@ -1844,6 +2846,12 @@
             "state": "translated",
             "value": "Sprache"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Localization"
+          }
         }
       }
     },
@@ -1855,6 +2863,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Login-Fehler"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Login Item Error"
           }
         }
       }
@@ -1868,6 +2882,12 @@
             "state": "translated",
             "value": "Wartung"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Maintenance"
+          }
         }
       }
     },
@@ -1879,6 +2899,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld als gelesen markieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark %lld as Read"
           }
         }
       }
@@ -1892,6 +2918,12 @@
             "state": "translated",
             "value": "%lld als ungelesen markieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark %lld as Unread"
+          }
         }
       }
     },
@@ -1903,6 +2935,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Als gelesen markieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark as Read"
           }
         }
       }
@@ -1916,6 +2954,12 @@
             "state": "translated",
             "value": "Als ungelesen markieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark as Unread"
+          }
         }
       }
     },
@@ -1924,6 +2968,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdown (.md)"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Markdown (.md)"
@@ -1940,6 +2990,12 @@
             "state": "translated",
             "value": "MIT-Lizenz"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MIT License"
+          }
         }
       }
     },
@@ -1952,6 +3008,12 @@
             "state": "translated",
             "value": "Modellname"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model Name"
+          }
         }
       }
     },
@@ -1962,6 +3024,12 @@
             "state": "translated",
             "value": "%lld in Ordner verschieben"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move %lld to Folder"
+          }
         }
       }
     },
@@ -1971,6 +3039,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "In Ordner verschieben"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to Folder"
           }
         }
       }
@@ -1985,12 +3059,24 @@
             "state": "translated",
             "value": "Auf oberste Ebene verschieben"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move to Root"
+          }
         }
       }
     },
     "Name": {
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Name"
@@ -2006,6 +3092,12 @@
             "state": "translated",
             "value": "Neuer Ordner"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New folder"
+          }
         }
       }
     },
@@ -2016,6 +3108,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Neuer Ordner"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Folder"
           }
         }
       }
@@ -2030,6 +3128,12 @@
             "state": "translated",
             "value": "Neuer Unterordner"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Subfolder"
+          }
         }
       }
     },
@@ -2039,6 +3143,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Neuer Tag"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Tag"
           }
         }
       }
@@ -2052,6 +3162,12 @@
             "state": "translated",
             "value": "Neuer Tag…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Tag…"
+          }
         }
       }
     },
@@ -2062,6 +3178,12 @@
             "state": "translated",
             "value": "Kein Lesezeichen enthält \"%@\""
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No bookmark matches \"%@\""
+          }
         }
       }
     },
@@ -2071,6 +3193,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kein Lesezeichen ausgewählt"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No bookmark selected"
           }
         }
       }
@@ -2083,6 +3211,12 @@
             "state": "translated",
             "value": "Kein Lesezeichen ausgewählt"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Bookmark Selected"
+          }
         }
       }
     },
@@ -2094,6 +3228,12 @@
             "state": "translated",
             "value": "Keine Lesezeichen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Bookmarks"
+          }
         }
       }
     },
@@ -2103,6 +3243,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Keine Lesezeichen mit Tag \"%@\""
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No bookmarks tagged \"%@\""
           }
         }
       }
@@ -2114,6 +3260,12 @@
             "state": "translated",
             "value": "Noch keine Lesezeichen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No bookmarks yet"
+          }
         }
       }
     },
@@ -2123,6 +3275,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Keine toten Links"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No dead links"
           }
         }
       }
@@ -2134,6 +3292,12 @@
             "state": "translated",
             "value": "Kein Ordner"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No folder"
+          }
         }
       }
     },
@@ -2144,6 +3308,12 @@
             "state": "translated",
             "value": "Kein Ordner"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Folder"
+          }
         }
       }
     },
@@ -2153,6 +3323,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kein Ordner (Stammverzeichnis)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Folder (Root)"
           }
         }
       }
@@ -2166,6 +3342,12 @@
             "state": "translated",
             "value": "Keine Modelle gefunden"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No models found"
+          }
         }
       }
     },
@@ -2178,6 +3360,12 @@
             "state": "translated",
             "value": "Noch keine Notizen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No notes yet"
+          }
         }
       }
     },
@@ -2189,6 +3377,12 @@
             "state": "translated",
             "value": "Kein Pfad ausgewählt"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No path selected"
+          }
         }
       }
     },
@@ -2198,6 +3392,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Keine Treffer"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No results"
           }
         }
       }
@@ -2210,6 +3410,12 @@
             "state": "translated",
             "value": "Keine Ergebnisse"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Results"
+          }
         }
       }
     },
@@ -2221,6 +3427,12 @@
             "state": "translated",
             "value": "Keine Tags vorhanden"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No tags available"
+          }
         }
       }
     },
@@ -2230,6 +3442,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Noch keine Tags. Erstelle Tags in der Seitenleiste."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No tags yet. Create tags in the sidebar."
           }
         }
       }
@@ -2241,6 +3459,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nicht verbunden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not connected"
           }
         }
       }
@@ -2254,6 +3478,12 @@
             "state": "translated",
             "value": "Nicht jetzt"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not now"
+          }
         }
       }
     },
@@ -2265,6 +3495,12 @@
             "state": "translated",
             "value": "Nicht ausgewählt"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not selected"
+          }
         }
       }
     },
@@ -2275,6 +3511,12 @@
             "state": "translated",
             "value": "Notizen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notes"
+          }
         }
       }
     },
@@ -2283,6 +3525,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "OK"
@@ -2299,6 +3547,12 @@
             "state": "translated",
             "value": "Ollama URL"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama URL"
+          }
         }
       }
     },
@@ -2309,6 +3563,12 @@
             "state": "translated",
             "value": "Eine URL pro Zeile, kompakt und einfach"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One URL per line, compact and simple"
+          }
         }
       }
     },
@@ -2318,6 +3578,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Öffnen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open"
           }
         }
       }
@@ -2331,6 +3597,12 @@
             "state": "translated",
             "value": "%lld Lesezeichen auf einmal öffnen?"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open %lld bookmarks at once?"
+          }
         }
       }
     },
@@ -2340,6 +3612,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld im Browser öffnen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open %lld in Browser"
           }
         }
       }
@@ -2351,6 +3629,12 @@
             "state": "translated",
             "value": "Alle öffnen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open All"
+          }
         }
       }
     },
@@ -2360,6 +3644,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Beim Anmelden automatisch öffnen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open automatically at login"
           }
         }
       }
@@ -2373,6 +3663,12 @@
             "state": "translated",
             "value": "Lesezeichen öffnen in"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open bookmarks on"
+          }
         }
       }
     },
@@ -2382,6 +3678,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Im Browser öffnen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in Browser"
           }
         }
       }
@@ -2394,6 +3696,12 @@
             "state": "translated",
             "value": "Seite direkt in der App öffnen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open page directly in the app"
+          }
         }
       }
     },
@@ -2404,6 +3712,12 @@
             "state": "translated",
             "value": "Optionale Beschreibung"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional description"
+          }
         }
       }
     },
@@ -2413,6 +3727,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aus Zwischenablage einfügen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paste from clipboard"
           }
         }
       }
@@ -2426,6 +3746,12 @@
             "state": "translated",
             "value": "Alles im Papierkorb endgültig löschen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permanently delete everything in the Trash"
+          }
         }
       }
     },
@@ -2438,6 +3764,12 @@
             "state": "translated",
             "value": "Nur Text (.txt)"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plain Text (.txt)"
+          }
         }
       }
     },
@@ -2447,6 +3779,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bitte eine gültige URL eingeben (https://...)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Please enter a valid URL (https://...)"
           }
         }
       }
@@ -2460,6 +3798,12 @@
             "state": "translated",
             "value": "Vorschau"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview"
+          }
         }
       }
     },
@@ -2471,6 +3815,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Anbieter"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Provider"
           }
         }
       }
@@ -2484,6 +3834,12 @@
             "state": "translated",
             "value": "Lädt Favicons, Beschreibungen und Vorschaubilder für alle Lesezeichen neu."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Re-fetches favicons, descriptions and preview images for every bookmark. Use this to fix missing or outdated icons."
+          }
         }
       }
     },
@@ -2496,6 +3852,12 @@
             "state": "translated",
             "value": "Gelesen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read"
+          }
         }
       }
     },
@@ -2504,6 +3866,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reader"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Reader"
@@ -2518,6 +3886,12 @@
             "state": "translated",
             "value": "Diesen Text mit deinem lokalen KI-Modell in sauberen Fließtext umformen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reformat this text into clean prose using your local AI model"
+          }
         }
       }
     },
@@ -2530,6 +3904,12 @@
             "state": "translated",
             "value": "Alle Metadaten aktualisieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh All Metadata"
+          }
         }
       }
     },
@@ -2541,6 +3921,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Modelle aktualisieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh models"
           }
         }
       }
@@ -2572,6 +3958,12 @@
             "state": "translated",
             "value": "Aktualisiere…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refreshing…"
+          }
         }
       }
     },
@@ -2584,6 +3976,12 @@
             "state": "translated",
             "value": "Neu indizieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reindex"
+          }
         }
       }
     },
@@ -2594,6 +3992,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Umbenennen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename"
           }
         }
       }
@@ -2606,6 +4010,12 @@
             "state": "translated",
             "value": "Ordner umbenennen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Folder"
+          }
         }
       }
     },
@@ -2616,6 +4026,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tag umbenennen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename Tag"
           }
         }
       }
@@ -2629,6 +4045,12 @@
             "state": "translated",
             "value": "Alle Daten ersetzen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace All Data"
+          }
         }
       }
     },
@@ -2640,6 +4062,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fehler melden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Report an Issue"
           }
         }
       }
@@ -2653,6 +4081,12 @@
             "state": "translated",
             "value": "AI-Brain-Dateien zurücksetzen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset AI Brain Files"
+          }
         }
       }
     },
@@ -2663,6 +4097,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Brain-Dateien zurücksetzen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reset Brain Files"
           }
         }
       }
@@ -2676,6 +4116,12 @@
             "state": "translated",
             "value": "Wiederherstellen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore"
+          }
         }
       }
     },
@@ -2687,6 +4133,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld wiederherstellen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore %lld"
           }
         }
       }
@@ -2700,6 +4152,12 @@
             "state": "translated",
             "value": "Aus Backup wiederherstellen…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore from Backup…"
+          }
         }
       }
     },
@@ -2712,6 +4170,12 @@
             "state": "translated",
             "value": "Backup wiederherstellen?"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore this backup?"
+          }
         }
       }
     },
@@ -2721,6 +4185,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Erneut versuchen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
           }
         }
       }
@@ -2732,6 +4202,12 @@
             "state": "translated",
             "value": "Lesezeichen per Rechtsklick den Tag \"%@\" zuweisen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Right-click a bookmark to assign the \"%@\" tag"
+          }
         }
       }
     },
@@ -2742,6 +4218,12 @@
             "state": "translated",
             "value": "Link-Prüfung starten, um tote Links zu finden"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Run a link check to find dead links"
+          }
         }
       }
     },
@@ -2751,6 +4233,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Speichern"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
           }
         }
       }
@@ -2763,6 +4251,12 @@
             "state": "translated",
             "value": "Backup speichern"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save Backup"
+          }
         }
       }
     },
@@ -2772,6 +4266,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notizen pro Lesezeichen speichern"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save notes per bookmark"
           }
         }
       }
@@ -2783,6 +4283,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Speichere die Datei und importiere sie in Brave, Chrome oder Firefox."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save the file and import it into Brave, Chrome or Firefox."
           }
         }
       }
@@ -2796,6 +4302,12 @@
             "state": "translated",
             "value": "In Notizen speichern"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save to Notes"
+          }
         }
       }
     },
@@ -2806,6 +4318,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gespeichert"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved"
           }
         }
       }
@@ -2819,6 +4337,12 @@
             "state": "translated",
             "value": "In Notizen gespeichert"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved to Notes"
+          }
         }
       }
     },
@@ -2831,6 +4355,12 @@
             "state": "translated",
             "value": "Lesezeichen & Tags durchsuchen…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search bookmarks & tags…"
+          }
         }
       }
     },
@@ -2840,6 +4370,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lesezeichen durchsuchen…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search bookmarks…"
           }
         }
       }
@@ -2852,6 +4388,12 @@
             "state": "translated",
             "value": "Suchen… (⌘K)"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search… (⌘K)"
+          }
         }
       }
     },
@@ -2861,6 +4403,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lesezeichen auswählen, um Details zu sehen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a bookmark to see details"
           }
         }
       }
@@ -2874,6 +4422,12 @@
             "state": "translated",
             "value": "Alle auswählen (⌘A)"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select all (⌘A)"
+          }
         }
       }
     },
@@ -2885,6 +4439,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Auswählen…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select..."
           }
         }
       }
@@ -2898,6 +4458,12 @@
             "state": "translated",
             "value": "Selbst"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Self"
+          }
         }
       }
     },
@@ -2909,6 +4475,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Semantische Suche"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Semantic Search"
           }
         }
       }
@@ -2922,6 +4494,12 @@
             "state": "translated",
             "value": "Semantische Suche: AUS (zum Aktivieren klicken)"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Semantic search: OFF (tap to enable)"
+          }
         }
       }
     },
@@ -2933,6 +4511,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Semantische Suche: AN (findet nach Bedeutung)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Semantic search: ON (finds by meaning)"
           }
         }
       }
@@ -2946,6 +4530,12 @@
             "state": "translated",
             "value": "Einstellungen (⌘,)"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings (⌘,)"
+          }
         }
       }
     },
@@ -2955,6 +4545,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Oben anzeigen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show on top"
           }
         }
       }
@@ -2968,6 +4564,12 @@
             "state": "translated",
             "value": "Zeigt Gelesen/Ungelesen-Punkte, die Ungelesen-Ansicht und die Als-gelesen-Steuerung. Ausschalten für eine schlichte Lesezeichenliste."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show read/unread dots, the Unread view and the mark-as-read controls. Turn off for a plain bookmark list."
+          }
         }
       }
     },
@@ -2978,6 +4580,12 @@
             "state": "translated",
             "value": "Übersprungen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skipped"
+          }
         }
       }
     },
@@ -2987,6 +4595,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sortieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort"
           }
         }
       }
@@ -3000,6 +4614,12 @@
             "state": "translated",
             "value": "Nach Datum sortieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort by Date"
+          }
         }
       }
     },
@@ -3011,6 +4631,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nach Name sortieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort by Name"
           }
         }
       }
@@ -3024,6 +4650,12 @@
             "state": "translated",
             "value": "Nach Website sortieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort by Site"
+          }
         }
       }
     },
@@ -3035,6 +4667,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nach Tag sortieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort by Tag"
           }
         }
       }
@@ -3048,6 +4686,12 @@
             "state": "translated",
             "value": "Quelle"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source"
+          }
         }
       }
     },
@@ -3058,6 +4702,12 @@
             "state": "translated",
             "value": "Tabelle (Excel, Numbers, Google Sheets)"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Spreadsheet (Excel, Numbers, Google Sheets)"
+          }
         }
       }
     },
@@ -3067,6 +4717,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Backend wird gestartet…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starting backend…"
           }
         }
       }
@@ -3080,12 +4736,24 @@
             "state": "translated",
             "value": "Status"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status"
+          }
         }
       }
     },
     "Stop": {
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Stop"
@@ -3102,6 +4770,12 @@
             "state": "translated",
             "value": "Generierung stoppen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop generating"
+          }
         }
       }
     },
@@ -3114,6 +4788,12 @@
             "state": "translated",
             "value": "Speicherort"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Storage location"
+          }
         }
       }
     },
@@ -3122,6 +4802,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "System"
@@ -3137,6 +4823,12 @@
             "state": "translated",
             "value": "Systemstandard"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System default"
+          }
         }
       }
     },
@@ -3147,6 +4839,12 @@
             "state": "translated",
             "value": "Systemsprache"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System Language"
+          }
         }
       }
     },
@@ -3154,6 +4852,12 @@
       "comment": "section header",
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Tags"
@@ -3168,6 +4872,12 @@
             "state": "translated",
             "value": "Tags für %lld"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags for %lld"
+          }
         }
       }
     },
@@ -3179,6 +4889,12 @@
             "state": "translated",
             "value": "Die Lesezeichen bleiben erhalten — sie verlieren nur ihre Ordnerzuordnung."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The bookmarks inside are kept — they just lose their folder assignment."
+          }
         }
       }
     },
@@ -3189,6 +4905,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Der Tag wird von allen Lesezeichen entfernt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The tag will be removed from all bookmarks."
           }
         }
       }
@@ -3202,6 +4924,12 @@
             "state": "translated",
             "value": "Farbschema"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Theme"
+          }
         }
       }
     },
@@ -3214,6 +4942,12 @@
             "state": "translated",
             "value": "Denkt nach…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thinking..."
+          }
         }
       }
     },
@@ -3225,6 +4959,12 @@
             "state": "translated",
             "value": "Dieses Lesezeichen existiert bereits."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This bookmark already exists."
+          }
         }
       }
     },
@@ -3234,6 +4974,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dies öffnet %lld Tabs in deinem Browser. Das kann ihn stark belasten."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This opens %lld tabs in your browser. That can put it under heavy load."
           }
         }
       }
@@ -3247,6 +4993,12 @@
             "state": "translated",
             "value": "Das löscht %lld Lesezeichen endgültig. Du kannst es 5 Sekunden lang rückgängig machen."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This permanently deletes %lld bookmarks. You can undo for 5 seconds afterwards."
+          }
         }
       }
     },
@@ -3259,6 +5011,12 @@
             "state": "translated",
             "value": "Dies ersetzt alle aktuellen Lesezeichen, Ordner und Tags. Diese Aktion kann nicht rückgängig gemacht werden."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This replaces all current bookmarks, collections, and tags with the contents of the backup. This cannot be undone."
+          }
         }
       }
     },
@@ -3268,6 +5026,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Diese URL ist bereits in deiner Sammlung."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This URL is already in your collection."
           }
         }
       }
@@ -3280,6 +5044,12 @@
             "state": "translated",
             "value": "Dies löscht alle KI-generierten Notizen und Zusammenfassungen aus deinem Brain-Verzeichnis."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This will delete all AI-generated notes and summaries from your brain directory."
+          }
         }
       }
     },
@@ -3290,6 +5060,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dies löscht alle heruntergeladenen Favicons und Vorschaubilder. Sie werden bei Bedarf neu geladen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This will delete all downloaded favicons and preview images. They will be re-downloaded when needed."
           }
         }
       }
@@ -3302,6 +5078,12 @@
             "state": "translated",
             "value": "Dies löscht alle Lesezeichen, Ordner und Tags endgültig. Diese Aktion kann nicht rückgängig gemacht werden."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This will permanently delete all bookmarks, collections, and tags. This action cannot be undone."
+          }
         }
       }
     },
@@ -3312,6 +5094,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dies löscht alle Daten und setzt Gyrus zurück. Alle Einstellungen und Lesezeichen gehen verloren."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This will wipe all data and reset Gyrus to its initial state. All settings and bookmarks will be lost."
           }
         }
       }
@@ -3325,6 +5113,12 @@
             "state": "translated",
             "value": "Mit KI aufräumen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tidy with AI"
+          }
         }
       }
     },
@@ -3334,6 +5128,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Titel"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Title"
           }
         }
       }
@@ -3346,6 +5146,12 @@
             "state": "translated",
             "value": "Titel A → Z"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Title A → Z"
+          }
         }
       }
     },
@@ -3356,6 +5162,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Titel Z → A"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Title Z → A"
           }
         }
       }
@@ -3369,6 +5181,12 @@
             "state": "translated",
             "value": "Gelesen / Ungelesen verfolgen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Track read / unread"
+          }
         }
       }
     },
@@ -3380,6 +5198,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Papierkorb ist leer"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trash is empty"
           }
         }
       }
@@ -3393,6 +5217,12 @@
             "state": "translated",
             "value": "Rückgängig"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Undo"
+          }
         }
       }
     },
@@ -3404,6 +5234,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unbekannt"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unknown"
           }
         }
       }
@@ -3417,6 +5253,12 @@
             "state": "translated",
             "value": "Ungelesen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unread"
+          }
         }
       }
     },
@@ -3428,6 +5270,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aktualisiert"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated"
           }
         }
       }
@@ -3441,6 +5289,12 @@
             "state": "translated",
             "value": "URL"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL"
+          }
         }
       }
     },
@@ -3448,6 +5302,12 @@
       "extractionState": "stale",
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL A → Z"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "URL A → Z"
@@ -3483,6 +5343,12 @@
             "state": "translated",
             "value": "Ansicht"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View"
+          }
         }
       }
     },
@@ -3494,6 +5360,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ansichtsmodus"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View Mode"
           }
         }
       }
@@ -3507,6 +5379,12 @@
             "state": "translated",
             "value": "Quellcode auf GitHub ansehen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View Source on GitHub"
+          }
         }
       }
     },
@@ -3518,6 +5396,12 @@
             "state": "translated",
             "value": "Warnen, wenn ein Lesezeichen bereits existiert"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warn when a bookmark already exists"
+          }
         }
       }
     },
@@ -3526,6 +5410,12 @@
       "isCommentAutoGenerated": true,
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Web"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Web"
@@ -3540,6 +5430,12 @@
             "state": "translated",
             "value": "Ob Kacheln zuerst den Titel oder die URL anzeigen."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Whether each grid card leads with the page title or its link."
+          }
         }
       }
     },
@@ -3552,6 +5448,12 @@
             "state": "translated",
             "value": "In welchem Tab Lesezeichen standardmäßig geöffnet werden. AI Brain wird nur angezeigt, wenn aktiviert."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Which tab a bookmark opens to. AI Brain only shows when the AI Brain is enabled."
+          }
         }
       }
     },
@@ -3561,6 +5463,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Funktioniert mit Brave, Arc, Chrome, Firefox, Safari"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Works with Brave, Arc, Chrome, Firefox, Safari"
           }
         }
       }
@@ -3574,6 +5482,12 @@
             "state": "translated",
             "value": "Du hast alles gelesen. Stark."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You've read everything. Nice."
+          }
         }
       }
     },
@@ -3583,6 +5497,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 Lesezeichen indiziert"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 bookmark indexed"
           }
         }
       }
@@ -3594,6 +5514,12 @@
             "state": "translated",
             "value": "%lld Lesezeichen indiziert"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld bookmarks indexed"
+          }
         }
       }
     },
@@ -3603,6 +5529,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Zusammenfassung zu Notizen hinzugefügt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Summary added to Notes."
           }
         }
       }
@@ -3614,12 +5546,24 @@
             "state": "translated",
             "value": "Neuindizierung im Hintergrund gestartet."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reindexing started in the background."
+          }
         }
       }
     },
     "https://…": {
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "https://…"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "https://…"
@@ -3634,12 +5578,24 @@
             "state": "translated",
             "value": "Schnell hinzufügen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Add"
+          }
         }
       }
     },
     "Inbox": {
       "localizations": {
         "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inbox"
+          }
+        },
+        "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Inbox"
@@ -3654,6 +5610,12 @@
             "state": "translated",
             "value": "Zu Lesezeichen hinzugefügt"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved to bookmarks"
+          }
         }
       }
     },
@@ -3663,6 +5625,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bereits gespeichert"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already saved"
           }
         }
       }
@@ -3674,6 +5642,12 @@
             "state": "translated",
             "value": "Schnell hinzufügen … (%@)"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Add… (%@)"
+          }
         }
       }
     },
@@ -3683,6 +5657,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gyrus öffnen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Gyrus"
           }
         }
       }
@@ -3694,6 +5674,12 @@
             "state": "translated",
             "value": "Gyrus beenden"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit Gyrus"
+          }
         }
       }
     },
@@ -3703,6 +5689,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Schnelles Hinzufügen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Add Shortcut"
           }
         }
       }
@@ -3714,6 +5706,12 @@
             "state": "translated",
             "value": "Dieser Kurzbefehl ist bereits belegt — wähle einen anderen."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This shortcut is already in use — pick another."
+          }
         }
       }
     },
@@ -3723,6 +5721,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Öffnet von überall das Schnell-Hinzufügen-Fenster, um die URL aus der Zwischenablage zu speichern."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the quick-add panel from anywhere to save the URL in your clipboard."
           }
         }
       }
@@ -3734,6 +5738,12 @@
             "state": "translated",
             "value": "Gyrus in der Menüleiste anzeigen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Gyrus in the menu bar"
+          }
         }
       }
     },
@@ -3743,6 +5753,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ein Menüleisten-Symbol zum schnellen Hinzufügen von Lesezeichen, ohne das Hauptfenster zu öffnen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A menu-bar icon for quick-adding bookmarks without opening the main window."
           }
         }
       }
@@ -3754,6 +5770,12 @@
             "state": "translated",
             "value": "Lesezeichen hinzugefügt."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmark added."
+          }
         }
       }
     },
@@ -3763,6 +5785,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bereits gespeichert."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already saved."
           }
         }
       }
@@ -3774,6 +5802,12 @@
             "state": "translated",
             "value": "Einstellungen…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings…"
+          }
         }
       }
     },
@@ -3783,6 +5817,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lokales Modell (Ollama)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local Model (Ollama)"
           }
         }
       }
@@ -3794,6 +5834,12 @@
             "state": "translated",
             "value": "Nach Bedeutung suchen…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search by meaning…"
+          }
         }
       }
     },
@@ -3803,6 +5849,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Alle auswählen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select All"
           }
         }
       }
@@ -3814,6 +5866,12 @@
             "state": "translated",
             "value": "Bedeutungssuche ist AN — findet nach Konzept, nicht nur nach Wörtern. Klicken für Stichwortsuche."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meaning-based search is ON — finds by concept, not just words. Click for keyword search."
+          }
         }
       }
     },
@@ -3823,6 +5881,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Klicken, um nach Bedeutung zu suchen (semantisch), nicht nur nach Stichwörtern."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Click to search by meaning (semantic), not just keywords."
           }
         }
       }
@@ -3834,6 +5898,12 @@
             "state": "translated",
             "value": "Auf Werkseinstellungen zurücksetzen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Factory Reset"
+          }
         }
       }
     },
@@ -3843,6 +5913,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Text-Modell"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text Model"
           }
         }
       }
@@ -3854,6 +5930,12 @@
             "state": "translated",
             "value": "Embedding-Modell"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Embedding Model"
+          }
         }
       }
     },
@@ -3863,6 +5945,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Für KI-Chat, Zusammenfassungen und Auto-Tags."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used for AI chat, summaries and auto-tagging."
           }
         }
       }
@@ -3874,6 +5962,12 @@
             "state": "translated",
             "value": "Für die semantische (bedeutungsbasierte) Suche. Wähle ein dediziertes Embedding-Modell wie nomic-embed-text — Chat-Modelle wie llava funktionieren hier schlecht."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used for semantic (meaning-based) search. Pick a dedicated embedding model like nomic-embed-text — chat models like llava won't work well here."
+          }
         }
       }
     },
@@ -3883,6 +5977,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Modell-Liste von Ollama neu laden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh the model list from Ollama"
           }
         }
       }
@@ -3894,6 +5994,12 @@
             "state": "translated",
             "value": "Keine Embedding-Modelle gefunden"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No embedding models found"
+          }
         }
       }
     },
@@ -3903,6 +6009,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Für die semantische (bedeutungsbasierte) Suche. Es werden nur dedizierte Embedding-Modelle gelistet (z. B. nomic-embed-text, bge-m3). Eine Änderung erfordert das Neu-Indizieren unten."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used for semantic (meaning-based) search. Only dedicated embedding models are listed (e.g. nomic-embed-text, bge-m3). Changing it needs a reindex below."
           }
         }
       }
@@ -3914,6 +6026,12 @@
             "state": "translated",
             "value": "Tags mit KI erzeugen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generate Tags with AI"
+          }
         }
       }
     },
@@ -3923,6 +6041,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tags mit KI erzeugen (%lld)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generate Tags with AI (%lld)"
           }
         }
       }
@@ -3934,6 +6058,12 @@
             "state": "translated",
             "value": "Tags erzeugen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generate Tags"
+          }
         }
       }
     },
@@ -3943,6 +6073,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Künstliche Intelligenz"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artificial Intelligence"
           }
         }
       }
@@ -3954,6 +6090,12 @@
             "state": "translated",
             "value": "KI aktivieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable AI"
+          }
         }
       }
     },
@@ -3963,6 +6105,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lokale KI über Ollama — Auto-Tags, semantische Suche, Zusammenfassungen und Chat. Standardmäßig aus; Gyrus ist auch ohne KI ein vollwertiger Lesezeichen-Manager."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Local AI via Ollama — auto-tagging, semantic search, summaries and chat. Off by default; Gyrus is a full bookmark manager without it."
           }
         }
       }
@@ -3974,6 +6122,12 @@
             "state": "translated",
             "value": "AI Brain (Markdown-Spiegel)"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI Brain (Markdown mirror)"
+          }
         }
       }
     },
@@ -3983,6 +6137,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Lesezeichen als Markdown-Dateien spiegeln"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mirror bookmarks to Markdown files"
           }
         }
       }
@@ -3994,6 +6154,12 @@
             "state": "translated",
             "value": "Speichert pro Lesezeichen eine Markdown-Datei — Ordner, Tags, Notizen und KI-Chats — in einem Ordner deiner Wahl. Öffne sie in Obsidian, Logseq oder jedem Editor: deine Bibliothek in einem offenen Format, das dir gehört. Eine automatische _Index.md verlinkt alles."
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saves one Markdown file per bookmark — folders, tags, notes and AI chats — in a folder you choose. Open it in Obsidian, Logseq or any editor: your library in an open format you own. An auto-generated _Index.md maps everything."
+          }
         }
       }
     },
@@ -4003,6 +6169,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Speicherort"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Storage"
           }
         }
       }
@@ -4014,6 +6186,12 @@
             "state": "translated",
             "value": "Auswählen…"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose…"
+          }
         }
       }
     },
@@ -4023,6 +6201,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Im Finder zeigen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show in Finder"
           }
         }
       }
@@ -4034,6 +6218,12 @@
             "state": "translated",
             "value": "Index öffnen"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Index"
+          }
         }
       }
     },
@@ -4043,6 +6233,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Als funktionierend markieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark as working"
           }
         }
       }
@@ -4054,6 +6250,12 @@
             "state": "translated",
             "value": "Metadaten aktualisieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refresh Metadata"
+          }
         }
       }
     },
@@ -4063,6 +6265,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aktualisiere Metadaten…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Refreshing metadata…"
           }
         }
       }
@@ -4074,6 +6282,12 @@
             "state": "translated",
             "value": "%lld als funktionierend markieren"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark %lld as working"
+          }
         }
       }
     },
@@ -4084,6 +6298,12 @@
             "state": "translated",
             "value": "Papierkorb"
           }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trash"
+          }
         }
       }
     },
@@ -4093,6 +6313,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Suche: „%@\""
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search: \"%@\""
           }
         }
       }
