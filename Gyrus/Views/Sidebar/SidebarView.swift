@@ -135,6 +135,34 @@ struct SidebarView: View {
 
             Divider()
 
+            // Row 2: Refresh Metadata — co-located with the link check so both
+            // "freshen everything" passes live in one place. Kept separate
+            // because a link check is a fast HEAD; metadata needs a full fetch.
+            Button {
+                Task { await appStore.startMetadataRefresh() }
+            } label: {
+                let running = uiStateStore.metadataRefreshStatus?.running == true
+                HStack(spacing: 8) {
+                    Image(systemName: running ? "arrow.triangle.2.circlepath" : "photo.on.rectangle.angled")
+                        .foregroundStyle(.secondary)
+                    Text(running ? "Refreshing metadata…" : "Refresh Metadata")
+                        .font(.callout.weight(.medium))
+                    Spacer()
+                    if let s = uiStateStore.metadataRefreshStatus, s.running {
+                        Text("\(s.processed)/\(s.total)")
+                            .font(.caption2).foregroundStyle(.tertiary).monospacedDigit()
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(uiStateStore.metadataRefreshStatus?.running == true)
+            .help("Re-fetches favicons, descriptions and preview images for every bookmark.")
+
+            Divider()
+
             // Import / Export row
             HStack(spacing: 8) {
                 Button {

@@ -514,6 +514,17 @@ struct BookmarkDetailView: View {
                     Divider().padding(.leading, 40)
                     detailRow(icon: "exclamationmark.triangle.fill", label: "Status",
                               value: String(localized: "Dead Link"), tint: .red)
+                    Button {
+                        Task { await markAlive() }
+                    } label: {
+                        Label("Mark as working", systemImage: "checkmark.circle")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                    .padding(.leading, 40)
+                    .padding(.top, 2)
+                    .help("Clear the dead-link flag — use this for false positives")
                 }
             }
             .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
@@ -638,6 +649,15 @@ struct BookmarkDetailView: View {
         update.tagIds = Array(editTagIds)
         try? await bookmarkStore.updateBookmark(bookmark, update: update)
         isEditing = false
+    }
+
+    /// Clear the dead-link flag (false positives — e.g. a site that blocks our
+    /// check, or a temporary outage). Reloads so it leaves the Dead Links view.
+    private func markAlive() async {
+        var update = BookmarkUpdate()
+        update.isDead = false
+        try? await bookmarkStore.updateBookmark(bookmark, update: update)
+        await AppStore.shared.loadAll()
     }
 
     private func runAutoTag() async {

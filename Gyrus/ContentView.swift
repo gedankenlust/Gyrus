@@ -180,6 +180,17 @@ struct ContentView: View {
                 }
                 .keyboardShortcut(.delete, modifiers: .command)
                 .opacity(0)
+                Button("") {
+                    // ⌘Z runs the pending undo (same action as the undo toast),
+                    // valid during the undo window after a delete/move.
+                    if let undo = uiStateStore.undoAction {
+                        undo()
+                        uiStateStore.undoMessage = nil
+                        uiStateStore.undoAction = nil
+                    }
+                }
+                .keyboardShortcut("z", modifiers: .command)
+                .opacity(0)
                 if !showCommandPalette {
                     Button("") {
                         bookmarkStore.selectedIds.removeAll()
