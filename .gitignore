@@ -1,51 +1,36 @@
 # macOS
 .DS_Store
 
-# Claude / agent tooling
+# Agent / local tooling
 .claude/
 .gstack/
 .claude-flow/
 
-# Editor / IDE settings
-.idea/
-.vscode/
-
-# Environment variables / secrets
+# Secrets — never commit (public repo)
 *.env*
 
 # Xcode
 xcuserdata/
 *.xcuserstate
 build/
-build_output.txt
-DerivedData/
 
-# Python
+# Python backend
 backend/venv/
 __pycache__/
 *.pyc
 .pytest_cache/
 
-# Bundled self-contained Python runtime (built by build_python_runtime.sh,
-# ~140 MB — rebuilt locally, never committed)
+# Bundled self-contained Python runtime (~140 MB, rebuilt locally by
+# build_python_runtime.sh — never committed)
 backend/python-runtime/
 
-# Local data / databases
+# Build artifacts & local data
+*.dmg
 *.db
 *.db-wal
 *.db-shm
-
-# Planning / design material
-Bauplan/
-bauplan/
-
-# Stale Xcode project leftovers
-IntelDock.xcodeproj/
-
-# Local data
 Gyrus Brain/
-gyrus_brain/
-.gyrus/
+
+# Local planning material
 bauplan/
 docs/superpowers/
-*.dmg
