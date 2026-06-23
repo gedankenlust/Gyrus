@@ -16,7 +16,7 @@ No accounts required, no cloud sync, and zero telemetry.
 [![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)](https://api.tiangolo.com)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[**Download the latest App**](https://github.com/gedankenlust/Gyrus/releases) · [Features](#features) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [AI Brain](#ai-brain-optional) · [Architecture](#architecture)
+[**Download the latest App**](https://github.com/gedankenlust/Gyrus/releases) · [Features](#features) · [Quick start](#quick-start) · [AI Brain](#ai-brain-optional) · [Architecture](#architecture)
 
 </div>
 
@@ -114,19 +114,6 @@ Gyrus is built to keep your data on your machine:
   checking a link, or opening a bookmark in your browser.
 
 See [Where your data lives](#where-your-data-lives) for exact paths.
-
-## Screenshots
-
-<div align="center">
-  <p align="center"><strong>Global Search (Option + Space)</strong></p>
-  <img src="docs/screenshots/palette.png" width="800" alt="Command Palette Search">
-  
-  <p align="center"><strong>Local AI Brain Chat</strong></p>
-  <img src="docs/screenshots/ai_brain.png" width="800" alt="AI Brain Chat">
-  
-  <p align="center"><strong>Customizable Settings & Shortcuts</strong></p>
-  <img src="docs/screenshots/settings.png" width="800" alt="Customizable Settings">
-</div>
 
 ## Requirements
 
