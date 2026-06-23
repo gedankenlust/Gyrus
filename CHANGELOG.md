@@ -5,6 +5,47 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.0.0] – 2026-06-23
+
+First stable release. Gyrus is a complete, fast, local-first bookmark manager —
+and now AI is cleanly optional, on top.
+
+### Added
+- **One master "Enable AI" switch.** AI is **off by default**: Gyrus is a full
+  bookmark manager with zero AI surface until you opt in. Turn it on and the
+  whole local-AI stack appears — auto-tagging, semantic search, summaries and
+  the AI Brain. The Markdown mirror is a sub-option under it.
+- **Bulk AI auto-tagging.** Select many (or all) bookmarks and generate tags in
+  one background pass — from the selection bar or the right-click menu.
+- **Choose your Ollama models in Settings.** Separate pickers for the text model
+  (chat/tags/summaries) and the embedding model (semantic search), each showing
+  only the models that fit. Switching the embedding model rebuilds the vector
+  index to match (so multilingual models like `bge-m3` work).
+- **Richer AI Brain notes.** Each bookmark's Markdown file now carries
+  frontmatter tags, description, AI summary, notes and `[[wikilinks]]` — a real
+  Obsidian-ready knowledge graph. With a "Show in Finder" / "Open Index" shortcut.
+- **⌘Z** undoes the last delete/move. **Resizable** list columns.
+- **"Mark as working"** clears a dead-link false positive (one or many at once).
+- A **Refresh Metadata** action next to the link check.
+
+### Changed
+- Auto-tags get varied, stable colors and prefer a few broad, reusable topics
+  over many hyper-specific ones.
+- Toolbar decluttered: semantic search moved into the search field; clearer
+  model pickers; compact Data settings.
+
+### Fixed
+- **In-app language switching now translates the whole UI** (sidebar, titles,
+  search field) — previously parts stayed in the system language.
+- Favicons resolve on sub-path project sites (`user.github.io/project/`).
+- `localhost` / private-LAN URLs are never flagged as dead links.
+
+### Security
+- The local backend rejects cross-site (web-page) requests, so no website you
+  visit can drive it — carried over from 0.9.1.
+
+---
+
 ## [0.9.1] – 2026-06-16
 
 ### Security

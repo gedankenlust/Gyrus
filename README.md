@@ -11,7 +11,7 @@ No accounts required, no cloud sync, and zero telemetry.
 
 [![Platform](https://img.shields.io/badge/platform-macOS%2026%2B-black?logo=apple)](#requirements)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.9.1-orange.svg?style=flat-square)](#project-status)
+[![Version](https://img.shields.io/badge/version-1.0.0-brightgreen.svg?style=flat-square)](#project-status)
 [![Built with Swift](https://img.shields.io/badge/Swift-SwiftUI-fa7343?logo=swift&logoColor=white&style=flat-square)](https://developer.apple.com/swiftui/)
 [![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)](https://api.tiangolo.com)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -282,25 +282,27 @@ pytest
 
 ## Project status
 
-Gyrus is in active development (**v0.8.0**, on the road to 1.0). It is stable
-for daily use and ships with a comprehensive automated test suite (160+ tests
-across the backend and the app).
+**Gyrus is 1.0** — stable, feature-complete, and used daily. It ships with a
+comprehensive automated test suite across the backend and the app.
+
+AI is **fully optional**: with it switched off, Gyrus is a complete, fast
+bookmark manager. Switch it on (a single toggle) and you get local auto-tagging,
+meaning-based semantic search, summaries, and the AI Brain — all running on your
+own machine via Ollama.
+
+The app is **open-source and unsigned** (no paid Apple Developer account), so
+the first launch needs a one-time Gatekeeper bypass — see
+[Download & Install](#-download--install).
 
 ## Roadmap
-
-**On the way to 1.0 — hardening & polish.**
-The core is feature-complete; the focus now is on the things that make a 1.0
-feel like a 1.0:
-- Continued robustness hardening (Ollama offline, large imports, recovery)
-- Code signing & notarization for a friction-free install *(planned)*
 
 **Later — a smarter AI Brain.**
 - "Related bookmarks" suggestions across your library
 - Multi-bookmark queries (ask questions across your whole library)
+- A richer Obsidian knowledge graph from your bookmark mirror
 
-> Already shipped: semantic (meaning-based) search, automatic summaries on
-> demand, streaming local AI chat, soft-delete Trash, read/unread, and
-> menu-bar quick-add.
+**Possible later — a signed build & Safari extension**, if a broad audience ever
+warrants a paid Apple Developer account.
 
 ## FAQ
 
