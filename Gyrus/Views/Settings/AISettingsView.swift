@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import AppKit
 
 struct AISettingsView: View {
     @Bindable private var settings = AppSettings.shared
@@ -14,24 +15,13 @@ struct AISettingsView: View {
     
     var body: some View {
         Form {
-            Section(header: Text("General")) {
-                Toggle("Enable AI Brain", isOn: $settings.aiBrainConfig.isEnabled)
-                
-                HStack {
-                    Text("Brain Storage")
-                    Spacer()
-                    Text(settings.aiBrainConfig.rootDirectoryPath ?? "Not selected")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .help(settings.aiBrainConfig.rootDirectoryPath ?? "No path selected")
-                    Button("Select...") {
-                        selectDirectory()
-                    }
-                }
+            Section(header: Text("Artificial Intelligence")) {
+                Toggle("Enable AI", isOn: $settings.aiBrainConfig.aiEnabled)
+                Text("Local AI via Ollama — auto-tagging, semantic search, summaries and chat. Off by default; Gyrus is a full bookmark manager without it.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
-            
+
+            if settings.aiBrainConfig.aiEnabled {
             Section(header: Text("Local Model (Ollama)")) {
                 TextField("Ollama URL", text: $settings.aiBrainConfig.ollamaURL)
 
@@ -125,6 +115,34 @@ struct AISettingsView: View {
                     Text(msg).font(.caption).foregroundStyle(.secondary)
                 }
             }
+
+            Section(header: Text("AI Brain (Markdown mirror)")) {
+                Toggle("Mirror bookmarks to Markdown files", isOn: $settings.aiBrainConfig.brainMirrorEnabled)
+                Text("Saves one Markdown file per bookmark — folders, tags, notes and AI chats — in a folder you choose. Open it in Obsidian, Logseq or any editor: your library in an open format you own. An auto-generated _Index.md maps everything.")
+                    .font(.caption).foregroundStyle(.secondary)
+
+                if settings.aiBrainConfig.brainMirrorEnabled {
+                    HStack {
+                        Text("Storage")
+                        Spacer()
+                        Text(settings.aiBrainConfig.rootDirectoryPath ?? "Not selected")
+                            .foregroundColor(.secondary).font(.caption)
+                            .lineLimit(1).truncationMode(.middle)
+                            .help(settings.aiBrainConfig.rootDirectoryPath ?? "No path selected")
+                        Button("Choose…") { selectDirectory() }
+                    }
+                    HStack {
+                        Button { revealBrainInFinder() } label: {
+                            Label("Show in Finder", systemImage: "folder")
+                        }
+                        Button { openBrainIndex() } label: {
+                            Label("Open Index", systemImage: "doc.text")
+                        }
+                    }
+                    .controlSize(.small)
+                }
+            }
+            } // end: if AI enabled
         }
         .formStyle(.grouped)
         .onAppear {
@@ -196,6 +214,21 @@ struct AISettingsView: View {
         
         if panel.runModal() == .OK, let url = panel.url {
             settings.aiBrainConfig.rootDirectoryPath = AppSettings.brainRoot(forChosenDirectory: url)
+        }
+    }
+
+    private func revealBrainInFinder() {
+        guard let path = settings.aiBrainConfig.rootDirectoryPath else { return }
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
+    }
+
+    private func openBrainIndex() {
+        guard let path = settings.aiBrainConfig.rootDirectoryPath else { return }
+        let index = URL(fileURLWithPath: path).appendingPathComponent("_Index.md")
+        if FileManager.default.fileExists(atPath: index.path) {
+            NSWorkspace.shared.open(index)
+        } else {
+            NSWorkspace.shared.open(URL(fileURLWithPath: path))
         }
     }
 }

@@ -3936,6 +3936,106 @@
           }
         }
       }
+    },
+    "Artificial Intelligence": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Künstliche Intelligenz"
+          }
+        }
+      }
+    },
+    "Enable AI": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KI aktivieren"
+          }
+        }
+      }
+    },
+    "Local AI via Ollama — auto-tagging, semantic search, summaries and chat. Off by default; Gyrus is a full bookmark manager without it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lokale KI über Ollama — Auto-Tags, semantische Suche, Zusammenfassungen und Chat. Standardmäßig aus; Gyrus ist auch ohne KI ein vollwertiger Lesezeichen-Manager."
+          }
+        }
+      }
+    },
+    "AI Brain (Markdown mirror)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI Brain (Markdown-Spiegel)"
+          }
+        }
+      }
+    },
+    "Mirror bookmarks to Markdown files": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen als Markdown-Dateien spiegeln"
+          }
+        }
+      }
+    },
+    "Saves one Markdown file per bookmark — folders, tags, notes and AI chats — in a folder you choose. Open it in Obsidian, Logseq or any editor: your library in an open format you own. An auto-generated _Index.md maps everything.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speichert pro Lesezeichen eine Markdown-Datei — Ordner, Tags, Notizen und KI-Chats — in einem Ordner deiner Wahl. Öffne sie in Obsidian, Logseq oder jedem Editor: deine Bibliothek in einem offenen Format, das dir gehört. Eine automatische _Index.md verlinkt alles."
+          }
+        }
+      }
+    },
+    "Storage": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speicherort"
+          }
+        }
+      }
+    },
+    "Choose…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auswählen…"
+          }
+        }
+      }
+    },
+    "Show in Finder": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Finder zeigen"
+          }
+        }
+      }
+    },
+    "Open Index": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Index öffnen"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

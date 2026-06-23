@@ -474,7 +474,7 @@ final class APIClient {
         }
         let body = Body(
             root_dir: config.rootDirectoryPath,
-            is_enabled: config.isEnabled,
+            is_enabled: config.brainMirrorEnabled,
             llm_provider: config.llmProvider.rawValue,
             ollama_url: config.ollamaURL,
             ollama_model: config.ollamaModel,

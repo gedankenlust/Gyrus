@@ -130,7 +130,7 @@ struct BookmarkDetailView: View {
 
     private var availableTabs: [PreviewTab] {
         PreviewTab.allCases.filter { tab in
-            if tab == .brain { return aiConfig.isEnabled }
+            if tab == .brain { return aiConfig.aiEnabled }
             return true
         }
     }
@@ -222,19 +222,21 @@ struct BookmarkDetailView: View {
             HStack {
                 Text("Reader").font(.headline)
                 Spacer()
-                Button {
-                    cleanupReaderWithAI()
-                } label: {
-                    if isCleaningReader {
-                        ProgressView().scaleEffect(0.5)
-                    } else {
-                        Label("Tidy with AI", systemImage: "sparkles")
-                            .font(.caption.weight(.medium))
+                if aiConfig.aiEnabled {
+                    Button {
+                        cleanupReaderWithAI()
+                    } label: {
+                        if isCleaningReader {
+                            ProgressView().scaleEffect(0.5)
+                        } else {
+                            Label("Tidy with AI", systemImage: "sparkles")
+                                .font(.caption.weight(.medium))
+                        }
                     }
+                    .buttonStyle(.borderless)
+                    .disabled(isCleaningReader || readerContent == "Loading..." || readerContent == "Failed to load content.")
+                    .help("Reformat this text into clean prose using your local AI model")
                 }
-                .buttonStyle(.borderless)
-                .disabled(isCleaningReader || readerContent == "Loading..." || readerContent == "Failed to load content.")
-                .help("Reformat this text into clean prose using your local AI model")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -589,15 +591,17 @@ struct BookmarkDetailView: View {
                     HStack {
                         Text("Tags").font(.callout.weight(.medium))
                         Spacer()
-                        if isAutoTagging {
-                            ProgressView().controlSize(.small)
-                        } else {
-                            Button(action: { Task { await runAutoTag() } }) {
-                                Image(systemName: "wand.and.stars")
-                                    .foregroundStyle(.purple)
+                        if aiConfig.aiEnabled {
+                            if isAutoTagging {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Button(action: { Task { await runAutoTag() } }) {
+                                    Image(systemName: "wand.and.stars")
+                                        .foregroundStyle(.purple)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Auto-tag with AI")
                             }
-                            .buttonStyle(.plain)
-                            .help("Auto-tag with AI")
                         }
                         Text("\(editTagIds.count) selected")
                             .font(.caption).foregroundStyle(.secondary)

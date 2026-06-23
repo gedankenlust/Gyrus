@@ -66,7 +66,9 @@ struct BrainOnboardingView: View {
 
     private func enable() {
         var config = AppSettings.shared.aiBrainConfig
-        config.isEnabled = true
+        // Enabling the Markdown mirror implies AI is on (it needs the AI stack).
+        config.aiEnabled = true
+        config.brainMirrorEnabled = true
         config.rootDirectoryPath = chosenPath
         // The setter persists the config and pushes it to the backend.
         AppSettings.shared.aiBrainConfig = config

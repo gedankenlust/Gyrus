@@ -41,7 +41,7 @@ struct BookmarkListView: View {
                         get: { bookmarkStore.searchQuery },
                         set: { appStore.scheduleSearch($0) }
                     ),
-                    semanticAvailable: bookmarkStore.semanticSearchAvailable,
+                    semanticAvailable: AppSettings.shared.aiBrainConfig.aiEnabled && bookmarkStore.semanticSearchAvailable,
                     semanticEnabled: Binding(
                         get: { bookmarkStore.semanticSearchEnabled },
                         set: { bookmarkStore.semanticSearchEnabled = $0 }
@@ -288,9 +288,9 @@ struct SelectionStatusBar: View {
                     Text("Tagging \(status.processed)/\(status.total)…")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-            } else if !collectionStore.showTrash {
-                // Auto-tagging only needs Ollama (like the single-bookmark wand),
-                // not the AI-Brain markdown mirror — so it's always offered here.
+            } else if !collectionStore.showTrash && AppSettings.shared.aiBrainConfig.aiEnabled {
+                // Bulk AI tagging — shown only when AI is enabled (the master
+                // switch), like every other AI affordance.
                 Button {
                     let ids = Array(bookmarkStore.selectedIds)
                     Task { await appStore.startBatchAutoTag(ids: ids) }
