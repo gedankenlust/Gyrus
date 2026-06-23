@@ -6,6 +6,13 @@
 .gstack/
 .claude-flow/
 
+# Editor / IDE settings
+.idea/
+.vscode/
+
+# Environment variables / secrets
+*.env*
+
 # Xcode
 xcuserdata/
 *.xcuserstate
