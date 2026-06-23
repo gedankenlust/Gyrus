@@ -181,16 +181,17 @@ struct BookmarkListView: View {
     }
 
     private var navigationTitle: String {
+        let s = AppSettings.shared
         if !bookmarkStore.searchQuery.isEmpty {
-            return String(localized: "Search: \"\(bookmarkStore.searchQuery)\"")
+            return s.localized("Search: \"\(bookmarkStore.searchQuery)\"")
         }
-        if collectionStore.showTrash { return String(localized: "Trash") }
-        if collectionStore.showUnreadOnly { return String(localized: "Unread") }
-        if collectionStore.showDeadOnly { return String(localized: "Dead Links") }
+        if collectionStore.showTrash { return s.localized("Trash") }
+        if collectionStore.showUnreadOnly { return s.localized("Unread") }
+        if collectionStore.showDeadOnly { return s.localized("Dead Links") }
         if let tag = tagStore.selectedTagName {
             return "#\(tag)"
         }
-        return collectionStore.flatCollections.first(where: { $0.id == collectionStore.selectedCollectionId })?.name ?? String(localized: "All Bookmarks")
+        return collectionStore.flatCollections.first(where: { $0.id == collectionStore.selectedCollectionId })?.name ?? s.localized("All Bookmarks")
     }
 }
 

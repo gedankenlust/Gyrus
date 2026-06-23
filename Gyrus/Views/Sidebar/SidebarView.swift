@@ -34,6 +34,7 @@ struct SidebarView: View {
         // the stale number. Touch the read-status setting, the tag/folder lists,
         // and the sidebar counts so any change triggers a rebuild.
         let _ = AppSettings.shared.enableReadStatus
+        let _ = AppSettings.shared.appLanguage   // re-render (and rebuild the AppKit outline) on language switch
         let _ = tagStore.tags
         let _ = collectionStore.collections
         let _ = (bookmarkStore.totalBookmarkCount, bookmarkStore.trashCount,

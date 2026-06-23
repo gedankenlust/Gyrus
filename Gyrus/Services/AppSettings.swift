@@ -156,6 +156,21 @@ public final class AppSettings {
         }
     }
 
+    /// Localize a key against the *in-app* chosen language. The SwiftUI
+    /// `.environment(\.locale)` language switch only reaches SwiftUI `Text`;
+    /// AppKit views (the sidebar outline) and plain `String`s (navigation
+    /// titles) must use this so they follow the in-app language too — otherwise
+    /// switching to English leaves them stuck on the system language.
+    func localized(_ value: String.LocalizationValue) -> String {
+        let code: String? = (appLanguage == "en" || appLanguage == "de") ? appLanguage : nil
+        if let code,
+           let path = Bundle.main.path(forResource: code, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            return String(localized: value, bundle: bundle)
+        }
+        return String(localized: value)
+    }
+
     // MARK: - Init
 
     private init() {
