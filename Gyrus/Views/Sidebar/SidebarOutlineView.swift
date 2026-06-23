@@ -104,23 +104,23 @@ struct SidebarOutlineView: NSViewRepresentable {
 
             var newRoots: [SidebarNode] = []
             newRoots.append(node(id: "__all__",
-                                 kind: .special(title: "All Bookmarks", symbol: "bookmark.fill", tint: .controlAccentColor),
+                                 kind: .special(title: String(localized: "All Bookmarks"), symbol: "bookmark.fill", tint: .controlAccentColor),
                                  count: parent.bookmarkStore.totalBookmarkCount))
             if AppSettings.shared.enableReadStatus && parent.bookmarkStore.unreadBookmarkCount > 0 {
                 newRoots.append(node(id: "__unread__",
-                                     kind: .special(title: "Unread", symbol: "envelope.badge.fill", tint: .controlAccentColor),
+                                     kind: .special(title: String(localized: "Unread"), symbol: "envelope.badge.fill", tint: .controlAccentColor),
                                      count: parent.bookmarkStore.unreadBookmarkCount))
             }
             if parent.bookmarkStore.deadBookmarkCount > 0 {
                 newRoots.append(node(id: "__dead__",
-                                     kind: .special(title: "Dead Links", symbol: "exclamationmark.triangle.fill", tint: .systemRed),
+                                     kind: .special(title: String(localized: "Dead Links"), symbol: "exclamationmark.triangle.fill", tint: .systemRed),
                                      count: parent.bookmarkStore.deadBookmarkCount))
             }
-            let folders = node(id: "group:folders", kind: .group(title: "Folders", add: .folder))
+            let folders = node(id: "group:folders", kind: .group(title: String(localized: "Folders"), add: .folder))
             folders.children = folderNodes(parent.store.collections)
             newRoots.append(folders)
 
-            let tags = node(id: "group:tags", kind: .group(title: "Tags", add: .tag))
+            let tags = node(id: "group:tags", kind: .group(title: String(localized: "Tags"), add: .tag))
             tags.children = parent.tagStore.tags.map { tag in
                 node(id: "tag:\(tag.name)", kind: .tag(tag), count: tag.bookmarkCount)
             }
@@ -129,7 +129,7 @@ struct SidebarOutlineView: NSViewRepresentable {
             // Trash is always shown (like Finder) so it's a predictable place to
             // recover deleted bookmarks — even when currently empty.
             newRoots.append(node(id: "__trash__",
-                                 kind: .special(title: "Trash", symbol: "trash", tint: .secondaryLabelColor),
+                                 kind: .special(title: String(localized: "Trash"), symbol: "trash", tint: .secondaryLabelColor),
                                  count: parent.bookmarkStore.trashCount))
 
             roots = newRoots
