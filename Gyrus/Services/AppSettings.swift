@@ -63,7 +63,10 @@ public final class AppSettings {
     // MARK: - General Settings
 
     public var appLanguage: String {
-        didSet { defaults.set(appLanguage, forKey: Keys.appLanguage) }
+        didSet {
+            defaults.set(appLanguage, forKey: Keys.appLanguage)
+            Bundle.setAppLanguage(appLanguage)
+        }
     }
 
     public var appTheme: String {
@@ -205,6 +208,9 @@ public final class AppSettings {
         } else {
             aiBrainConfig = AIBrainConfig()
         }
+        // All stored properties are set now — apply the chosen language to the
+        // whole app (init assignments don't fire didSet).
+        Bundle.setAppLanguage(appLanguage)
     }
 
     // MARK: - Helpers
@@ -225,5 +231,44 @@ public final class AppSettings {
                 print("Failed to sync AI Brain config: \(error)")
             }
         }
+    }
+}
+
+// MARK: - In-app language switching
+
+/// `.environment(\.locale)` only changes formatting, not which string table
+/// SwiftUI `Text` / `NSLocalizedString` look up — so an in-app language switch
+/// wouldn't actually translate the UI. The standard fix: re-point `Bundle.main`
+/// at the chosen language's `.lproj`, so *everything* (SwiftUI, AppKit, plain
+/// `String(localized:)`) resolves consistently. Combined with the `\.locale`
+/// environment + a re-render, the switch applies live.
+private var _languageBundleKey: UInt8 = 0
+
+private final class LanguageBundle: Bundle, @unchecked Sendable {
+    override func localizedString(forKey key: String, value: String?, table tableName: String?) -> String {
+        if let path = objc_getAssociatedObject(Bundle.main, &_languageBundleKey) as? String,
+           let bundle = Bundle(path: path) {
+            return bundle.localizedString(forKey: key, value: value, table: tableName)
+        }
+        return super.localizedString(forKey: key, value: value, table: tableName)
+    }
+}
+
+extension Bundle {
+    private static let _installLanguageBundleOnce: Void = {
+        object_setClass(Bundle.main, LanguageBundle.self)
+    }()
+
+    /// Point the whole app at `code` ("en"/"de"); anything else falls back to
+    /// the system language.
+    static func setAppLanguage(_ code: String?) {
+        _ = _installLanguageBundleOnce
+        let path: String?
+        if let code, code == "en" || code == "de" {
+            path = Bundle.main.path(forResource: code, ofType: "lproj")
+        } else {
+            path = nil
+        }
+        objc_setAssociatedObject(Bundle.main, &_languageBundleKey, path, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 }
