@@ -668,6 +668,10 @@ struct BookmarkDetailView: View {
             _ = try? await APIClient.shared.updateBookmark(id: id, body: update)
         }
         await AppStore.shared.loadAll()
+        // The cleared bookmarks just left the Dead Links view — drop the now-stale
+        // selection so the detail panel doesn't keep showing the old "dead" state.
+        bookmarkStore.selectedIds.removeAll()
+        bookmarkStore.selectedBookmark = nil
     }
 
     private func runAutoTag() async {
