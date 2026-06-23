@@ -511,13 +511,16 @@ struct BookmarkDetailView: View {
                 detailRow(icon: "arrow.down.circle", label: "Source", value: bookmark.source)
 
                 if bookmark.isDead {
+                    let selCount = bookmarkStore.selectedIds.contains(bookmark.id)
+                        ? bookmarkStore.selectedIds.count : 1
                     Divider().padding(.leading, 40)
                     detailRow(icon: "exclamationmark.triangle.fill", label: "Status",
                               value: String(localized: "Dead Link"), tint: .red)
                     Button {
                         Task { await markAlive() }
                     } label: {
-                        Label("Mark as working", systemImage: "checkmark.circle")
+                        Label(selCount > 1 ? "Mark \(selCount) as working" : "Mark as working",
+                              systemImage: "checkmark.circle")
                             .font(.caption)
                     }
                     .buttonStyle(.borderless)
@@ -652,11 +655,18 @@ struct BookmarkDetailView: View {
     }
 
     /// Clear the dead-link flag (false positives — e.g. a site that blocks our
-    /// check, or a temporary outage). Reloads so it leaves the Dead Links view.
+    /// check, or a temporary outage). Applies to the whole selection when this
+    /// bookmark is part of it, so multiple can be cleared at once. Reloads so
+    /// they leave the Dead Links view.
     private func markAlive() async {
+        let ids = bookmarkStore.selectedIds.contains(bookmark.id) && bookmarkStore.selectedIds.count > 1
+            ? Array(bookmarkStore.selectedIds)
+            : [bookmark.id]
         var update = BookmarkUpdate()
         update.isDead = false
-        try? await bookmarkStore.updateBookmark(bookmark, update: update)
+        for id in ids {
+            _ = try? await APIClient.shared.updateBookmark(id: id, body: update)
+        }
         await AppStore.shared.loadAll()
     }
 
