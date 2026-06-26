@@ -291,7 +291,7 @@ pbxproj = f"""// !$*UTF8*$!
 \t\t\t);
 \t\t\trunOnlyForDeploymentPostprocessing = 0;
 \t\t\tshellPath = /bin/sh;
-\t\t\tshellScript = "rsync -a --delete --exclude 'venv' --exclude '__pycache__' --exclude '*.pyc' --exclude '*.db' --exclude '*.db-wal' --exclude '*.db-shm' --exclude '.DS_Store' \\"${{SRCROOT}}/backend/\\" \\"${{BUILT_PRODUCTS_DIR}}/${{UNLOCALIZED_RESOURCES_FOLDER_PATH}}/backend/\\"";
+\t\t\tshellScript = "rsync -a --delete --exclude 'venv' --exclude '__pycache__' --exclude '*.pyc' --exclude '*.db' --exclude '*.db-wal' --exclude '*.db-shm' --exclude '.DS_Store' \\"${{SRCROOT}}/backend/\\" \\"${{BUILT_PRODUCTS_DIR}}/${{UNLOCALIZED_RESOURCES_FOLDER_PATH}}/backend/\\"\\nmkdir -p \\"${{BUILT_PRODUCTS_DIR}}/${{UNLOCALIZED_RESOURCES_FOLDER_PATH}}/en.lproj\\"";
 \t\t}};
 /* End PBXShellScriptBuildPhase section */
 

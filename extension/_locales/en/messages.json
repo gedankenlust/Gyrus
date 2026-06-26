@@ -1,0 +1,26 @@
+{
+  "extName": {
+    "message": "Gyrus Saver"
+  },
+  "extDescription": {
+    "message": "Save bookmarks to Gyrus."
+  },
+  "saving": {
+    "message": "Saving to Gyrus..."
+  },
+  "noActiveTab": {
+    "message": "No active tab found"
+  },
+  "alreadySaved": {
+    "message": "Already saved"
+  },
+  "gyrusError": {
+    "message": "Gyrus error: "
+  },
+  "savedToInbox": {
+    "message": "Saved to Inbox!"
+  },
+  "timeoutNotReady": {
+    "message": "Timeout: Gyrus not ready"
+  }
+}

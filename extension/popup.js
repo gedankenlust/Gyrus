@@ -1,4 +1,16 @@
+function localizeHTML() {
+  document.querySelectorAll('[data-i18n]').forEach(element => {
+    const key = element.getAttribute('data-i18n');
+    const translation = chrome.i18n.getMessage(key);
+    if (translation) {
+      element.textContent = translation;
+    }
+  });
+}
+
 async function saveBookmark() {
+  localizeHTML();
+
   const statusContainer = document.getElementById('status-container');
   const statusIcon = document.getElementById('status-icon');
   const statusText = document.getElementById('status-text');
@@ -10,7 +22,7 @@ async function saveBookmark() {
   try {
     // 1. Get current tab info
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) throw new Error('Kein aktiver Tab gefunden');
+    if (!tab) throw new Error(chrome.i18n.getMessage('noActiveTab'));
 
     pageTitle.textContent = tab.title;
 
@@ -30,15 +42,15 @@ async function saveBookmark() {
 
     if (!response.ok) {
       if (response.status === 409) {
-        throw new Error('Bereits gespeichert');
+        throw new Error(chrome.i18n.getMessage('alreadySaved'));
       }
-      throw new Error('Gyrus Fehler: ' + response.status);
+      throw new Error(chrome.i18n.getMessage('gyrusError') + response.status);
     }
 
     // 3. Update UI to Success
     statusContainer.className = 'status success';
     statusIcon.textContent = '✓';
-    statusText.textContent = 'In Inbox gespeichert!';
+    statusText.textContent = chrome.i18n.getMessage('savedToInbox');
 
     // 4. Auto-close after 2s
     setTimeout(() => window.close(), 2000);
@@ -47,7 +59,7 @@ async function saveBookmark() {
     statusContainer.className = 'status error';
     statusIcon.textContent = '✕';
     if (error.name === 'AbortError') {
-      statusText.textContent = 'Timeout: Gyrus nicht bereit';
+      statusText.textContent = chrome.i18n.getMessage('timeoutNotReady');
     } else {
       statusText.textContent = error.message;
     }

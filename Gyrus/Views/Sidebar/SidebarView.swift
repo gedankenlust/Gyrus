@@ -83,6 +83,7 @@ struct SidebarView: View {
                 filterCollectionId: col.id,
                 filterCollectionName: col.name
             )
+            .environment(\.locale, AppSettings.shared.resolvedLocale)
         }
         .sheet(item: $recolorFolder) { folder in
             ColorPickerSheet(
@@ -94,6 +95,7 @@ struct SidebarView: View {
                 },
                 onCancel: { recolorFolder = nil }
             )
+            .environment(\.locale, AppSettings.shared.resolvedLocale)
         }
     }
 
@@ -209,6 +211,7 @@ struct SidebarSheetModifier: ViewModifier {
         content
             .sheet(isPresented: $showExportSheet) {
                 ExportSheet(isPresented: $showExportSheet)
+                    .environment(\.locale, AppSettings.shared.resolvedLocale)
             }
             .sheet(isPresented: $showNewTag) {
                 TagEditorSheet(
@@ -223,6 +226,7 @@ struct SidebarSheetModifier: ViewModifier {
                     },
                     onCancel: { showNewTag = false }
                 )
+                .environment(\.locale, AppSettings.shared.resolvedLocale)
             }
     }
 }
@@ -254,6 +258,7 @@ struct SidebarMiscModifier: ViewModifier {
                     },
                     onCancel: { recolorTag = nil }
                 )
+                .environment(\.locale, AppSettings.shared.resolvedLocale)
             }
             .onChange(of: selection) {
                 if selection.count > 1 { return }

@@ -65,6 +65,11 @@ public final class AppSettings {
     public var appLanguage: String {
         didSet {
             defaults.set(appLanguage, forKey: Keys.appLanguage)
+            if appLanguage == "system" {
+                defaults.removeObject(forKey: "AppleLanguages")
+            } else {
+                defaults.set([appLanguage], forKey: "AppleLanguages")
+            }
             Bundle.setAppLanguage(appLanguage)
         }
     }
@@ -166,10 +171,8 @@ public final class AppSettings {
     /// switching to English leaves them stuck on the system language.
     func localized(_ value: String.LocalizationValue) -> String {
         let code: String? = (appLanguage == "en" || appLanguage == "de") ? appLanguage : nil
-        if let code,
-           let path = Bundle.main.path(forResource: code, ofType: "lproj"),
-           let bundle = Bundle(path: path) {
-            return String(localized: value, bundle: bundle)
+        if let code {
+            return String(localized: value, locale: Locale(identifier: code))
         }
         return String(localized: value)
     }
@@ -243,12 +246,22 @@ public final class AppSettings {
 /// `String(localized:)`) resolves consistently. Combined with the `\.locale`
 /// environment + a re-render, the switch applies live.
 private var _languageBundleKey: UInt8 = 0
+private var _languageCodeKey: UInt8 = 0
 
 private final class LanguageBundle: Bundle, @unchecked Sendable {
     override func localizedString(forKey key: String, value: String?, table tableName: String?) -> String {
         if let path = objc_getAssociatedObject(Bundle.main, &_languageBundleKey) as? String,
            let bundle = Bundle(path: path) {
             return bundle.localizedString(forKey: key, value: value, table: tableName)
+        }
+        if let code = objc_getAssociatedObject(Bundle.main, &_languageCodeKey) as? String {
+            if code == "en" {
+                return value ?? key
+            } else if code == "de",
+                      let path = Bundle.main.path(forResource: "de", ofType: "lproj"),
+                      let bundle = Bundle(path: path) {
+                return bundle.localizedString(forKey: key, value: value, table: tableName)
+            }
         }
         return super.localizedString(forKey: key, value: value, table: tableName)
     }
@@ -270,5 +283,6 @@ extension Bundle {
             path = nil
         }
         objc_setAssociatedObject(Bundle.main, &_languageBundleKey, path, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        objc_setAssociatedObject(Bundle.main, &_languageCodeKey, code, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 }

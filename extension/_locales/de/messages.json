@@ -1,0 +1,26 @@
+{
+  "extName": {
+    "message": "Gyrus Saver"
+  },
+  "extDescription": {
+    "message": "Lesezeichen in Gyrus speichern."
+  },
+  "saving": {
+    "message": "Speichere in Gyrus..."
+  },
+  "noActiveTab": {
+    "message": "Kein aktiver Tab gefunden"
+  },
+  "alreadySaved": {
+    "message": "Bereits gespeichert"
+  },
+  "gyrusError": {
+    "message": "Gyrus Fehler: "
+  },
+  "savedToInbox": {
+    "message": "In Inbox gespeichert!"
+  },
+  "timeoutNotReady": {
+    "message": "Timeout: Gyrus nicht bereit"
+  }
+}
