@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, AsyncMock
 from services.llm_service import LLMService, LLMUnavailableError
 
 
@@ -47,9 +47,10 @@ async def test_ollama_connection_error_is_friendly():
     async def boom(*a, **k):
         raise httpx.ConnectError("refused")
 
-    with patch("services.llm_service.httpx.AsyncClient") as mock_client:
-        instance = mock_client.return_value.__aenter__.return_value
-        instance.post.side_effect = boom
+    with patch("services.llm_service._get_client") as mock_get:
+        mock_client = AsyncMock()
+        mock_client.post.side_effect = boom
+        mock_get.return_value = mock_client
         with pytest.raises(LLMUnavailableError) as exc:
             await LLMService.ask_llm("Hi", "Context", provider_config)
         assert "Ollama" in str(exc.value)

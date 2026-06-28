@@ -455,12 +455,18 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
         response = await LLMService.ask_llm(
             prompt=prompt,
             context=context,
-            provider_config=provider_config or {"provider": "ollama", "model": "llama3"}
+            provider_config=provider_config or {"provider": "ollama", "model": "llama3"},
+            # Tagging is a short, mechanical task. Disable the reasoning phase
+            # (qwen3/deepseek-r1 otherwise spend ~25s "thinking" per bookmark for
+            # the same 3 tags) and cap output — tags are a dozen tokens at most.
+            think=False,
+            options={"num_predict": 64, "temperature": 0},
         )
     except Exception as e:
         raise HTTPException(500, f"LLM Error: {str(e)}")
 
-    # 4. Parse and apply tags
+    # 4. Parse and apply tags. (Any <think>…</think> block is already stripped by
+    # LLMService, so this is plain comma-separated tag text.)
     suggested = [t.strip().lower() for t in response.split(",") if t.strip()]
     suggested = suggested[:3] # Max 3 tags
     

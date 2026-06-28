@@ -1,3 +1,4 @@
+import re
 import httpx
 import logging
 from typing import Dict, Any, List, Optional
@@ -34,6 +35,16 @@ def _build_system_prompt(context: str, title: str, url: str) -> str:
     return header
 
 
+_shared_client: httpx.AsyncClient | None = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    global _shared_client
+    if _shared_client is None or _shared_client.is_closed:
+        _shared_client = httpx.AsyncClient(timeout=120.0)
+    return _shared_client
+
+
 class LLMService:
     @staticmethod
     async def ask_llm(
@@ -43,15 +54,21 @@ class LLMService:
         title: str = "",
         url: str = "",
         history: Optional[List[Dict[str, str]]] = None,
+        think: Optional[bool] = None,
+        options: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Orchestrate the request to the LLM based on provider configuration.
+
+        ``think`` and ``options`` are forwarded to Ollama. Set ``think=False`` for
+        short, mechanical tasks (e.g. tagging) so reasoning models like qwen3 skip
+        their <think> phase — that alone is a ~40x speedup per call.
         """
         provider = provider_config.get("provider", "ollama")
         history = history or []
 
         if provider == "ollama":
-            return await LLMService._ask_ollama(prompt, context, provider_config, title, url, history)
+            return await LLMService._ask_ollama(prompt, context, provider_config, title, url, history, think, options)
         # Gyrus is local-only by design — there is no cloud provider. This guards
         # against an unexpected/legacy provider value in a stored config.
         raise LLMUnavailableError(
@@ -86,6 +103,8 @@ class LLMService:
         title: str,
         url: str,
         history: List[Dict[str, str]],
+        think: Optional[bool] = None,
+        options: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Send a chat request to a local Ollama instance, using role-based
@@ -94,14 +113,28 @@ class LLMService:
         base_url = LLMService._ollama_base(provider_config)
         model = provider_config.get("model", "llama3")
         messages = LLMService._build_messages(prompt, context, title, url, history)
-        payload = {"model": model, "messages": messages, "stream": False}
+        payload: Dict[str, Any] = {"model": model, "messages": messages, "stream": False}
+        # think=False makes reasoning models (qwen3, deepseek-r1) skip their
+        # <think> phase; it is a harmless no-op on plain models. Safe to always send.
+        if think is not None:
+            payload["think"] = think
+        if options:
+            payload["options"] = options
 
+        client = _get_client()
         try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(f"{base_url}/api/chat", json=payload)
+            if response.status_code == 400 and "think" in payload:
+                # Some models / older Ollama versions reject the `think` field.
+                # Drop it and retry once so tagging still works on those models.
+                payload.pop("think", None)
                 response = await client.post(f"{base_url}/api/chat", json=payload)
-                response.raise_for_status()
-                data = response.json()
-                return data.get("message", {}).get("content", "")
+            response.raise_for_status()
+            data = response.json()
+            content = data.get("message", {}).get("content", "") or ""
+            # Strip any reasoning block, in case a model emits <think>…</think>
+            # inline despite think=False.
+            return re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
         except httpx.ConnectError:
             raise LLMUnavailableError(
                 "Couldn't reach Ollama. Make sure it's running "
@@ -133,22 +166,33 @@ class LLMService:
         messages = LLMService._build_messages(prompt, context, title, url, history)
         payload = {"model": model, "messages": messages, "stream": True}
 
+        client = _get_client()
         try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                async with client.stream("POST", f"{base_url}/api/chat", json=payload) as resp:
-                    resp.raise_for_status()
-                    async for line in resp.aiter_lines():
-                        if not line.strip():
-                            continue
-                        try:
-                            chunk = _json.loads(line)
-                        except Exception:
-                            continue
-                        piece = chunk.get("message", {}).get("content", "")
-                        if piece:
-                            yield piece
-                        if chunk.get("done"):
-                            break
+            async with client.stream("POST", f"{base_url}/api/chat", json=payload) as resp:
+                if resp.status_code >= 400:
+                    # Map errors to the same friendly messages as the non-stream
+                    # path. Must read the body first in streaming mode.
+                    await resp.aread()
+                    if resp.status_code == 404:
+                        raise LLMUnavailableError(
+                            f"Model '{model}' isn't installed in Ollama. "
+                            f"Run: ollama pull {model}"
+                        )
+                    raise LLMUnavailableError(
+                        f"Ollama returned an error (HTTP {resp.status_code})."
+                    )
+                async for line in resp.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        chunk = _json.loads(line)
+                    except Exception:
+                        continue
+                    piece = chunk.get("message", {}).get("content", "")
+                    if piece:
+                        yield piece
+                    if chunk.get("done"):
+                        break
         except httpx.ConnectError:
             raise LLMUnavailableError(
                 "Couldn't reach Ollama. Make sure it's running "

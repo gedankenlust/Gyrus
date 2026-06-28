@@ -44,7 +44,7 @@ struct SidebarOutlineView: NSViewRepresentable {
         outline.style = .sourceList
         outline.indentationPerLevel = 12
         outline.floatsGroupRows = false
-        outline.allowsMultipleSelection = false
+        outline.allowsMultipleSelection = true
         outline.backgroundColor = .clear
 
         let column = NSTableColumn(identifier: .init("main"))
@@ -178,7 +178,8 @@ struct SidebarOutlineView: NSViewRepresentable {
             return false
         }
         func outlineView(_ ov: NSOutlineView, shouldSelectItem item: Any) -> Bool {
-            if case .group = (item as? SidebarNode)?.kind { return false }
+            guard let node = item as? SidebarNode else { return false }
+            if case .group = node.kind { return false }
             return true
         }
         /// Hide the disclosure triangle on the FOLDERS/TAGS headers. macOS shows
@@ -233,18 +234,25 @@ struct SidebarOutlineView: NSViewRepresentable {
         // MARK: Selection
 
         func outlineViewSelectionDidChange(_ notification: Notification) {
-            guard !updatingSelection, let ov = outlineView, ov.selectedRow >= 0,
-                  let n = ov.item(atRow: ov.selectedRow) as? SidebarNode else { return }
-            parent.selection = [n.id]
+            guard !updatingSelection, let ov = outlineView else { return }
+            let rows = ov.selectedRowIndexes
+            guard !rows.isEmpty else { return }
+            // Push the FULL selection into the binding. A single tag/folder drives
+            // navigation; a multi-tag selection is carried through too (SidebarView
+            // ignores sets with count > 1 for navigation) so it survives reloads.
+            let ids = rows.compactMap { (ov.item(atRow: $0) as? SidebarNode)?.id }
+            if !ids.isEmpty { parent.selection = Set(ids) }
         }
 
         private func syncSelection(in ov: NSOutlineView) {
             updatingSelection = true; defer { updatingSelection = false }
-            if let id = parent.selection.first, let n = interned[id] {
+            let rows = parent.selection.compactMap { id -> Int? in
+                guard let n = interned[id] else { return nil }
                 let row = ov.row(forItem: n)
-                if row >= 0 { ov.selectRowIndexes([row], byExtendingSelection: false); return }
+                return row >= 0 ? row : nil
             }
-            ov.deselectAll(nil)
+            if rows.isEmpty { ov.deselectAll(nil); return }
+            ov.selectRowIndexes(IndexSet(rows), byExtendingSelection: false)
         }
 
         // MARK: Expansion + height
@@ -372,6 +380,14 @@ struct SidebarOutlineView: NSViewRepresentable {
             if case .tag(let t)? = clickedNode()?.kind { return t }
             return nil
         }
+        private func selectedTags() -> [Tag] {
+            guard let ov = outlineView else { return [] }
+            return ov.selectedRowIndexes.compactMap { row in
+                guard let n = ov.item(atRow: row) as? SidebarNode,
+                      case .tag(let t) = n.kind else { return nil }
+                return t
+            }
+        }
 
         @objc func addFolderRoot() {
             if let name = promptText("New Folder", initial: "") {
@@ -436,9 +452,24 @@ struct SidebarOutlineView: NSViewRepresentable {
                 let bs = parent.bookmarkStore
                 Task { @MainActor in
                     try? await ts.deleteTag(t.id)
-                    // Drop the tag from any open bookmark chips immediately,
-                    // without waiting for a reload.
                     bs.removeTagLocally(t.id)
+                }
+            }
+        }
+        @objc private func deleteSelectedTags() {
+            let tags = selectedTags()
+            guard !tags.isEmpty else { return }
+            let msg = tags.count == 1
+                ? "Delete tag \"\(tags[0].name)\"?"
+                : "Delete \(tags.count) tags?"
+            if confirm(msg, "Bookmarks keep their other tags.") {
+                let ts = parent.tagStore
+                let bs = parent.bookmarkStore
+                Task { @MainActor in
+                    for t in tags {
+                        try? await ts.deleteTag(t.id)
+                        bs.removeTagLocally(t.id)
+                    }
                 }
             }
         }
@@ -484,10 +515,20 @@ extension SidebarOutlineView.Coordinator: NSMenuDelegate {
             menu.addItem(.separator())
             menu.addItem(withTitle: "Delete", action: #selector(deleteFolder), keyEquivalent: "")
         case .tag:
-            menu.addItem(withTitle: "Rename", action: #selector(renameTag), keyEquivalent: "")
-            menu.addItem(withTitle: "Change Color…", action: #selector(recolorTag), keyEquivalent: "")
-            menu.addItem(.separator())
-            menu.addItem(withTitle: "Delete", action: #selector(deleteTag), keyEquivalent: "")
+            let sel = selectedTags()
+            // Only offer bulk delete when the right-clicked tag is part of the
+            // current multi-selection; otherwise act on the clicked tag alone.
+            let clickedInSelection = (outlineView?.clickedRow).map {
+                outlineView?.selectedRowIndexes.contains($0) ?? false
+            } ?? false
+            if sel.count > 1 && clickedInSelection {
+                menu.addItem(withTitle: "Delete \(sel.count) Tags", action: #selector(deleteSelectedTags), keyEquivalent: "")
+            } else {
+                menu.addItem(withTitle: "Rename", action: #selector(renameTag), keyEquivalent: "")
+                menu.addItem(withTitle: "Change Color…", action: #selector(recolorTag), keyEquivalent: "")
+                menu.addItem(.separator())
+                menu.addItem(withTitle: "Delete", action: #selector(deleteTag), keyEquivalent: "")
+            }
         default:
             return
         }

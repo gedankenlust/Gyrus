@@ -160,7 +160,7 @@ public final class AppSettings {
         switch appLanguage {
         case "en": return Locale(identifier: "en")
         case "de": return Locale(identifier: "de")
-        default:   return .current
+        default:   return Locale(identifier: Bundle.systemLanguageCode())
         }
     }
 
@@ -213,6 +213,9 @@ public final class AppSettings {
         }
         // All stored properties are set now — apply the chosen language to the
         // whole app (init assignments don't fire didSet).
+        if appLanguage == "system" {
+            defaults.removeObject(forKey: "AppleLanguages")
+        }
         Bundle.setAppLanguage(appLanguage)
     }
 
@@ -276,13 +279,26 @@ extension Bundle {
     /// the system language.
     static func setAppLanguage(_ code: String?) {
         _ = _installLanguageBundleOnce
-        let path: String?
+        let resolved: String
         if let code, code == "en" || code == "de" {
-            path = Bundle.main.path(forResource: code, ofType: "lproj")
+            resolved = code
         } else {
-            path = nil
+            resolved = systemLanguageCode()
         }
+        let path = Bundle.main.path(forResource: resolved, ofType: "lproj")
         objc_setAssociatedObject(Bundle.main, &_languageBundleKey, path, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        objc_setAssociatedObject(Bundle.main, &_languageCodeKey, code, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        objc_setAssociatedObject(Bundle.main, &_languageCodeKey, resolved, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+    }
+
+    static func systemLanguageCode() -> String {
+        if let langs = CFPreferencesCopyValue(
+            "AppleLanguages" as CFString,
+            kCFPreferencesAnyApplication,
+            kCFPreferencesCurrentUser,
+            kCFPreferencesAnyHost
+        ) as? [String], langs.contains(where: { $0.hasPrefix("de") }) {
+            return "de"
+        }
+        return "en"
     }
 }

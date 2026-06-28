@@ -332,7 +332,7 @@ final class AppStore {
                     if !status.running {
                         await self.loadBookmarks()
                         try? await self.tagsStore.fetchTags()
-                        self.uiStateStore.showInfo("Tagged \(status.tagged) of \(status.total) bookmarks.")
+                        self.reportBatchTagOutcome(status)
                         self.uiStateStore.batchAutoTagStatus = nil
                         return
                     }
@@ -345,8 +345,31 @@ final class AppStore {
 
     func cancelBatchAutoTag() async {
         batchAutoTagTask?.cancel()
+        let last = uiStateStore.batchAutoTagStatus
         _ = try? await api.cancelBatchAutoTag()
         uiStateStore.batchAutoTagStatus = nil
+        // Reload so tags written before the stop actually appear, and report
+        // what landed instead of leaving the user guessing.
+        await loadBookmarks()
+        try? await tagsStore.fetchTags()
+        if let last {
+            uiStateStore.showInfo("Stopped — tagged \(last.tagged) of \(last.total).")
+        }
+    }
+
+    /// Summarize a finished batch run: surface failures (e.g. Ollama down)
+    /// rather than a misleading "tagged 0 of N".
+    private func reportBatchTagOutcome(_ status: BatchAutoTagStatus) {
+        if status.tagged == 0 && status.failed > 0 {
+            let reason = (status.error?.contains("Ollama") ?? false)
+                ? "Couldn't reach Ollama — is it running?"
+                : "Tagging failed for all \(status.failed) bookmarks."
+            uiStateStore.showError(reason)
+        } else if status.failed > 0 {
+            uiStateStore.showInfo("Tagged \(status.tagged) of \(status.total) — \(status.failed) failed.")
+        } else {
+            uiStateStore.showInfo("Tagged \(status.tagged) of \(status.total) bookmarks.")
+        }
     }
 
     // MARK: - Batch Actions & Undo

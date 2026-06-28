@@ -288,6 +288,15 @@ struct SelectionStatusBar: View {
                     ProgressView().controlSize(.small)
                     Text("Tagging \(status.processed)/\(status.total)…")
                         .font(.caption).foregroundStyle(.secondary)
+                    Button {
+                        Task { await appStore.cancelBatchAutoTag() }
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(.red)
+                    .help("Stop tagging — bookmarks already tagged are kept")
                 }
             } else if !collectionStore.showTrash && AppSettings.shared.aiBrainConfig.aiEnabled {
                 // Bulk AI tagging — shown only when AI is enabled (the master

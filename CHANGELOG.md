@@ -5,6 +5,26 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.1.0] – 2026-06-28
+
+### Added
+- **Browser extension localized.** The Gyrus Saver popup now follows your
+  browser language (English / German).
+
+### Fixed
+- **"System Language" setting works correctly.** Previously defaulted to English
+  on German Macs because the bundle swizzle couldn't resolve the system language
+  after `en.lproj` was added. Now reads the macOS language preference directly.
+- **Bulk AI auto-tagging is dramatically faster.** Reasoning models (qwen3,
+  deepseek-r1) no longer burn ~25s "thinking" per bookmark for the same handful
+  of tags — the reasoning phase is now skipped for tagging, output is capped, and
+  calls run with higher concurrency over a reused connection. Tagging dozens of
+  bookmarks drops from minutes to seconds.
+- **Multi-select tags in the sidebar.** Shift- or Cmd-click to select several
+  tags at once, then delete them in a single action.
+
+---
+
 ## [1.0.0] – 2026-06-23
 
 First stable release. Gyrus is a complete, fast, local-first bookmark manager —
