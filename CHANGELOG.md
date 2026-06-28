@@ -5,6 +5,18 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.2.1] – 2026-06-28
+
+### Added
+- **Undo for tag deletion.** Deleting one or several tags can be undone within a
+  few seconds — the tags and all their bookmark assignments come back.
+
+### Fixed
+- Sidebar multi-selection is restricted to tags, so a Shift- or Cmd-click range
+  can no longer accidentally mix in a folder or "All Bookmarks".
+
+---
+
 ## [1.2.0] – 2026-06-28
 
 ### Added
