@@ -34,6 +34,7 @@ struct SidebarOutlineView: NSViewRepresentable {
     var onNewTag: () -> Void = {}
     var onRecolorTag: (Tag) -> Void = { _ in }
     var onRecolorFolder: (Collection) -> Void = { _ in }
+    var onDeleteTags: ([Tag]) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -181,6 +182,24 @@ struct SidebarOutlineView: NSViewRepresentable {
             guard let node = item as? SidebarNode else { return false }
             if case .group = node.kind { return false }
             return true
+        }
+        /// Keep multi-selection meaningful: only tags can be selected together
+        /// (for bulk delete). A Shift/Cmd range that mixes in a folder or a
+        /// special item ("All Bookmarks") collapses to a single row instead.
+        func outlineView(_ ov: NSOutlineView,
+                         selectionIndexesForProposedSelection proposed: IndexSet) -> IndexSet {
+            if proposed.count <= 1 { return proposed }
+            func isTag(_ row: Int) -> Bool {
+                if case .tag = (ov.item(atRow: row) as? SidebarNode)?.kind { return true }
+                return false
+            }
+            var tagRows = IndexSet()
+            for row in proposed where isTag(row) { tagRows.insert(row) }
+            if tagRows.count >= 2 { return tagRows }
+            // Not a multi-tag selection — fall back to the clicked (or first) row.
+            let row = (ov.clickedRow >= 0 && proposed.contains(ov.clickedRow))
+                ? ov.clickedRow : proposed.first!
+            return IndexSet(integer: row)
         }
         /// Hide the disclosure triangle on the FOLDERS/TAGS headers. macOS shows
         /// it on hover at the trailing edge — right where our "+" sits — so users
@@ -447,13 +466,8 @@ struct SidebarOutlineView: NSViewRepresentable {
         }
         @objc private func deleteTag() {
             guard let t = clickedTag() else { return }
-            if confirm("Delete tag \"\(t.name)\"?", "Bookmarks keep their other tags.") {
-                let ts = parent.tagStore
-                let bs = parent.bookmarkStore
-                Task { @MainActor in
-                    try? await ts.deleteTag(t.id)
-                    bs.removeTagLocally(t.id)
-                }
+            if confirm("Delete tag \"\(t.name)\"?", "Bookmarks keep their other tags. You can undo this.") {
+                parent.onDeleteTags([t])
             }
         }
         @objc private func deleteSelectedTags() {
@@ -462,15 +476,8 @@ struct SidebarOutlineView: NSViewRepresentable {
             let msg = tags.count == 1
                 ? "Delete tag \"\(tags[0].name)\"?"
                 : "Delete \(tags.count) tags?"
-            if confirm(msg, "Bookmarks keep their other tags.") {
-                let ts = parent.tagStore
-                let bs = parent.bookmarkStore
-                Task { @MainActor in
-                    for t in tags {
-                        try? await ts.deleteTag(t.id)
-                        bs.removeTagLocally(t.id)
-                    }
-                }
+            if confirm(msg, "Bookmarks keep their other tags. You can undo this.") {
+                parent.onDeleteTags(tags)
             }
         }
 

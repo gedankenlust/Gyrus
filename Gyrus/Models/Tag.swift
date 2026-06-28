@@ -33,6 +33,17 @@ struct TagCreate: Encodable {
     let color: String?
 }
 
+struct TagRestore: Encodable {
+    let name: String
+    let color: String?
+    let bookmarkIds: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case name, color
+        case bookmarkIds = "bookmark_ids"
+    }
+}
+
 struct TagUpdate: Encodable {
     var name: String? = nil
     var color: String? = nil

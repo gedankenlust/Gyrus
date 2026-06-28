@@ -54,6 +54,9 @@ struct SidebarView: View {
                 onRecolorFolder: { folder in
                     recolorFolderPick = Color(hex: folder.color ?? "") ?? .accentColor
                     recolorFolder = folder
+                },
+                onDeleteTags: { tags in
+                    Task { await appStore.deleteTags(tags) }
                 }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)

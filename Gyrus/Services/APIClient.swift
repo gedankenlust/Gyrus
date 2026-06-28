@@ -353,6 +353,11 @@ final class APIClient {
         try await delete(base.appending(path: "/api/tags/\(id)"))
     }
 
+    func restoreTag(name: String, color: String?, bookmarkIds: [String]) async throws -> Tag {
+        try await post(base.appending(path: "/api/tags/restore"),
+                       body: TagRestore(name: name, color: color, bookmarkIds: bookmarkIds))
+    }
+
     // MARK: - Search
 
     func search(query: String, limit: Int = 100, offset: Int = 0) async throws -> [Bookmark] {

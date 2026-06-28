@@ -407,6 +407,52 @@ final class AppStore {
         scheduleUndoDelete(removed: result.removed, deleteIds: result.deleteIds)
     }
 
+    /// Delete one or more tags with a 5s Undo. Tag deletion is permanent on the
+    /// server (it drops the bookmark associations), so — unlike the deferred
+    /// bookmark delete — we snapshot each tag's bookmarks first and Undo
+    /// recreates the tag and re-attaches them via the /tags/restore endpoint.
+    func deleteTags(_ tags: [Tag]) async {
+        guard !tags.isEmpty else { return }
+        uiStateStore.cancelUndoTimer()
+        uiStateStore.undoGeneration += 1
+
+        // Snapshot associations BEFORE deleting (covers bookmarks not currently
+        // loaded, which a frontend-only undo would silently miss).
+        var snapshots: [(name: String, color: String?, ids: [String])] = []
+        for t in tags {
+            let ids = (try? await api.bookmarkIds(tag: t.name)) ?? []
+            snapshots.append((t.name, t.color, ids))
+        }
+
+        let ids = tags.map(\.id)
+        let names = Set(tags.map(\.name))
+        for id in ids { try? await api.deleteTag(id: id) }
+        for id in ids { bookmarksStore.removeTagLocally(id) }
+        if let sel = tagsStore.selectedTagName, names.contains(sel) {
+            tagsStore.selectedTagName = nil
+        }
+        try? await tagsStore.fetchTags()
+        await loadBookmarks()
+
+        uiStateStore.undoMessage = tags.count == 1
+            ? "Deleted tag “\(tags[0].name)”"
+            : "Deleted \(tags.count) tags"
+        uiStateStore.undoAction = { [weak self] in
+            guard let self else { return }
+            self.uiStateStore.cancelUndoTimer()
+            self.uiStateStore.undoMessage = nil
+            self.uiStateStore.undoAction = nil
+            Task {
+                for s in snapshots {
+                    _ = try? await self.api.restoreTag(name: s.name, color: s.color, bookmarkIds: s.ids)
+                }
+                try? await self.tagsStore.fetchTags()
+                await self.loadBookmarks()
+            }
+        }
+        uiStateStore.startUndoTimer(window: Self.undoWindow)
+    }
+
     func requestOpenInBrowser(ids: Set<String>) {
         if ids.count > batchThreshold {
             uiStateStore.pendingBatchOpen = ids
