@@ -5,23 +5,37 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.1.0] – 2026-06-28
+## [1.2.0] – 2026-06-28
 
 ### Added
-- **Browser extension localized.** The Gyrus Saver popup now follows your
-  browser language (English / German).
+- **Multi-select tags in the sidebar.** Shift- or Cmd-click to select several
+  tags at once, then delete them in a single action.
+- **Stop button for bulk tagging.** Cancel a running auto-tag run at any time;
+  tags already written are kept.
+
+### Changed
+- **Bulk AI auto-tagging is dramatically faster.** Reasoning models (qwen3,
+  deepseek-r1) no longer burn ~25s "thinking" per bookmark for the same handful
+  of tags — the reasoning phase is skipped for tagging, output is capped, and
+  calls reuse a single connection. Tagging dozens of bookmarks drops from
+  minutes to seconds.
 
 ### Fixed
 - **"System Language" setting works correctly.** Previously defaulted to English
   on German Macs because the bundle swizzle couldn't resolve the system language
   after `en.lproj` was added. Now reads the macOS language preference directly.
-- **Bulk AI auto-tagging is dramatically faster.** Reasoning models (qwen3,
-  deepseek-r1) no longer burn ~25s "thinking" per bookmark for the same handful
-  of tags — the reasoning phase is now skipped for tagging, output is capped, and
-  calls run with higher concurrency over a reused connection. Tagging dozens of
-  bookmarks drops from minutes to seconds.
-- **Multi-select tags in the sidebar.** Shift- or Cmd-click to select several
-  tags at once, then delete them in a single action.
+- **Bulk tagging reports failures.** If Ollama isn't reachable mid-run, the app
+  now says so instead of silently reporting "tagged 0 of N".
+- Chat with an uninstalled model now shows a clear "run `ollama pull …`" message
+  instead of a raw error.
+
+---
+
+## [1.1.0] – 2026-06-26
+
+### Added
+- **Localized for German.** The macOS interface and the Gyrus Saver browser
+  extension now follow your system / browser language (English / German).
 
 ---
 
