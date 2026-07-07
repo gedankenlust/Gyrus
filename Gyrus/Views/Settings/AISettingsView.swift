@@ -59,12 +59,20 @@ struct AISettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
 
                 // Embedding model — drives semantic (meaning-based) search.
-                Picker("Embedding Model", selection: $settings.aiBrainConfig.embeddingModel) {
-                    if embeddingModels.isEmpty {
-                        Text("No embedding models found").tag("")
-                    } else {
-                        ForEach(embeddingModels, id: \.self) { model in
-                            Text(model).tag(model)
+                HStack {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 8, height: 8)
+                        .shadow(color: statusColor.opacity(0.5), radius: 2)
+                        .help(statusTooltip)
+
+                    Picker("Embedding Model", selection: $settings.aiBrainConfig.embeddingModel) {
+                        if embeddingModels.isEmpty {
+                            Text("No embedding models found").tag("")
+                        } else {
+                            ForEach(embeddingModels, id: \.self) { model in
+                                Text(model).tag(model)
+                            }
                         }
                     }
                 }
@@ -79,6 +87,14 @@ struct AISettingsView: View {
             }
 
             Section(header: Text("Semantic Search")) {
+                // Semantic search silently returns nothing while the index is
+                // empty — make that state loud instead of a quiet "0 indexed".
+                if semanticIndexed == 0 {
+                    Label("Semantic search is empty — your bookmarks aren't indexed yet. Click Reindex to build the index.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                }
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Embedding index")
@@ -94,10 +110,19 @@ struct AISettingsView: View {
                             do {
                                 _ = try await APIClient.shared.reindexEmbeddings()
                                 reindexMessage = "Reindexing started in the background."
+                                isReindexing = false
+                                // Refresh the indexed count while the background
+                                // job fills the index, so progress is visible.
+                                for _ in 0..<20 {
+                                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                                    if let status = try? await APIClient.shared.semanticSearchStatus() {
+                                        semanticIndexed = status.indexed
+                                    }
+                                }
                             } catch {
                                 reindexMessage = "Failed: \(error.localizedDescription)"
+                                isReindexing = false
                             }
-                            isReindexing = false
                         }
                     } label: {
                         if isReindexing {
