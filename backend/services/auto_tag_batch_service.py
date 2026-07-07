@@ -26,7 +26,7 @@ is_running = job.is_running
 cancel = job.cancel
 
 
-async def _run(ids: list[str], provider_config: dict | None, job: BackgroundJob) -> None:
+async def _run(ids: list[str], provider_config: dict | None, language: str | None, job: BackgroundJob) -> None:
     from models.tag import Tag
 
     # Snapshot tag ids so we can report which tags the LLM *created* during
@@ -54,7 +54,7 @@ async def _run(ids: list[str], provider_config: dict | None, job: BackgroundJob)
             try:
                 # scrape=False: tag from title/URL/description, skipping the
                 # per-page network fetch — far faster across a big selection.
-                await bookmark_service.auto_tag_bookmark(db, bm_id, provider_config, scrape=False)
+                await bookmark_service.auto_tag_bookmark(db, bm_id, provider_config, scrape=False, language=language)
                 tagged += 1
             except Exception as e:
                 # One failure (missing bookmark, LLM hiccup) must not abort the
@@ -89,11 +89,11 @@ async def _run(ids: list[str], provider_config: dict | None, job: BackgroundJob)
             db.close()
 
 
-async def start(ids: list[str], provider_config: dict | None = None) -> dict:
+async def start(ids: list[str], provider_config: dict | None = None, language: str | None = None) -> dict:
     if not ids:
         return await job.run_noop(reset={"total": 0})
 
     async def runner(job: BackgroundJob) -> None:
-        await _run(ids, provider_config, job)
+        await _run(ids, provider_config, language, job)
 
     return await job.start(runner, reset={"total": len(ids)})

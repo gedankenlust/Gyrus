@@ -168,6 +168,14 @@ public final class AppSettings {
         String(localized: value)
     }
 
+    /// The effective UI language ("en"/"de") sent to the backend so AI
+    /// features (auto-tagging) generate content in the language the user
+    /// actually reads, not always English. "system" resolves to the real
+    /// macOS language, same as the app itself does at launch.
+    public var effectiveLanguageCode: String {
+        (appLanguage == "en" || appLanguage == "de") ? appLanguage : Bundle.systemLanguageCode()
+    }
+
     // MARK: - Init
 
     private init() {

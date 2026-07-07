@@ -33,7 +33,7 @@ async def test_batch_survives_a_failing_bookmark():
     # One bookmark raises; the batch must keep going and not count it as tagged.
     calls = {"n": 0}
 
-    async def flaky(db, bm_id, cfg, scrape=True):
+    async def flaky(db, bm_id, cfg, scrape=True, language=None):
         calls["n"] += 1
         if bm_id == "boom":
             raise RuntimeError("LLM hiccup")

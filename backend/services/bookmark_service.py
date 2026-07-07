@@ -406,7 +406,7 @@ def _color_for_tag(name: str) -> str:
 
 
 async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict | None = None,
-                            scrape: bool = True) -> Bookmark:
+                            scrape: bool = True, language: str | None = None) -> Bookmark:
     from services.scraper_service import scraper_service
     from services.llm_service import LLMService
     from fastapi import HTTPException
@@ -441,15 +441,31 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
     # 3. Prompt the LLM. We want a FEW BROAD, reusable tags (topics that group
     # many bookmarks) — not hyper-specific ones like "list-comprehensions" or
     # "single-page-application", which clutter the sidebar and never repeat.
-    prompt = (
-        "You are a tagging assistant. Suggest 1-3 broad, reusable topic tags that group "
-        "this content with similar bookmarks (e.g. 'python', 'ai', 'design', 'database', 'frontend'). "
-        "Prefer general categories over narrow specifics: use 'python' not 'list-comprehensions', "
-        "'frontend' not 'single-page-application'. Fewer, broader tags are better than many narrow ones. "
-        f"Strongly prefer reusing these existing tags when any fit: {', '.join(all_tags)}. "
-        "Only invent a new tag if none of the existing ones fit. "
-        "Reply ONLY with lowercase tag names separated by commas. No other text."
-    )
+    #
+    # Language: `language` is the app's UI language ("de"/"en"/None). It only
+    # steers NEW tags — reusing an existing tag always wins regardless of its
+    # language, so a mixed-language library never grows a duplicate ("webdev"
+    # next to "webentwicklung") just because the setting changed.
+    if language == "de":
+        prompt = (
+            "Du bist ein Tagging-Assistent. Schlage 1-3 breite, wiederverwendbare Themen-Tags vor, "
+            "die diesen Inhalt mit ähnlichen Lesezeichen gruppieren (z. B. 'python', 'ki', 'design', 'datenbank', 'frontend'). "
+            "Bevorzuge allgemeine Kategorien statt enger Spezifika: 'python' statt 'list-comprehensions', "
+            "'frontend' statt 'single-page-application'. Wenige, breite Tags sind besser als viele enge. "
+            f"Verwende bevorzugt diese bestehenden Tags, wenn sie passen: {', '.join(all_tags)}. "
+            "Erfinde nur dann einen neuen Tag, wenn keiner der bestehenden passt — und formuliere neue Tags auf Deutsch. "
+            "Antworte NUR mit kleingeschriebenen Tag-Namen, getrennt durch Kommas. Kein weiterer Text."
+        )
+    else:
+        prompt = (
+            "You are a tagging assistant. Suggest 1-3 broad, reusable topic tags that group "
+            "this content with similar bookmarks (e.g. 'python', 'ai', 'design', 'database', 'frontend'). "
+            "Prefer general categories over narrow specifics: use 'python' not 'list-comprehensions', "
+            "'frontend' not 'single-page-application'. Fewer, broader tags are better than many narrow ones. "
+            f"Strongly prefer reusing these existing tags when any fit: {', '.join(all_tags)}. "
+            "Only invent a new tag if none of the existing ones fit. "
+            "Reply ONLY with lowercase tag names separated by commas. No other text."
+        )
     
     try:
         response = await LLMService.ask_llm(

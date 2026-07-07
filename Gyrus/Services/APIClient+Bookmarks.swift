@@ -132,9 +132,10 @@ extension APIClient {
     }
 
     func autoTag(bookmarkId: String, config: AIBrainConfig) async throws -> Bookmark {
-        struct Body: Encodable { let provider_config: ProviderPayload }
+        struct Body: Encodable { let provider_config: ProviderPayload; let language: String }
         return try await post(base.appending(path: "/api/bookmarks/\(bookmarkId)/auto-tag"),
-                              body: Body(provider_config: ProviderPayload(config)),
+                              body: Body(provider_config: ProviderPayload(config),
+                                        language: AppSettings.shared.effectiveLanguageCode),
                               timeout: APIClient.llmTimeout)
     }
 

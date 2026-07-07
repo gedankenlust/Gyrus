@@ -16,6 +16,9 @@ router = APIRouter(prefix="/api/bookmarks", tags=["bookmarks"])
 
 class AutoTagRequest(BaseModel):
     provider_config: dict | None = {"provider": "ollama", "model": "llama3"}
+    # "en" / "de" — the app's UI language, so generated tags match it instead
+    # of always defaulting to English regardless of what the user has set.
+    language: str | None = None
 
 
 def _enrich(bm) -> BookmarkOut:
@@ -97,6 +100,7 @@ async def cancel_metadata_refresh():
 class AutoTagBatchRequest(BaseModel):
     bookmark_ids: list[str]
     provider_config: dict | None = {"provider": "ollama", "model": "llama3"}
+    language: str | None = None
 
 
 @router.post("/auto-tag-batch")
@@ -104,7 +108,7 @@ async def start_auto_tag_batch(request: AutoTagBatchRequest):
     """Auto-tag a list of bookmarks in the background (one run at a time).
     Returns immediately with the initial status; poll /auto-tag-batch/status."""
     from services import auto_tag_batch_service
-    return await auto_tag_batch_service.start(request.bookmark_ids, request.provider_config)
+    return await auto_tag_batch_service.start(request.bookmark_ids, request.provider_config, request.language)
 
 
 @router.get("/auto-tag-batch/status")
@@ -340,7 +344,7 @@ async def cleanup_reader_content(
 
 @router.post("/{bookmark_id}/auto-tag", response_model=BookmarkOut)
 async def auto_tag_bookmark(bookmark_id: str, request: AutoTagRequest, db: Session = Depends(get_db)):
-    bm = await bookmark_service.auto_tag_bookmark(db, bookmark_id, request.provider_config)
+    bm = await bookmark_service.auto_tag_bookmark(db, bookmark_id, request.provider_config, language=request.language)
     if not bm:
         raise HTTPException(404, "Bookmark not found")
     return _enrich(bm)

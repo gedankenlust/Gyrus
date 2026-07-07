@@ -89,3 +89,30 @@ def test_auto_tag_bookmark(client, db):
         tags = resp.json()["tags"]
         assert len(tags) == 3
         assert tags[0]["name"] == "ai"
+
+
+def test_auto_tag_bookmark_respects_language(client, db):
+    # language="de" must steer the LLM prompt to German, not just the reply
+    # (a new tag's *language* is the model's choice — it can only follow the
+    # instruction it was given).
+    from unittest.mock import patch
+    with patch("services.llm_service.LLMService.ask_llm") as mock_ask:
+        mock_ask.return_value = "ki, zukunft"
+
+        resp = client.post("/api/bookmarks", json={
+            "title": "KI News", "url": "https://ki.example", "source": "manual"
+        })
+        bm_id = resp.json()["id"]
+
+        resp = client.post(f"/api/bookmarks/{bm_id}/auto-tag", json={"language": "de"})
+        assert resp.status_code == 200
+        tags = {t["name"] for t in resp.json()["tags"]}
+        assert tags == {"ki", "zukunft"}
+
+        sent_prompt = mock_ask.call_args.kwargs.get("prompt") or mock_ask.call_args.args[0]
+        assert "Tagging-Assistent" in sent_prompt
+
+        # Default (no language) stays English.
+        resp = client.post(f"/api/bookmarks/{bm_id}/auto-tag", json={})
+        sent_prompt = mock_ask.call_args.kwargs.get("prompt") or mock_ask.call_args.args[0]
+        assert "tagging assistant" in sent_prompt
