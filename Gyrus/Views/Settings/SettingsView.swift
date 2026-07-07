@@ -33,6 +33,7 @@ private struct GeneralPane: View {
 
     @State private var launchAtLogin = (SMAppService.mainApp.status == .enabled)
     @State private var launchError: String? = nil
+    @State private var showRelaunchPrompt = false
 
     var body: some View {
         Form {
@@ -42,12 +43,21 @@ private struct GeneralPane: View {
                     Text("English").tag("en")
                     Text("Deutsch").tag("de")
                 }
-                
-                Text("Changes to menu bars and system dialogs require an app restart.")
+                .onChange(of: settings.appLanguage) {
+                    showRelaunchPrompt = true
+                }
+
+                Text("The language changes when Gyrus restarts.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } header: {
                 Text("Localization")
+            }
+            .alert("Restart to Apply", isPresented: $showRelaunchPrompt) {
+                Button("Restart Now") { AppSettings.relaunchApp() }
+                Button("Later", role: .cancel) {}
+            } message: {
+                Text("The new language takes effect the next time Gyrus starts.")
             }
 
             Section("Behavior") {

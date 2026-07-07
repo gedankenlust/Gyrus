@@ -63,6 +63,10 @@ public final class AppSettings {
 
     // MARK: - General Settings
 
+    /// UI language: "system", "en" or "de". Applied via the standard macOS
+    /// mechanism — a per-app AppleLanguages override that takes effect on the
+    /// next launch (Settings offers to relaunch). No Bundle swizzling: the
+    /// old object_setClass hack broke "System Language" once already.
     public var appLanguage: String {
         didSet {
             defaults.set(appLanguage, forKey: Keys.appLanguage)
@@ -71,7 +75,6 @@ public final class AppSettings {
             } else {
                 defaults.set([appLanguage], forKey: "AppleLanguages")
             }
-            Bundle.setAppLanguage(appLanguage)
         }
     }
 
@@ -170,17 +173,11 @@ public final class AppSettings {
         }
     }
 
-    /// Localize a key against the *in-app* chosen language. The SwiftUI
-    /// `.environment(\.locale)` language switch only reaches SwiftUI `Text`;
-    /// AppKit views (the sidebar outline) and plain `String`s (navigation
-    /// titles) must use this so they follow the in-app language too — otherwise
-    /// switching to English leaves them stuck on the system language.
+    /// Localize a key for AppKit views and plain `String`s (sidebar outline,
+    /// navigation titles). With the relaunch-based language switch the process
+    /// runs entirely in the launch language, so the standard lookup is correct.
     func localized(_ value: String.LocalizationValue) -> String {
-        let code: String? = (appLanguage == "en" || appLanguage == "de") ? appLanguage : nil
-        if let code {
-            return String(localized: value, locale: Locale(identifier: code))
-        }
-        return String(localized: value)
+        String(localized: value)
     }
 
     // MARK: - Init
@@ -218,12 +215,12 @@ public final class AppSettings {
         } else {
             aiBrainConfig = AIBrainConfig()
         }
-        // All stored properties are set now — apply the chosen language to the
-        // whole app (init assignments don't fire didSet).
+        // Clear a stale per-app AppleLanguages override left by an explicit
+        // language choice if the setting is (back on) "system" — otherwise the
+        // override would silently pin the old language forever.
         if appLanguage == "system" {
             defaults.removeObject(forKey: "AppleLanguages")
         }
-        Bundle.setAppLanguage(appLanguage)
     }
 
     // MARK: - Helpers
@@ -247,56 +244,11 @@ public final class AppSettings {
     }
 }
 
-// MARK: - In-app language switching
-
-/// `.environment(\.locale)` only changes formatting, not which string table
-/// SwiftUI `Text` / `NSLocalizedString` look up — so an in-app language switch
-/// wouldn't actually translate the UI. The standard fix: re-point `Bundle.main`
-/// at the chosen language's `.lproj`, so *everything* (SwiftUI, AppKit, plain
-/// `String(localized:)`) resolves consistently. Combined with the `\.locale`
-/// environment + a re-render, the switch applies live.
-private var _languageBundleKey: UInt8 = 0
-private var _languageCodeKey: UInt8 = 0
-
-private final class LanguageBundle: Bundle, @unchecked Sendable {
-    override func localizedString(forKey key: String, value: String?, table tableName: String?) -> String {
-        if let path = objc_getAssociatedObject(Bundle.main, &_languageBundleKey) as? String,
-           let bundle = Bundle(path: path) {
-            return bundle.localizedString(forKey: key, value: value, table: tableName)
-        }
-        if let code = objc_getAssociatedObject(Bundle.main, &_languageCodeKey) as? String {
-            if code == "en" {
-                return value ?? key
-            } else if code == "de",
-                      let path = Bundle.main.path(forResource: "de", ofType: "lproj"),
-                      let bundle = Bundle(path: path) {
-                return bundle.localizedString(forKey: key, value: value, table: tableName)
-            }
-        }
-        return super.localizedString(forKey: key, value: value, table: tableName)
-    }
-}
+// MARK: - Language switching (relaunch-based)
 
 extension Bundle {
-    private static let _installLanguageBundleOnce: Void = {
-        object_setClass(Bundle.main, LanguageBundle.self)
-    }()
-
-    /// Point the whole app at `code` ("en"/"de"); anything else falls back to
-    /// the system language.
-    static func setAppLanguage(_ code: String?) {
-        _ = _installLanguageBundleOnce
-        let resolved: String
-        if let code, code == "en" || code == "de" {
-            resolved = code
-        } else {
-            resolved = systemLanguageCode()
-        }
-        let path = Bundle.main.path(forResource: resolved, ofType: "lproj")
-        objc_setAssociatedObject(Bundle.main, &_languageBundleKey, path, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        objc_setAssociatedObject(Bundle.main, &_languageCodeKey, resolved, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-    }
-
+    /// The OS-level preferred language ("de"/"en"), read from the *global*
+    /// domain so a per-app AppleLanguages override never shadows it.
     static func systemLanguageCode() -> String {
         if let langs = CFPreferencesCopyValue(
             "AppleLanguages" as CFString,
@@ -307,5 +259,19 @@ extension Bundle {
             return "de"
         }
         return "en"
+    }
+}
+
+extension AppSettings {
+    /// Relaunch Gyrus so a changed language takes effect. A detached shell
+    /// re-opens the app after this instance has fully quit — waiting also lets
+    /// the bundled backend shut down before the new instance claims its port.
+    public static func relaunchApp() {
+        let path = Bundle.main.bundlePath
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = ["-c", "sleep 0.8; /usr/bin/open \"\(path)\""]
+        try? task.run()
+        NSApp.terminate(nil)
     }
 }
