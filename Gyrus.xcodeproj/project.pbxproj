@@ -47,6 +47,7 @@
 		BDB74FC3A0F94ED2922F1588 /* AIBrainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE8EEE82B3C8458188317476 /* AIBrainTabView.swift */; };
 		BEE22546266041A2B41B8E7C /* QuickAddPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D1F1E6EA4346108379E899 /* QuickAddPanel.swift */; };
 		BFFD27DA6B1448568D18A65D /* APIClient+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2875DD353A7088C31C634FD4 /* APIClient+Search.swift */; };
+		C4AF4EF81720CC5F0065E3C9 /* AppStore+Tags.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4F22F8A6DDEF0D13FEA5597 /* AppStore+Tags.swift */; };
 		C6EE7EE6B4824FDF8F486AE0 /* Collection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB8E244BC7845D997D241F5 /* Collection.swift */; };
 		C9F5CA077F637152BE698673 /* APIClient+Collections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ADAC84F3977E50A922ED26D /* APIClient+Collections.swift */; };
 		CBF2CBAE30674C6188547167 /* TagStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEE11EC63B6B4C749DF6AD38 /* TagStore.swift */; };
@@ -106,6 +107,7 @@
 		9E1495CE9EC2477C9168005C /* AppStoreLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreLogicTests.swift; sourceTree = "<group>"; };
 		A296107B91B4443383C292E4 /* SidebarOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarOutlineView.swift; sourceTree = "<group>"; };
 		AB3C37941736B2EC7BC6E439 /* JobPoller.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = JobPoller.swift; sourceTree = "<group>"; };
+		B4F22F8A6DDEF0D13FEA5597 /* AppStore+Tags.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AppStore+Tags.swift"; sourceTree = "<group>"; };
 		B695E9A96BA1490FA4F55A58 /* BrainChatStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrainChatStore.swift; sourceTree = "<group>"; };
 		B7D1F1E6EA4346108379E899 /* QuickAddPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddPanel.swift; sourceTree = "<group>"; };
 		B99B1B664FDA4980881EA131 /* BookmarkCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkCardView.swift; sourceTree = "<group>"; };
@@ -293,6 +295,7 @@
 				2CC3C6C89FA71D2CAE4A0164 /* APIClient+Brain.swift */,
 				BF434287D6C86BA5D684A3F5 /* APIClient+Data.swift */,
 				AB3C37941736B2EC7BC6E439 /* JobPoller.swift */,
+				B4F22F8A6DDEF0D13FEA5597 /* AppStore+Tags.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -552,6 +555,7 @@
 				EC74F52B250DED79024604F2 /* APIResponses.swift in Sources */,
 				7BDDEB19BBC0977512E01778 /* JobPoller.swift in Sources */,
 				2350D448476239BA360BD51A /* TagReviewSheet.swift in Sources */,
+				C4AF4EF81720CC5F0065E3C9 /* AppStore+Tags.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

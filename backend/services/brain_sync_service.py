@@ -10,6 +10,9 @@ from sqlalchemy.orm import Session
 from models.bookmark import Bookmark
 from models.collection import Collection
 
+import logging
+logger = logging.getLogger(__name__)
+
 class BrainSyncService:
     DEFAULT_ROOT = Path.home() / ".gyrus" / "brain"
 
@@ -343,7 +346,7 @@ class BrainSyncService:
         try:
             (self.root_dir / self.INDEX_FILENAME).write_text(content, encoding="utf-8")
         except Exception as e:
-            print(f"Failed to write brain index: {e}")
+            logger.warning(f"Failed to write brain index: {e}")
 
 # Global instance
 brain_sync_service = BrainSyncService()

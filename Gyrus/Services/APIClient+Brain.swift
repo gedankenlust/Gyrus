@@ -38,28 +38,6 @@ extension APIClient {
         return (r.text_models, r.embedding_models)
     }
 
-    func updateBrainConfig(rootDir: String, isEnabled: Bool) async throws {
-        struct Body: Encodable {
-            let root_dir: String
-            let is_enabled: Bool
-        }
-        let _: [String: String] = try await post(base.appending(path: "/api/brain/config"), body: Body(root_dir: rootDir, is_enabled: isEnabled))
-    }
-
-    func fetchOllamaModels(url: String) async throws -> [String] {
-        struct OllamaModel: Decodable { let name: String }
-        struct OllamaResponse: Decodable { let models: [OllamaModel] }
-
-        guard let baseURL = URL(string: url) else { throw APIError.invalidURL }
-        let tagsURL = baseURL.appending(path: "/api/tags")
-
-        let (data, response) = try await URLSession.shared.data(from: tagsURL)
-        try checkStatus(response)
-
-        let decoded: OllamaResponse = try JSONDecoder().decode(OllamaResponse.self, from: data)
-        return decoded.models.map { $0.name }
-    }
-
     struct SummarizeResponse: Decodable {
         let summary: String
     }
@@ -75,12 +53,6 @@ extension APIClient {
     }
 
     func aiChat(bookmarkId: String, prompt: String, history: [(role: String, content: String)] = [], config: AIBrainConfig) async throws -> String {
-        struct ProviderConfig: Encodable {
-            let provider: String
-            let model: String
-            let ollama_url: String
-            let api_key: String
-        }
         struct HistoryMessage: Encodable {
             let role: String
             let content: String
@@ -88,19 +60,14 @@ extension APIClient {
         struct ChatRequest: Encodable {
             let bookmark_id: String
             let prompt: String
-            let provider_config: ProviderConfig
+            let provider_config: ProviderPayload
             let history: [HistoryMessage]
         }
         struct ChatResponse: Decodable {
             let response: String
         }
 
-        let providerConfig = ProviderConfig(
-            provider: config.llmProvider.rawValue,
-            model: config.ollamaModel,
-            ollama_url: config.ollamaURL,
-            api_key: ""
-        )
+        let providerConfig = ProviderPayload(config)
 
         let body = ChatRequest(
             bookmark_id: bookmarkId,
@@ -119,20 +86,15 @@ extension APIClient {
     func aiChatStream(bookmarkId: String, prompt: String,
                       history: [(role: String, content: String)] = [],
                       config: AIBrainConfig) -> AsyncThrowingStream<String, Error> {
-        struct ProviderConfig: Encodable { let provider: String; let model: String; let ollama_url: String }
         struct HistoryMessage: Encodable { let role: String; let content: String }
         struct ChatRequest: Encodable {
             let bookmark_id: String
             let prompt: String
-            let provider_config: ProviderConfig
+            let provider_config: ProviderPayload
             let history: [HistoryMessage]
         }
 
-        let providerConfig = ProviderConfig(
-            provider: config.llmProvider.rawValue,
-            model: config.ollamaModel,
-            ollama_url: config.ollamaURL
-        )
+        let providerConfig = ProviderPayload(config)
         let body = ChatRequest(
             bookmark_id: bookmarkId, prompt: prompt,
             provider_config: providerConfig,

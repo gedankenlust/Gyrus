@@ -122,18 +122,9 @@ extension APIClient {
     /// Optional, opt-in: ask the local LLM to tidy the reader text into clean
     /// prose. Returns the cleaned text; the cached original is left untouched.
     func cleanupReaderContent(id: String, config: AIBrainConfig) async throws -> String {
-        struct ProviderConfig: Encodable {
-            let provider: String
-            let model: String
-            let ollama_url: String
-        }
-        struct Body: Encodable { let provider_config: ProviderConfig }
+        struct Body: Encodable { let provider_config: ProviderPayload }
         struct ReaderResponse: Decodable { let content: String }
-        let pc = ProviderConfig(
-            provider: config.llmProvider.rawValue,
-            model: config.ollamaModel,
-            ollama_url: config.ollamaURL
-        )
+        let pc = ProviderPayload(config)
         let res: ReaderResponse = try await post(
             base.appending(path: "/api/bookmarks/\(id)/reader/cleanup"),
             body: Body(provider_config: pc), timeout: APIClient.llmTimeout)
@@ -141,24 +132,10 @@ extension APIClient {
     }
 
     func autoTag(bookmarkId: String, config: AIBrainConfig) async throws -> Bookmark {
-        struct ProviderConfig: Encodable {
-            let provider: String
-            let model: String
-            let ollama_url: String
-            let api_key: String
-        }
-        struct Body: Encodable {
-            let provider_config: ProviderConfig
-        }
-
-        let providerConfig = ProviderConfig(
-            provider: config.llmProvider.rawValue,
-            model: config.ollamaModel,
-            ollama_url: config.ollamaURL,
-            api_key: ""
-        )
-
-        return try await post(base.appending(path: "/api/bookmarks/\(bookmarkId)/auto-tag"), body: Body(provider_config: providerConfig), timeout: APIClient.llmTimeout)
+        struct Body: Encodable { let provider_config: ProviderPayload }
+        return try await post(base.appending(path: "/api/bookmarks/\(bookmarkId)/auto-tag"),
+                              body: Body(provider_config: ProviderPayload(config)),
+                              timeout: APIClient.llmTimeout)
     }
 
     // MARK: Notes

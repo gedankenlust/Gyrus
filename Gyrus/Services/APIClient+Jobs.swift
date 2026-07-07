@@ -25,25 +25,11 @@ extension APIClient {
     }
 
     func startBatchAutoTag(ids: [String], config: AIBrainConfig) async throws -> BatchAutoTagStatus {
-        struct ProviderConfig: Encodable {
-            let provider: String
-            let model: String
-            let ollama_url: String
-            let api_key: String
-        }
         struct Body: Encodable {
             let bookmark_ids: [String]
-            let provider_config: ProviderConfig
+            let provider_config: ProviderPayload
         }
-        let body = Body(
-            bookmark_ids: ids,
-            provider_config: ProviderConfig(
-                provider: config.llmProvider.rawValue,
-                model: config.ollamaModel,
-                ollama_url: config.ollamaURL,
-                api_key: ""
-            )
-        )
+        let body = Body(bookmark_ids: ids, provider_config: ProviderPayload(config))
         return try await post(base.appending(path: "/api/bookmarks/auto-tag-batch"), body: body)
     }
 

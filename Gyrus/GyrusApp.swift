@@ -79,7 +79,6 @@ struct GyrusApp: App {
                         .environment(launcher)
                 }
             }
-            .environment(\.locale, settings.resolvedLocale)
             .preferredColorScheme(resolvedScheme)
             .task {
                 await launcher.start()
@@ -123,7 +122,6 @@ struct GyrusApp: App {
 
         Settings {
             SettingsView()
-                .environment(\.locale, settings.resolvedLocale)
         }
 
         MenuBarExtra("Gyrus", image: "MenuBarIcon", isInserted: $settings.showMenuBarItem) {
@@ -146,6 +144,5 @@ struct GyrusApp: App {
                 NSApplication.shared.terminate(nil)
             }
         }
-        .environment(\.locale, settings.resolvedLocale)
     }
 }

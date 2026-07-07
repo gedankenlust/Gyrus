@@ -683,7 +683,9 @@ struct BookmarkDetailView: View {
             try? await tagStore.fetchTags()
             editTagIds = Set(updated.tags.map { $0.id })
         } catch {
-            print("Auto-tag failed: \(error)")
+            // Same rule as everywhere: a failed user action must be visible,
+            // not a console print (e.g. Ollama not running).
+            AppStore.shared.surfaceError(error)
         }
     }
 

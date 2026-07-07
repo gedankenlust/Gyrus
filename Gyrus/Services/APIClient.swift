@@ -44,6 +44,22 @@ enum APIError: LocalizedError {
 
 struct EmptyBody: Encodable {}
 
+/// Ollama provider settings in the shape the backend expects inside request
+/// bodies (`provider_config`). One shared type instead of five ad-hoc copies.
+struct ProviderPayload: Encodable {
+    let provider: String
+    let model: String
+    let ollama_url: String
+    let api_key: String
+
+    init(_ config: AIBrainConfig) {
+        provider = config.llmProvider.rawValue
+        model = config.ollamaModel
+        ollama_url = config.ollamaURL
+        api_key = ""
+    }
+}
+
 final class APIClient {
     static let shared = APIClient()
 

@@ -21,7 +21,6 @@ final class QuickAddController {
         }
 
         let content = QuickAddPanel(onClose: { [weak self] in self?.close() })
-            .environment(\.locale, AppSettings.shared.resolvedLocale)
         let hosting = NSHostingView(rootView: content)
 
         let panel = NSPanel(

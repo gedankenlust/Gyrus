@@ -22,7 +22,6 @@ struct SettingsView: View {
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
         .frame(width: 560, height: 480)
-        .environment(\.locale, settings.resolvedLocale)
     }
 }
 

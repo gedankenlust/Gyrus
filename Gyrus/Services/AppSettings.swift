@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import Observation
 import Carbon
+import os
 
 public struct HotkeyConfig: Codable, Equatable {
     public var keyCode: UInt32
@@ -49,7 +50,6 @@ public final class AppSettings {
         static let appTheme = "appTheme"
         static let confirmDelete = "confirmDelete"
         static let defaultExportFmt = "defaultExportFmt"
-        static let defaultViewMode = "defaultViewMode"
         static let defaultPreviewTab = "defaultPreviewTab"
         static let cardLayout = "cardLayout"
         static let tagSortMode = "tagSortMode"
@@ -94,10 +94,6 @@ public final class AppSettings {
 
     public var defaultExportFmt: String {
         didSet { defaults.set(defaultExportFmt, forKey: Keys.defaultExportFmt) }
-    }
-
-    public var defaultViewMode: String {
-        didSet { defaults.set(defaultViewMode, forKey: Keys.defaultViewMode) }
     }
 
     /// Which preview tab a bookmark opens to (raw value of PreviewTab).
@@ -165,14 +161,6 @@ public final class AppSettings {
 
     // MARK: - Localization
 
-    public var resolvedLocale: Locale {
-        switch appLanguage {
-        case "en": return Locale(identifier: "en")
-        case "de": return Locale(identifier: "de")
-        default:   return Locale(identifier: Bundle.systemLanguageCode())
-        }
-    }
-
     /// Localize a key for AppKit views and plain `String`s (sidebar outline,
     /// navigation titles). With the relaunch-based language switch the process
     /// runs entirely in the launch language, so the standard lookup is correct.
@@ -191,7 +179,6 @@ public final class AppSettings {
         confirmDelete = d.object(forKey: Keys.confirmDelete) as? Bool ?? true
         enableReadStatus = d.object(forKey: Keys.enableReadStatus) as? Bool ?? true
         defaultExportFmt = d.string(forKey: Keys.defaultExportFmt) ?? "markdown"
-        defaultViewMode = d.string(forKey: Keys.defaultViewMode) ?? "grid"
         defaultPreviewTab = d.string(forKey: Keys.defaultPreviewTab) ?? "Info"
         cardLayout = d.string(forKey: Keys.cardLayout) ?? "titleFirst"
         tagSortMode = d.string(forKey: Keys.tagSortMode) ?? "name"
@@ -238,7 +225,11 @@ public final class AppSettings {
             do {
                 try await APIClient.shared.updateAIBrainConfig(config)
             } catch {
-                print("Failed to sync AI Brain config: \(error)")
+                // Not user-facing on purpose: this also fires during startup
+                // before the backend is up, and the config is re-pushed on
+                // launch (GyrusApp.task) anyway.
+                Logger(subsystem: "com.gyrus.app", category: "settings")
+                    .warning("Failed to sync AI Brain config: \(error.localizedDescription)")
             }
         }
     }

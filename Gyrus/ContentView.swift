@@ -40,15 +40,12 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showImport) {
             ImportWizardView(isPresented: $showImport)
-                .environment(\.locale, AppSettings.shared.resolvedLocale)
         }
         .sheet(isPresented: $showAddBookmark) {
             AddBookmarkView(isPresented: $showAddBookmark)
-                .environment(\.locale, AppSettings.shared.resolvedLocale)
         }
         .sheet(isPresented: $showBrainOnboarding) {
             BrainOnboardingView(isPresented: $showBrainOnboarding)
-                .environment(\.locale, AppSettings.shared.resolvedLocale)
         }
         .sheet(isPresented: Binding(
             get: { uiStateStore.newTagForIds != nil },
@@ -77,7 +74,6 @@ struct ContentView: View {
                 },
                 onCancel: { uiStateStore.newTagForIds = nil; newTagName = "" }
             )
-            .environment(\.locale, AppSettings.shared.resolvedLocale)
         }
         .onAppear {
             // First launch only: offer to set up the optional AI Brain.
@@ -166,7 +162,6 @@ struct ContentView: View {
                     Task { await appStore.discardReviewedTags(discard) }
                 }
             }
-            .environment(\.locale, AppSettings.shared.resolvedLocale)
         }
         .onReceive(NotificationCenter.default.publisher(for: .showImport)) { _ in showImport = true }
         .onReceive(NotificationCenter.default.publisher(for: .showCommandPalette)) { _ in showCommandPalette = true }

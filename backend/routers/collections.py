@@ -8,6 +8,9 @@ from models.bookmark import Bookmark
 from schemas.collection import CollectionCreate, CollectionUpdate, CollectionOut
 from services.brain_sync_service import brain_sync_service
 
+import logging
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/collections", tags=["collections"])
 
 
@@ -18,7 +21,7 @@ def _safe_resync(db: Session) -> None:
     try:
         brain_sync_service.resync_all(db)
     except Exception as e:
-        print(f"Brain resync failed: {e}")
+        logger.warning(f"Brain resync failed: {e}")
 
 
 def _next_position(db: Session, parent_id: str | None) -> int:

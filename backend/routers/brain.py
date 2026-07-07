@@ -12,6 +12,9 @@ from services.llm_service import LLMService, LLMUnavailableError
 from services.scraper_service import scraper_service, _is_youtube as is_youtube
 from services.brain_sync_service import brain_sync_service
 
+import logging
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/brain", tags=["brain"])
 
 SCRAPED_HEADER = "## Content (Scraped)"
@@ -40,7 +43,7 @@ def _persist_scraped_content(file_path, content: str) -> None:
     try:
         file_path.write_text(new_text, encoding="utf-8")
     except Exception as e:
-        print(f"Failed to persist scraped content: {e}")
+        logger.warning(f"Failed to persist scraped content: {e}")
 
 class ChatMessage(BaseModel):
     role: str
@@ -68,7 +71,7 @@ def _reconcile_brain_blocking():
     try:
         brain_sync_service.resync_all(db)
     except Exception as e:
-        print(f"Brain resync failed: {e}")
+        logger.warning(f"Brain resync failed: {e}")
     finally:
         db.close()
 
@@ -164,7 +167,7 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
         brain_sync_service.append_interaction(db, bookmark, request.prompt, response_text)
     except Exception as e:
         # Don't fail the whole request if sync fails, but log it
-        print(f"Failed to append interaction: {e}")
+        logger.warning(f"Failed to append interaction: {e}")
 
     return ChatResponse(response=response_text)
 
@@ -210,7 +213,7 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
             try:
                 brain_sync_service.append_interaction(db, bookmark, request.prompt, full)
             except Exception as e:
-                print(f"Failed to append interaction: {e}")
+                logger.warning(f"Failed to append interaction: {e}")
 
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
 
