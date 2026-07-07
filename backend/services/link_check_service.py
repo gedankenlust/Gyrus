@@ -7,11 +7,10 @@ so the API can poll it. One run at a time — if already running, /start is a no
 import asyncio
 import ipaddress
 import httpx
-from datetime import datetime, timezone
 from urllib.parse import urlparse
-from sqlalchemy.orm import Session
 from database import SessionLocal
 from models.bookmark import Bookmark
+from services.background_job import BackgroundJob
 
 
 def is_local_host(url: str) -> bool:
@@ -38,29 +37,16 @@ def is_local_host(url: str) -> bool:
     return "." not in host
 
 
-_state: dict = {
-    "running": False,
-    "checked": 0,
-    "total": 0,
-    "dead_found": 0,
-    "started_at": None,
-    "finished_at": None,
-}
-_task: asyncio.Task | None = None
-_lock = asyncio.Lock()
-
 CONCURRENCY = 20
 TIMEOUT = 10.0
 RETRIES = 3
 RETRY_DELAY = 1.5
 
+job = BackgroundJob(checked=0, total=0, dead_found=0)
 
-def get_status() -> dict:
-    return dict(_state)
-
-
-def is_running() -> bool:
-    return _state["running"]
+get_status = job.get_status
+is_running = job.is_running
+cancel = job.cancel
 
 
 async def _check_url(client: httpx.AsyncClient, url: str) -> bool:
@@ -104,7 +90,7 @@ async def _check_url(client: httpx.AsyncClient, url: str) -> bool:
     return False
 
 
-async def _run_check() -> None:
+async def _run_check(job: BackgroundJob) -> None:
     # 1) Snapshot id+url once (avoids session-lifetime issues during long check)
     db = SessionLocal()
     try:
@@ -112,10 +98,8 @@ async def _run_check() -> None:
     finally:
         db.close()
 
-    async with _lock:
-        _state["total"] = len(rows)
-        _state["checked"] = 0
-        _state["dead_found"] = 0
+    async with job.lock:
+        job.state["total"] = len(rows)
 
     results: list[tuple[str, bool]] = []  # (bookmark_id, is_dead)
     sem = asyncio.Semaphore(CONCURRENCY)
@@ -123,52 +107,43 @@ async def _run_check() -> None:
     async with httpx.AsyncClient(
         headers={"User-Agent": "Gyrus/1.0 LinkCheck"}
     ) as client:
+        async def check_one(bm_id: str, url: str) -> None:
+            if job.cancelled:
+                return
+            async with sem:
+                if job.cancelled:
+                    return
+                is_dead = await _check_url(client, url)
+            results.append((bm_id, is_dead))
+            async with job.lock:
+                job.state["checked"] += 1
+                if is_dead:
+                    job.state["dead_found"] += 1
+
+        tasks = [asyncio.create_task(check_one(i, u)) for i, u in rows]
         try:
-            async def check_one(bm_id: str, url: str) -> None:
-                async with sem:
-                    is_dead = await _check_url(client, url)
-                results.append((bm_id, is_dead))
-                async with _lock:
-                    _state["checked"] += 1
-                    if is_dead:
-                        _state["dead_found"] += 1
-
-            tasks = [asyncio.create_task(check_one(i, u)) for i, u in rows]
             await asyncio.gather(*tasks, return_exceptions=True)
+        except asyncio.CancelledError:
+            pass  # cancelled mid-run: still commit what finished
 
-            # 2) Batch-commit all results at the end (single short DB transaction)
-            db = SessionLocal()
-            try:
-                for bm_id, is_dead in results:
-                    bm = db.query(Bookmark).filter(Bookmark.id == bm_id).first()
-                    if bm is not None and bm.is_dead != is_dead:
-                        bm.is_dead = is_dead
-                db.commit()
-            finally:
-                db.close()
-        finally:
-            async with _lock:
-                _state["running"] = False
-                _state["finished_at"] = datetime.now(timezone.utc).isoformat()
+    # 2) Batch-commit all results at the end (single short DB transaction;
+    # synchronous, so it completes even after a swallowed cancellation)
+    db = SessionLocal()
+    try:
+        for bm_id, is_dead in results:
+            bm = db.query(Bookmark).filter(Bookmark.id == bm_id).first()
+            if bm is not None and bm.is_dead != is_dead:
+                bm.is_dead = is_dead
+        db.commit()
+    finally:
+        db.close()
 
 
 async def start() -> dict:
-    global _task
-    if _state["running"]:
-        return get_status()
-    
-    async with _lock:
-        _state["running"] = True
-        _state["started_at"] = datetime.now(timezone.utc).isoformat()
-        _state["finished_at"] = None
-        # Pre-load total so the UI shows a real number immediately
-        db = SessionLocal()
-        try:
-            _state["total"] = db.query(Bookmark).count()
-            _state["checked"] = 0
-            _state["dead_found"] = 0
-        finally:
-            db.close()
-    
-    _task = asyncio.create_task(_run_check())
-    return get_status()
+    db = SessionLocal()
+    try:
+        total = db.query(Bookmark).count()
+    finally:
+        db.close()
+    # Pre-load total so the UI shows a real number immediately.
+    return await job.start(_run_check, reset={"total": total})
