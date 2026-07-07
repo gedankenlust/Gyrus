@@ -156,6 +156,18 @@ struct ContentView: View {
                 CommandPaletteView(isPresented: $showCommandPalette)
             }
         }
+        .sheet(item: Binding(
+            get: { uiStateStore.batchTagReview },
+            set: { uiStateStore.batchTagReview = $0 }
+        )) { payload in
+            TagReviewSheet(payload: payload) { discard in
+                uiStateStore.batchTagReview = nil
+                if !discard.isEmpty {
+                    Task { await appStore.discardReviewedTags(discard) }
+                }
+            }
+            .environment(\.locale, AppSettings.shared.resolvedLocale)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .showImport)) { _ in showImport = true }
         .onReceive(NotificationCenter.default.publisher(for: .showCommandPalette)) { _ in showCommandPalette = true }
         .onReceive(NotificationCenter.default.publisher(for: .showAddBookmark)) { _ in showAddBookmark = true }

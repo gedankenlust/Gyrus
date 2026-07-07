@@ -21,6 +21,10 @@ final class UIStateStore {
     /// (ContentView) because a sheet inside a context menu never shows.
     var newTagForIds: Set<String>? = nil
 
+    /// Tags the LLM created during the last batch auto-tag run, awaiting the
+    /// keep/discard review sheet. Nil = nothing to review.
+    var batchTagReview: TagReviewPayload? = nil
+
     private var errorTask: Task<Void, Never>?
     private var infoTask: Task<Void, Never>?
     private var undoTimerTask: Task<Void, Never>?

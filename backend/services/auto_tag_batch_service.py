@@ -19,7 +19,7 @@ from services.background_job import BackgroundJob
 # Gyrus ships to all of them, so the default stays conservative.
 CONCURRENCY = 3
 
-job = BackgroundJob(processed=0, total=0, tagged=0, failed=0)
+job = BackgroundJob(processed=0, total=0, tagged=0, failed=0, created_tags=[])
 
 get_status = job.get_status
 is_running = job.is_running
@@ -27,6 +27,16 @@ cancel = job.cancel
 
 
 async def _run(ids: list[str], provider_config: dict | None, job: BackgroundJob) -> None:
+    from models.tag import Tag
+
+    # Snapshot tag ids so we can report which tags the LLM *created* during
+    # this run — the review sheet lets the user discard junk before it settles.
+    db = SessionLocal()
+    try:
+        before = {t.id for t in db.query(Tag.id).all()}
+    finally:
+        db.close()
+
     sem = asyncio.Semaphore(CONCURRENCY)
     tagged = 0
     failed = 0
@@ -63,10 +73,20 @@ async def _run(ids: list[str], provider_config: dict | None, job: BackgroundJob)
     tasks = [asyncio.create_task(tag_one(i)) for i in ids]
     try:
         await asyncio.gather(*tasks, return_exceptions=True)
+    except asyncio.CancelledError:
+        pass  # still report what was created before the stop
     finally:
         # Plain assignments — safe even mid-cancellation (see BackgroundJob).
         job.state["tagged"] = tagged
         job.state["failed"] = failed
+        db = SessionLocal()
+        try:
+            job.state["created_tags"] = [
+                {"id": t.id, "name": t.name, "color": t.color}
+                for t in db.query(Tag).filter(~Tag.id.in_(before)).all()
+            ]
+        finally:
+            db.close()
 
 
 async def start(ids: list[str], provider_config: dict | None = None) -> dict:

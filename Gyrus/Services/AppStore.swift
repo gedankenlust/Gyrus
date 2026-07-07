@@ -339,6 +339,11 @@ final class AppStore {
                     try? await self.tagsStore.fetchTags()
                     self.reportBatchTagOutcome(status)
                     self.uiStateStore.batchAutoTagStatus = nil
+                    // Offer to review tags the LLM invented during this run,
+                    // so junk gets discarded before it settles into the sidebar.
+                    if !status.createdTags.isEmpty {
+                        self.uiStateStore.batchTagReview = TagReviewPayload(tags: status.createdTags)
+                    }
                 }
             )
         } catch {
@@ -357,6 +362,26 @@ final class AppStore {
         try? await tagsStore.fetchTags()
         if let last {
             uiStateStore.showInfo("Stopped — tagged \(last.tagged) of \(last.total).")
+        }
+    }
+
+    /// Discard tags the user rejected in the post-batch review sheet.
+    func discardReviewedTags(_ tags: [CreatedTagInfo]) async {
+        guard !tags.isEmpty else { return }
+        var failure: Error?
+        for t in tags {
+            do { try await api.deleteTag(id: t.id) }
+            catch { failure = error; continue }
+            bookmarksStore.removeTagLocally(t.id)
+        }
+        try? await tagsStore.fetchTags()
+        await loadBookmarks()
+        if let failure {
+            handleUIError(failure)
+        } else {
+            uiStateStore.showInfo(tags.count == 1
+                ? "Discarded 1 tag."
+                : "Discarded \(tags.count) tags.")
         }
     }
 

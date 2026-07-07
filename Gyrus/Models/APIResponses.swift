@@ -22,6 +22,20 @@ struct MetadataRefreshStatus: Decodable, JobStatusReporting {
     let updated: Int
 }
 
+/// A tag the LLM created during a batch auto-tag run — offered for review
+/// (keep or discard) when the run finishes.
+struct CreatedTagInfo: Decodable, Identifiable, Hashable {
+    let id: String
+    let name: String
+    let color: String?
+}
+
+/// Sheet payload for the post-batch tag review (Identifiable for .sheet(item:)).
+struct TagReviewPayload: Identifiable {
+    let id = UUID()
+    let tags: [CreatedTagInfo]
+}
+
 struct BatchAutoTagStatus: Decodable, JobStatusReporting {
     let running: Bool
     let processed: Int
@@ -29,8 +43,12 @@ struct BatchAutoTagStatus: Decodable, JobStatusReporting {
     let tagged: Int
     let failed: Int
     let error: String?
+    let createdTags: [CreatedTagInfo]
 
-    enum CodingKeys: String, CodingKey { case running, processed, total, tagged, failed, error }
+    enum CodingKeys: String, CodingKey {
+        case running, processed, total, tagged, failed, error
+        case createdTags = "created_tags"
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -41,6 +59,7 @@ struct BatchAutoTagStatus: Decodable, JobStatusReporting {
         // Defaulted so older backend responses (without these keys) still decode.
         failed = try c.decodeIfPresent(Int.self, forKey: .failed) ?? 0
         error = try c.decodeIfPresent(String.self, forKey: .error)
+        createdTags = try c.decodeIfPresent([CreatedTagInfo].self, forKey: .createdTags) ?? []
     }
 }
 
