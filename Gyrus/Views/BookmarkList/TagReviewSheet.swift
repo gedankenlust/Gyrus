@@ -14,9 +14,15 @@ struct TagReviewSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("New Tags Created")
                     .font(.headline)
-                Text("The AI created \(payload.tags.count) new \(payload.tags.count == 1 ? "tag" : "tags") during this run. Uncheck any you don't want to keep.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+                Group {
+                    if payload.tags.count == 1 {
+                        Text("The AI created 1 new tag during this run. Uncheck it if you don't want to keep it.")
+                    } else {
+                        Text("The AI created \(payload.tags.count) new tags during this run. Uncheck any you don't want to keep.")
+                    }
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
             }
             .padding()
 

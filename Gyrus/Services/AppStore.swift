@@ -303,7 +303,7 @@ final class AppStore {
                     FaviconCache.shared.clear()
                     await self.loadBookmarks()
                     if status.updated > 0 {
-                        self.uiStateStore.showInfo("Updated \(status.updated) bookmarks.")
+                        self.uiStateStore.showInfo(AppSettings.shared.localized("Updated \(status.updated) bookmarks."))
                     }
                 }
             )
@@ -320,7 +320,7 @@ final class AppStore {
         let config = AppSettings.shared.aiBrainConfig
         do {
             uiStateStore.batchAutoTagStatus = try await api.startBatchAutoTag(ids: ids, config: config)
-            uiStateStore.showInfo("Generating tags for \(ids.count) bookmarks…")
+            uiStateStore.showInfo(AppSettings.shared.localized("Generating tags for \(ids.count) bookmarks…"))
             batchTagPoller.start(
                 interval: 1.5,
                 fetch: { [api] in try await api.batchAutoTagStatus() },
@@ -361,7 +361,7 @@ final class AppStore {
         await loadBookmarks()
         try? await tagsStore.fetchTags()
         if let last {
-            uiStateStore.showInfo("Stopped — tagged \(last.tagged) of \(last.total).")
+            uiStateStore.showInfo(AppSettings.shared.localized("Stopped — tagged \(last.tagged) of \(last.total)."))
         }
     }
 
@@ -380,8 +380,8 @@ final class AppStore {
             handleUIError(failure)
         } else {
             uiStateStore.showInfo(tags.count == 1
-                ? "Discarded 1 tag."
-                : "Discarded \(tags.count) tags.")
+                ? AppSettings.shared.localized("Discarded 1 tag.")
+                : AppSettings.shared.localized("Discarded \(tags.count) tags."))
         }
     }
 
@@ -409,8 +409,8 @@ final class AppStore {
             try? await tagsStore.fetchTags() // refresh sidebar counts
             if tagged > 0 {
                 uiStateStore.showInfo(tagged == 1
-                    ? "Tagged 1 bookmark with “\(tag.name)”."
-                    : "Tagged \(tagged) bookmarks with “\(tag.name)”.")
+                    ? AppSettings.shared.localized("Tagged 1 bookmark with “\(tag.name)”.")
+                    : AppSettings.shared.localized("Tagged \(tagged) bookmarks with “\(tag.name)”."))
             }
         } catch {
             handleUIError(error)
@@ -434,7 +434,7 @@ final class AppStore {
             try? await tagsStore.fetchTags()
             await loadBookmarks()
             let merged = sources.filter { $0.id != target.id }.map(\.name).joined(separator: "”, “")
-            uiStateStore.showInfo("Merged “\(merged)” into “\(target.name)”.")
+            uiStateStore.showInfo(AppSettings.shared.localized("Merged “\(merged)” into “\(target.name)”."))
         } catch {
             handleUIError(error)
         }
@@ -445,13 +445,13 @@ final class AppStore {
     private func reportBatchTagOutcome(_ status: BatchAutoTagStatus) {
         if status.tagged == 0 && status.failed > 0 {
             let reason = (status.error?.contains("Ollama") ?? false)
-                ? "Couldn't reach Ollama — is it running?"
-                : "Tagging failed for all \(status.failed) bookmarks."
+                ? AppSettings.shared.localized("Couldn't reach Ollama — is it running?")
+                : AppSettings.shared.localized("Tagging failed for all \(status.failed) bookmarks.")
             uiStateStore.showError(reason)
         } else if status.failed > 0 {
-            uiStateStore.showInfo("Tagged \(status.tagged) of \(status.total) — \(status.failed) failed.")
+            uiStateStore.showInfo(AppSettings.shared.localized("Tagged \(status.tagged) of \(status.total) — \(status.failed) failed."))
         } else {
-            uiStateStore.showInfo("Tagged \(status.tagged) of \(status.total) bookmarks.")
+            uiStateStore.showInfo(AppSettings.shared.localized("Tagged \(status.tagged) of \(status.total) bookmarks."))
         }
     }
 
@@ -528,8 +528,8 @@ final class AppStore {
         }
 
         uiStateStore.undoMessage = tags.count == 1
-            ? "Deleted tag “\(tags[0].name)”"
-            : "Deleted \(tags.count) tags"
+            ? AppSettings.shared.localized("Deleted tag “\(tags[0].name)”")
+            : AppSettings.shared.localized("Deleted \(tags.count) tags")
         uiStateStore.undoAction = { [weak self] in
             guard let self else { return }
             self.uiStateStore.cancelUndoTimer()
@@ -747,7 +747,7 @@ final class AppStore {
             return
         }
 
-        uiStateStore.undoMessage = "Deleted \(count) bookmarks"
+        uiStateStore.undoMessage = AppSettings.shared.localized("Deleted \(count) bookmarks")
 
         uiStateStore.undoAction = { [weak self] in
             guard let self else { return }

@@ -429,6 +429,12 @@ struct SidebarOutlineView: NSViewRepresentable {
             }
         }
 
+        /// Localize AppKit-facing strings (NSMenu, NSAlert) against the string
+        /// catalog — plain literals in menu items / alerts stay English otherwise.
+        private func loc(_ v: String.LocalizationValue) -> String {
+            AppSettings.shared.localized(v)
+        }
+
         /// Run a user-triggered mutation and surface a failure instead of
         /// swallowing it — a silently failed rename/delete leaves the sidebar
         /// looking out of sync with no explanation.
@@ -440,7 +446,7 @@ struct SidebarOutlineView: NSViewRepresentable {
         }
 
         @objc func addFolderRoot() {
-            if let name = promptText("New Folder", initial: "") {
+            if let name = promptText(loc("New Folder"), initial: "") {
                 let store = parent.store
                 perform { try await store.createCollection(name: name, parentId: nil) }
             }
@@ -449,14 +455,14 @@ struct SidebarOutlineView: NSViewRepresentable {
 
         @objc private func newSubfolder() {
             guard let c = clickedFolder() else { return }
-            if let name = promptText("New Subfolder", initial: "") {
+            if let name = promptText(loc("New Subfolder"), initial: "") {
                 let store = parent.store
                 perform { try await store.createCollection(name: name, parentId: c.id) }
             }
         }
         @objc private func renameFolder() {
             guard let c = clickedFolder() else { return }
-            if let name = promptText("Rename Folder", initial: c.name), name != c.name {
+            if let name = promptText(loc("Rename Folder"), initial: c.name), name != c.name {
                 let store = parent.store
                 perform { try await store.renameCollection(c.id, newName: name) }
             }
@@ -475,7 +481,7 @@ struct SidebarOutlineView: NSViewRepresentable {
         }
         @objc private func deleteFolder() {
             guard let c = clickedFolder() else { return }
-            if confirm("Delete \"\(c.name)\"?", "The bookmarks inside are kept — they just lose their folder assignment.") {
+            if confirm(loc("Delete \"\(c.name)\"?"), loc("The bookmarks inside are kept — they just lose their folder assignment.")) {
                 let store = parent.store
                 perform { _ = try await store.deleteCollection(c.id) }
             }
@@ -485,7 +491,7 @@ struct SidebarOutlineView: NSViewRepresentable {
         }
         @objc private func renameTag() {
             guard let t = clickedTag() else { return }
-            if let name = promptText("Rename Tag", initial: t.name), name != t.name {
+            if let name = promptText(loc("Rename Tag"), initial: t.name), name != t.name {
                 let ts = parent.tagStore
                 let bs = parent.bookmarkStore
                 perform {
@@ -497,7 +503,7 @@ struct SidebarOutlineView: NSViewRepresentable {
         }
         @objc private func deleteTag() {
             guard let t = clickedTag() else { return }
-            if confirm("Delete tag \"\(t.name)\"?", "Bookmarks keep their other tags. You can undo this.") {
+            if confirm(loc("Delete tag \"\(t.name)\"?"), loc("Bookmarks keep their other tags. You can undo this.")) {
                 parent.onDeleteTags([t])
             }
         }
@@ -505,9 +511,9 @@ struct SidebarOutlineView: NSViewRepresentable {
             let tags = selectedTags()
             guard !tags.isEmpty else { return }
             let msg = tags.count == 1
-                ? "Delete tag \"\(tags[0].name)\"?"
-                : "Delete \(tags.count) tags?"
-            if confirm(msg, "Bookmarks keep their other tags. You can undo this.") {
+                ? loc("Delete tag \"\(tags[0].name)\"?")
+                : loc("Delete \(tags.count) tags?")
+            if confirm(msg, loc("Bookmarks keep their other tags. You can undo this.")) {
                 parent.onDeleteTags(tags)
             }
         }
@@ -532,8 +538,9 @@ struct SidebarOutlineView: NSViewRepresentable {
         private func requestMerge(sources: [Tag], target: Tag) {
             guard !sources.isEmpty else { return }
             let names = sources.map { "\"\($0.name)\"" }.joined(separator: ", ")
-            if confirm("Merge \(names) into \"\(target.name)\"?",
-                       "Bookmarks with the merged tags get \"\(target.name)\" instead. This cannot be undone.") {
+            if confirm(loc("Merge \(names) into \"\(target.name)\"?"),
+                       loc("Bookmarks with the merged tags get \"\(target.name)\" instead. This cannot be undone."),
+                       button: loc("Merge")) {
                 parent.onMergeTags(sources, target)
             }
         }
@@ -544,15 +551,18 @@ struct SidebarOutlineView: NSViewRepresentable {
             let tf = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
             tf.stringValue = initial
             alert.accessoryView = tf
-            alert.addButton(withTitle: "OK"); alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: loc("OK")); alert.addButton(withTitle: loc("Cancel"))
             let ok = alert.runModal() == .alertFirstButtonReturn
             let value = tf.stringValue.trimmingCharacters(in: .whitespaces)
             return (ok && !value.isEmpty) ? value : nil
         }
-        private func confirm(_ title: String, _ message: String) -> Bool {
+        /// Confirmation alert; `button` is the destructive/primary action title
+        /// (default Delete — pass something else for non-delete confirmations).
+        private func confirm(_ title: String, _ message: String, button: String? = nil) -> Bool {
             let alert = NSAlert()
             alert.messageText = title; alert.informativeText = message
-            alert.addButton(withTitle: "Delete"); alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: button ?? loc("Delete"))
+            alert.addButton(withTitle: loc("Cancel"))
             return alert.runModal() == .alertFirstButtonReturn
         }
 
@@ -570,22 +580,22 @@ extension SidebarOutlineView.Coordinator: NSMenuDelegate {
         switch node.kind {
         case .group(_, let add) where add == .tag:
             // TAGS header: choose how the tag list is ordered.
-            let byName = NSMenuItem(title: "Sort by Name", action: #selector(sortTagsByName), keyEquivalent: "")
+            let byName = NSMenuItem(title: loc("Sort by Name"), action: #selector(sortTagsByName), keyEquivalent: "")
             byName.state = AppSettings.shared.tagSortMode == "name" ? .on : .off
-            let byCount = NSMenuItem(title: "Sort by Count", action: #selector(sortTagsByCount), keyEquivalent: "")
+            let byCount = NSMenuItem(title: loc("Sort by Count"), action: #selector(sortTagsByCount), keyEquivalent: "")
             byCount.state = AppSettings.shared.tagSortMode == "count" ? .on : .off
             menu.addItem(byName)
             menu.addItem(byCount)
         case .folder(let c):
-            menu.addItem(withTitle: "New Subfolder", action: #selector(newSubfolder), keyEquivalent: "")
-            menu.addItem(withTitle: "Rename", action: #selector(renameFolder), keyEquivalent: "")
+            menu.addItem(withTitle: loc("New Subfolder"), action: #selector(newSubfolder), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Rename"), action: #selector(renameFolder), keyEquivalent: "")
             if c.parentId != nil {
-                menu.addItem(withTitle: "Move to Root", action: #selector(moveFolderToRoot), keyEquivalent: "")
+                menu.addItem(withTitle: loc("Move to Root"), action: #selector(moveFolderToRoot), keyEquivalent: "")
             }
-            menu.addItem(withTitle: "Change Color…", action: #selector(recolorFolder), keyEquivalent: "")
-            menu.addItem(withTitle: "Export Folder…", action: #selector(exportFolder), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Change Color…"), action: #selector(recolorFolder), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Export Folder…"), action: #selector(exportFolder), keyEquivalent: "")
             menu.addItem(.separator())
-            menu.addItem(withTitle: "Delete", action: #selector(deleteFolder), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Delete"), action: #selector(deleteFolder), keyEquivalent: "")
         case .tag:
             let sel = selectedTags()
             // Only offer bulk delete when the right-clicked tag is part of the
@@ -602,14 +612,14 @@ extension SidebarOutlineView.Coordinator: NSMenuDelegate {
                     item.target = self
                     mergeMenu.addItem(item)
                 }
-                let mergeItem = NSMenuItem(title: "Merge \(sel.count) Tags Into", action: nil, keyEquivalent: "")
+                let mergeItem = NSMenuItem(title: loc("Merge \(sel.count) Tags Into"), action: nil, keyEquivalent: "")
                 mergeItem.submenu = mergeMenu
                 menu.addItem(mergeItem)
                 menu.addItem(.separator())
-                menu.addItem(withTitle: "Delete \(sel.count) Tags", action: #selector(deleteSelectedTags), keyEquivalent: "")
+                menu.addItem(withTitle: loc("Delete \(sel.count) Tags"), action: #selector(deleteSelectedTags), keyEquivalent: "")
             } else {
-                menu.addItem(withTitle: "Rename", action: #selector(renameTag), keyEquivalent: "")
-                menu.addItem(withTitle: "Change Color…", action: #selector(recolorTag), keyEquivalent: "")
+                menu.addItem(withTitle: loc("Rename"), action: #selector(renameTag), keyEquivalent: "")
+                menu.addItem(withTitle: loc("Change Color…"), action: #selector(recolorTag), keyEquivalent: "")
                 // Merge this tag into any other tag (alphabetical, like the sidebar).
                 if let clicked = clickedTag() {
                     let others = parent.tagStore.tags
@@ -623,13 +633,13 @@ extension SidebarOutlineView.Coordinator: NSMenuDelegate {
                             item.target = self
                             mergeMenu.addItem(item)
                         }
-                        let mergeItem = NSMenuItem(title: "Merge Into", action: nil, keyEquivalent: "")
+                        let mergeItem = NSMenuItem(title: loc("Merge Into"), action: nil, keyEquivalent: "")
                         mergeItem.submenu = mergeMenu
                         menu.addItem(mergeItem)
                     }
                 }
                 menu.addItem(.separator())
-                menu.addItem(withTitle: "Delete", action: #selector(deleteTag), keyEquivalent: "")
+                menu.addItem(withTitle: loc("Delete"), action: #selector(deleteTag), keyEquivalent: "")
             }
         default:
             return
