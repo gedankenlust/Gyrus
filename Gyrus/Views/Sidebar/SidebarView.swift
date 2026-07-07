@@ -57,7 +57,8 @@ struct SidebarView: View {
                 },
                 onDeleteTags: { tags in
                     Task { await appStore.deleteTags(tags) }
-                }
+                },
+                onError: { appStore.surfaceError($0) }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -93,7 +94,10 @@ struct SidebarView: View {
                 title: "Color for \"\(folder.name)\"",
                 color: $recolorFolderPick,
                 onSave: {
-                    Task { try? await collectionStore.recolorCollection(folder.id, color: recolorFolderPick.toHex() ?? "#3B82F6") }
+                    Task {
+                        do { try await collectionStore.recolorCollection(folder.id, color: recolorFolderPick.toHex() ?? "#3B82F6") }
+                        catch { appStore.surfaceError(error) }
+                    }
                     recolorFolder = nil
                 },
                 onCancel: { recolorFolder = nil }
@@ -204,6 +208,7 @@ struct SidebarView: View {
 // MARK: - Modifiers
 
 struct SidebarSheetModifier: ViewModifier {
+    @Environment(AppStore.self) private var appStore
     @Binding var showExportSheet: Bool
     @Binding var showNewTag: Bool
     @Binding var newTagName: String
@@ -224,7 +229,10 @@ struct SidebarSheetModifier: ViewModifier {
                     onSave: {
                         let n = newTagName.trimmingCharacters(in: .whitespaces)
                         guard !n.isEmpty else { return }
-                        Task { _ = try? await tagStore.createTag(name: n, color: newTagColor.toHex()) }
+                        Task {
+                            do { _ = try await tagStore.createTag(name: n, color: newTagColor.toHex()) }
+                            catch { appStore.surfaceError(error) }
+                        }
                         showNewTag = false
                     },
                     onCancel: { showNewTag = false }
@@ -253,9 +261,11 @@ struct SidebarMiscModifier: ViewModifier {
                         let hex = recolorPick.toHex() ?? "#3B82F6"
                         let bs = bookmarkStore
                         Task {
-                            _ = try? await tagStore.recolorTag(tag.id, color: hex)
-                            // Recolor any open bookmark chips immediately.
-                            bs.updateTagLocally(Tag(id: tag.id, name: tag.name, color: hex, createdAt: tag.createdAt))
+                            do {
+                                _ = try await tagStore.recolorTag(tag.id, color: hex)
+                                // Recolor any open bookmark chips immediately.
+                                bs.updateTagLocally(Tag(id: tag.id, name: tag.name, color: hex, createdAt: tag.createdAt))
+                            } catch { appStore.surfaceError(error) }
                         }
                         recolorTag = nil
                     },

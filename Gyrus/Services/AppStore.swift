@@ -113,6 +113,14 @@ final class AppStore {
 
     // MARK: - Search
 
+    /// Route an error from a user-triggered action to the error toast, with the
+    /// same noise filtering as handleUIError. Internal (not private) so view
+    /// callbacks (e.g. sidebar context-menu actions) can surface failures
+    /// instead of swallowing them with `try?`.
+    func surfaceError(_ error: Error) {
+        handleUIError(error)
+    }
+
     private func handleUIError(_ error: Error) {
         // Debounced search cancels in-flight tasks — never show that to the user.
         if error is CancellationError { return }
@@ -426,13 +434,23 @@ final class AppStore {
 
         let ids = tags.map(\.id)
         let names = Set(tags.map(\.name))
-        for id in ids { try? await api.deleteTag(id: id) }
-        for id in ids { bookmarksStore.removeTagLocally(id) }
+        var deleteFailure: Error?
+        for id in ids {
+            do { try await api.deleteTag(id: id) }
+            catch { deleteFailure = error; continue }
+            bookmarksStore.removeTagLocally(id)
+        }
         if let sel = tagsStore.selectedTagName, names.contains(sel) {
             tagsStore.selectedTagName = nil
         }
         try? await tagsStore.fetchTags()
         await loadBookmarks()
+        if let deleteFailure {
+            // Don't offer Undo for a partial delete — restoring on top of a
+            // half-applied state would be confusing. Show what went wrong.
+            handleUIError(deleteFailure)
+            return
+        }
 
         uiStateStore.undoMessage = tags.count == 1
             ? "Deleted tag “\(tags[0].name)”"
@@ -443,8 +461,14 @@ final class AppStore {
             self.uiStateStore.undoMessage = nil
             self.uiStateStore.undoAction = nil
             Task {
-                for s in snapshots {
-                    _ = try? await self.api.restoreTag(name: s.name, color: s.color, bookmarkIds: s.ids)
+                do {
+                    for s in snapshots {
+                        _ = try await self.api.restoreTag(name: s.name, color: s.color, bookmarkIds: s.ids)
+                    }
+                } catch {
+                    // A silently failed undo is worse than no undo — the user
+                    // believes the tags are back when they aren't.
+                    self.handleUIError(error)
                 }
                 try? await self.tagsStore.fetchTags()
                 await self.loadBookmarks()

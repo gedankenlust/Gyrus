@@ -35,6 +35,7 @@ struct SidebarOutlineView: NSViewRepresentable {
     var onRecolorTag: (Tag) -> Void = { _ in }
     var onRecolorFolder: (Collection) -> Void = { _ in }
     var onDeleteTags: ([Tag]) -> Void = { _ in }
+    var onError: (Error) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -408,10 +409,20 @@ struct SidebarOutlineView: NSViewRepresentable {
             }
         }
 
+        /// Run a user-triggered mutation and surface a failure instead of
+        /// swallowing it — a silently failed rename/delete leaves the sidebar
+        /// looking out of sync with no explanation.
+        private func perform(_ op: @escaping @MainActor () async throws -> Void) {
+            let onError = parent.onError
+            Task { @MainActor in
+                do { try await op() } catch { onError(error) }
+            }
+        }
+
         @objc func addFolderRoot() {
             if let name = promptText("New Folder", initial: "") {
                 let store = parent.store
-                Task { @MainActor in try? await store.createCollection(name: name, parentId: nil) }
+                perform { try await store.createCollection(name: name, parentId: nil) }
             }
         }
         @objc func addTag() { parent.onNewTag() }
@@ -420,20 +431,20 @@ struct SidebarOutlineView: NSViewRepresentable {
             guard let c = clickedFolder() else { return }
             if let name = promptText("New Subfolder", initial: "") {
                 let store = parent.store
-                Task { @MainActor in try? await store.createCollection(name: name, parentId: c.id) }
+                perform { try await store.createCollection(name: name, parentId: c.id) }
             }
         }
         @objc private func renameFolder() {
             guard let c = clickedFolder() else { return }
             if let name = promptText("Rename Folder", initial: c.name), name != c.name {
                 let store = parent.store
-                Task { @MainActor in try? await store.renameCollection(c.id, newName: name) }
+                perform { try await store.renameCollection(c.id, newName: name) }
             }
         }
         @objc private func moveFolderToRoot() {
             guard let c = clickedFolder() else { return }
             let store = parent.store
-            Task { @MainActor in try? await store.moveCollection(c.id, toParent: nil) }
+            perform { try await store.moveCollection(c.id, toParent: nil) }
         }
         @objc private func exportFolder() {
             guard let c = clickedFolder() else { return }
@@ -446,7 +457,7 @@ struct SidebarOutlineView: NSViewRepresentable {
             guard let c = clickedFolder() else { return }
             if confirm("Delete \"\(c.name)\"?", "The bookmarks inside are kept — they just lose their folder assignment.") {
                 let store = parent.store
-                Task { @MainActor in _ = try? await store.deleteCollection(c.id) }
+                perform { _ = try await store.deleteCollection(c.id) }
             }
         }
         @objc private func recolorTag() {
@@ -457,8 +468,8 @@ struct SidebarOutlineView: NSViewRepresentable {
             if let name = promptText("Rename Tag", initial: t.name), name != t.name {
                 let ts = parent.tagStore
                 let bs = parent.bookmarkStore
-                Task { @MainActor in
-                    try? await ts.renameTag(t.id, newName: name)
+                perform {
+                    try await ts.renameTag(t.id, newName: name)
                     // Reflect the new name on any open bookmark chips immediately.
                     bs.updateTagLocally(Tag(id: t.id, name: name, color: t.color, createdAt: t.createdAt))
                 }
