@@ -15,8 +15,9 @@ final class AppStore {
     private let api = APIClient.shared
     private var pendingDeleteTask: Task<Void, Never>?
     private var autoRefreshTask: Task<Void, Never>?
-    private var metadataRefreshTask: Task<Void, Never>?
-    private var batchAutoTagTask: Task<Void, Never>?
+    private let linkCheckPoller = JobPoller<LinkCheckStatus>()
+    private let metadataPoller = JobPoller<MetadataRefreshStatus>()
+    private let batchTagPoller = JobPoller<BatchAutoTagStatus>()
     static let undoWindow: TimeInterval = 5
 
     func loadAll() async {
@@ -260,22 +261,23 @@ final class AppStore {
         do {
             let status = try await api.startLinkCheck()
             uiStateStore.linkCheckStatus = status
-            startPollingLinkCheck()
+            linkCheckPoller.start(
+                interval: 1.5,
+                fetch: { [api] in try await api.linkCheckStatus() },
+                onTick: { [weak self] status in
+                    self?.uiStateStore.linkCheckStatus = status
+                },
+                onFinished: { [weak self] _ in
+                    guard let self else { return }
+                    if let d = try? await self.api.deadBookmarkCount() {
+                        self.bookmarksStore.deadBookmarkCount = d
+                    }
+                    await self.loadBookmarks()
+                }
+            )
         } catch {
             handleUIError(error)
         }
-    }
-
-    private func startPollingLinkCheck() {
-        bookmarksStore.startPollingLinkCheck(onUpdate: { [weak self] status in
-            self?.uiStateStore.linkCheckStatus = status
-        }, onFinished: { [weak self] in
-            guard let self else { return }
-            if let d = try? await self.api.deadBookmarkCount() {
-                self.bookmarksStore.deadBookmarkCount = d
-            }
-            await self.loadBookmarks()
-        })
     }
 
     // MARK: - Metadata Refresh
@@ -287,27 +289,24 @@ final class AppStore {
         guard uiStateStore.metadataRefreshStatus?.running != true else { return }
         do {
             uiStateStore.metadataRefreshStatus = try await api.startMetadataRefresh()
-            metadataRefreshTask?.cancel()
-            metadataRefreshTask = Task { [weak self] in
-                guard let self else { return }
-                while !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: 1_000_000_000)
-                    guard !Task.isCancelled else { return }
-                    guard let status = try? await self.api.metadataRefreshStatus() else { continue }
-                    self.uiStateStore.metadataRefreshStatus = status
-                    if !status.running {
-                        // Bust cached favicon images (same filename → same URL)
-                        // so the freshly fetched icons actually show, then reload.
-                        URLCache.shared.removeAllCachedResponses()
-                        FaviconCache.shared.clear()
-                        await self.loadBookmarks()
-                        if status.updated > 0 {
-                            self.uiStateStore.showInfo("Updated \(status.updated) bookmarks.")
-                        }
-                        return
+            metadataPoller.start(
+                interval: 1.0,
+                fetch: { [api] in try await api.metadataRefreshStatus() },
+                onTick: { [weak self] status in
+                    self?.uiStateStore.metadataRefreshStatus = status
+                },
+                onFinished: { [weak self] status in
+                    guard let self else { return }
+                    // Bust cached favicon images (same filename → same URL)
+                    // so the freshly fetched icons actually show, then reload.
+                    URLCache.shared.removeAllCachedResponses()
+                    FaviconCache.shared.clear()
+                    await self.loadBookmarks()
+                    if status.updated > 0 {
+                        self.uiStateStore.showInfo("Updated \(status.updated) bookmarks.")
                     }
                 }
-            }
+            )
         } catch {
             handleUIError(error)
         }
@@ -322,37 +321,33 @@ final class AppStore {
         do {
             uiStateStore.batchAutoTagStatus = try await api.startBatchAutoTag(ids: ids, config: config)
             uiStateStore.showInfo("Generating tags for \(ids.count) bookmarks…")
-            batchAutoTagTask?.cancel()
-            batchAutoTagTask = Task { [weak self] in
-                guard let self else { return }
-                var ticks = 0
-                while !Task.isCancelled {
-                    try? await Task.sleep(nanoseconds: 1_500_000_000)
-                    guard !Task.isCancelled else { return }
-                    guard let status = try? await self.api.batchAutoTagStatus() else { continue }
+            batchTagPoller.start(
+                interval: 1.5,
+                fetch: { [api] in try await api.batchAutoTagStatus() },
+                onTick: { [weak self] status in
+                    guard let self else { return }
                     self.uiStateStore.batchAutoTagStatus = status
-                    ticks += 1
                     // Reload every few ticks so new tags show up progressively.
-                    if status.running && ticks % 3 == 0 {
+                    if status.running && self.batchTagPoller.ticks % 3 == 0 {
                         await self.loadBookmarks()
                         try? await self.tagsStore.fetchTags()
                     }
-                    if !status.running {
-                        await self.loadBookmarks()
-                        try? await self.tagsStore.fetchTags()
-                        self.reportBatchTagOutcome(status)
-                        self.uiStateStore.batchAutoTagStatus = nil
-                        return
-                    }
+                },
+                onFinished: { [weak self] status in
+                    guard let self else { return }
+                    await self.loadBookmarks()
+                    try? await self.tagsStore.fetchTags()
+                    self.reportBatchTagOutcome(status)
+                    self.uiStateStore.batchAutoTagStatus = nil
                 }
-            }
+            )
         } catch {
             handleUIError(error)
         }
     }
 
     func cancelBatchAutoTag() async {
-        batchAutoTagTask?.cancel()
+        batchTagPoller.stop()
         let last = uiStateStore.batchAutoTagStatus
         _ = try? await api.cancelBatchAutoTag()
         uiStateStore.batchAutoTagStatus = nil

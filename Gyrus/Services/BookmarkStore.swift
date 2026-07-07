@@ -30,7 +30,6 @@ final class BookmarkStore {
     private let pageSize = 100
     private let api = APIClient.shared
     private var searchTask: Task<Void, Never>?
-    private var linkCheckPollTask: Task<Void, Never>?
 
     /// Bookmark IDs we've already tried to fetch metadata for this session, so
     /// scrolling a card in and out of view doesn't re-hit the network for a
@@ -335,27 +334,4 @@ final class BookmarkStore {
         NSWorkspace.shared.open(url)
     }
 
-    // MARK: - Link Check
-
-    func startPollingLinkCheck(onUpdate: @escaping (LinkCheckStatus) async -> Void, onFinished: @escaping () async -> Void) {
-        linkCheckPollTask?.cancel()
-        linkCheckPollTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
-                guard !Task.isCancelled else { return }
-                do {
-                    let status = try await self.api.linkCheckStatus()
-                    await onUpdate(status)
-                    if !status.running {
-                        await onFinished()
-                        return
-                    }
-                } catch { return }
-            }
-        }
-    }
-
-    func stopPollingLinkCheck() {
-        linkCheckPollTask?.cancel()
-    }
 }

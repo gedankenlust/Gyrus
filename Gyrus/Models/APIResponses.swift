@@ -3,7 +3,7 @@ import Foundation
 // Response models for backend endpoints, shared across stores.
 // (Moved out of APIClient.swift when it was split by domain.)
 
-struct LinkCheckStatus: Decodable {
+struct LinkCheckStatus: Decodable, JobStatusReporting {
     let running: Bool
     let checked: Int
     let total: Int
@@ -15,14 +15,14 @@ struct LinkCheckStatus: Decodable {
     }
 }
 
-struct MetadataRefreshStatus: Decodable {
+struct MetadataRefreshStatus: Decodable, JobStatusReporting {
     let running: Bool
     let processed: Int
     let total: Int
     let updated: Int
 }
 
-struct BatchAutoTagStatus: Decodable {
+struct BatchAutoTagStatus: Decodable, JobStatusReporting {
     let running: Bool
     let processed: Int
     let total: Int

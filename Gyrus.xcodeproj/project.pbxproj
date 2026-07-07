@@ -32,6 +32,7 @@
 		6CEDFCBD07994481B973E0F7 /* BookmarkCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99B1B664FDA4980881EA131 /* BookmarkCardView.swift */; };
 		78E67B5D769B492B8EA1DB44 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = C095A7E91A9E462F8BE6A701 /* FlowLayout.swift */; };
 		7B348710F470440D8C9EEE86 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 09A257377B754496BA5A974F /* Localizable.xcstrings */; };
+		7BDDEB19BBC0977512E01778 /* JobPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB3C37941736B2EC7BC6E439 /* JobPoller.swift */; };
 		99C172A831AB46389A6EE972 /* GlobalHotkey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8518E6FEC9874464833F4B16 /* GlobalHotkey.swift */; };
 		9AB52614F3AB41558F0DC372 /* GyrusApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC8CA60B51EF4D6F888B6908 /* GyrusApp.swift */; };
 		9B95BA3017334ADD81F3584D /* BookmarkGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C180FEA7134C4238B825EE59 /* BookmarkGridView.swift */; };
@@ -102,6 +103,7 @@
 		9B04F6D11FA14D7BB301F393 /* WebPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebPreviewView.swift; sourceTree = "<group>"; };
 		9E1495CE9EC2477C9168005C /* AppStoreLogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreLogicTests.swift; sourceTree = "<group>"; };
 		A296107B91B4443383C292E4 /* SidebarOutlineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarOutlineView.swift; sourceTree = "<group>"; };
+		AB3C37941736B2EC7BC6E439 /* JobPoller.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = JobPoller.swift; sourceTree = "<group>"; };
 		B695E9A96BA1490FA4F55A58 /* BrainChatStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrainChatStore.swift; sourceTree = "<group>"; };
 		B7D1F1E6EA4346108379E899 /* QuickAddPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAddPanel.swift; sourceTree = "<group>"; };
 		B99B1B664FDA4980881EA131 /* BookmarkCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkCardView.swift; sourceTree = "<group>"; };
@@ -287,6 +289,7 @@
 				6F6911F21C3CB26FB0DF2C92 /* APIClient+Jobs.swift */,
 				2CC3C6C89FA71D2CAE4A0164 /* APIClient+Brain.swift */,
 				BF434287D6C86BA5D684A3F5 /* APIClient+Data.swift */,
+				AB3C37941736B2EC7BC6E439 /* JobPoller.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -544,6 +547,7 @@
 				6A65DB224A09E506F6DC7B11 /* APIClient+Brain.swift in Sources */,
 				668C560B824A34558AB20A8B /* APIClient+Data.swift in Sources */,
 				EC74F52B250DED79024604F2 /* APIResponses.swift in Sources */,
+				7BDDEB19BBC0977512E01778 /* JobPoller.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
