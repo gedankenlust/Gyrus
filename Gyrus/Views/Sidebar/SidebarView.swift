@@ -58,6 +58,9 @@ struct SidebarView: View {
                 onDeleteTags: { tags in
                     Task { await appStore.deleteTags(tags) }
                 },
+                onMergeTags: { sources, target in
+                    Task { await appStore.mergeTags(sources, into: target) }
+                },
                 onError: { appStore.surfaceError($0) }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)

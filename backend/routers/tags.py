@@ -16,6 +16,11 @@ class TagRestore(BaseModel):
     bookmark_ids: list[str] = []
 
 
+class TagMerge(BaseModel):
+    source_ids: list[str]
+    target_id: str
+
+
 @router.get("", response_model=list[TagOut])
 def list_tags(db: Session = Depends(get_db)):
     tags = db.query(Tag).order_by(Tag.name).all()
@@ -70,6 +75,35 @@ def restore_tag(data: TagRestore, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(tag)
     return tag
+
+
+@router.post("/merge", response_model=TagOut)
+def merge_tags(data: TagMerge, db: Session = Depends(get_db)):
+    """Merge tags: every bookmark tagged with a source tag gets the target tag
+    instead, then the source tags are deleted. Deduplicates bookmarks that
+    already carry the target. The natural cleanup for near-duplicate tags that
+    LLM auto-tagging accumulates ('webdev' vs 'web development')."""
+    target = db.query(Tag).filter(Tag.id == data.target_id).first()
+    if not target:
+        raise HTTPException(404, "Target tag not found")
+    source_ids = [sid for sid in set(data.source_ids) if sid != data.target_id]
+    if not source_ids:
+        raise HTTPException(400, "No source tags to merge")
+    sources = db.query(Tag).filter(Tag.id.in_(source_ids)).all()
+    if len(sources) != len(source_ids):
+        raise HTTPException(404, "A source tag was not found")
+
+    already = {bid for (bid,) in db.query(BookmarkTag.bookmark_id)
+               .filter(BookmarkTag.tag_id == target.id).all()}
+    moved = {bid for (bid,) in db.query(BookmarkTag.bookmark_id)
+             .filter(BookmarkTag.tag_id.in_(source_ids)).distinct().all()}
+    for bid in moved - already:
+        db.add(BookmarkTag(bookmark_id=bid, tag_id=target.id))
+    for src in sources:
+        db.delete(src)  # cascades to its BookmarkTag rows
+    db.commit()
+    db.refresh(target)
+    return target
 
 
 @router.put("/{tag_id}", response_model=TagOut)

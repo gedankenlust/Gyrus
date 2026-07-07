@@ -360,6 +360,29 @@ final class AppStore {
         }
     }
 
+    /// Merge tags: bookmarks with any source tag get `target` instead; the
+    /// sources are deleted. Not undoable (recreating the exact pre-merge state
+    /// would require stripping the target from bookmarks that gained it), so
+    /// callers confirm first.
+    func mergeTags(_ sources: [Tag], into target: Tag) async {
+        let sourceIds = sources.map(\.id).filter { $0 != target.id }
+        guard !sourceIds.isEmpty else { return }
+        do {
+            try await api.mergeTags(sourceIds: sourceIds, targetId: target.id)
+            for id in sourceIds { bookmarksStore.removeTagLocally(id) }
+            if let sel = tagsStore.selectedTagName,
+               sources.contains(where: { $0.name == sel }) {
+                tagsStore.selectedTagName = nil
+            }
+            try? await tagsStore.fetchTags()
+            await loadBookmarks()
+            let merged = sources.filter { $0.id != target.id }.map(\.name).joined(separator: "”, “")
+            uiStateStore.showInfo("Merged “\(merged)” into “\(target.name)”.")
+        } catch {
+            handleUIError(error)
+        }
+    }
+
     /// Summarize a finished batch run: surface failures (e.g. Ollama down)
     /// rather than a misleading "tagged 0 of N".
     private func reportBatchTagOutcome(_ status: BatchAutoTagStatus) {

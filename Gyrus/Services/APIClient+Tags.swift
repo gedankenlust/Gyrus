@@ -23,4 +23,20 @@ extension APIClient {
         try await post(base.appending(path: "/api/tags/restore"),
                        body: TagRestore(name: name, color: color, bookmarkIds: bookmarkIds))
     }
+
+    /// Merge tags: bookmarks with any source tag get the target tag instead;
+    /// the source tags are deleted.
+    @discardableResult
+    func mergeTags(sourceIds: [String], targetId: String) async throws -> Tag {
+        struct Body: Encodable {
+            let sourceIds: [String]
+            let targetId: String
+            enum CodingKeys: String, CodingKey {
+                case sourceIds = "source_ids"
+                case targetId = "target_id"
+            }
+        }
+        return try await post(base.appending(path: "/api/tags/merge"),
+                              body: Body(sourceIds: sourceIds, targetId: targetId))
+    }
 }

@@ -35,6 +35,7 @@ struct SidebarOutlineView: NSViewRepresentable {
     var onRecolorTag: (Tag) -> Void = { _ in }
     var onRecolorFolder: (Collection) -> Void = { _ in }
     var onDeleteTags: ([Tag]) -> Void = { _ in }
+    var onMergeTags: (_ sources: [Tag], _ target: Tag) -> Void = { _, _ in }
     var onError: (Error) -> Void = { _ in }
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -491,6 +492,24 @@ struct SidebarOutlineView: NSViewRepresentable {
                 parent.onDeleteTags(tags)
             }
         }
+        @objc private func mergeSelectionInto(_ sender: NSMenuItem) {
+            guard let target = sender.representedObject as? Tag else { return }
+            let sources = selectedTags().filter { $0.id != target.id }
+            requestMerge(sources: sources, target: target)
+        }
+        @objc private func mergeClickedInto(_ sender: NSMenuItem) {
+            guard let target = sender.representedObject as? Tag,
+                  let source = clickedTag(), source.id != target.id else { return }
+            requestMerge(sources: [source], target: target)
+        }
+        private func requestMerge(sources: [Tag], target: Tag) {
+            guard !sources.isEmpty else { return }
+            let names = sources.map { "\"\($0.name)\"" }.joined(separator: ", ")
+            if confirm("Merge \(names) into \"\(target.name)\"?",
+                       "Bookmarks with the merged tags get \"\(target.name)\" instead. This cannot be undone.") {
+                parent.onMergeTags(sources, target)
+            }
+        }
 
         private func promptText(_ title: String, initial: String) -> String? {
             let alert = NSAlert()
@@ -540,10 +559,40 @@ extension SidebarOutlineView.Coordinator: NSMenuDelegate {
                 outlineView?.selectedRowIndexes.contains($0) ?? false
             } ?? false
             if sel.count > 1 && clickedInSelection {
+                // Merge the selection into one of its members: pick the survivor.
+                let mergeMenu = NSMenu()
+                for target in sel.sorted(by: { $0.name < $1.name }) {
+                    let item = NSMenuItem(title: target.name, action: #selector(mergeSelectionInto(_:)), keyEquivalent: "")
+                    item.representedObject = target
+                    item.target = self
+                    mergeMenu.addItem(item)
+                }
+                let mergeItem = NSMenuItem(title: "Merge \(sel.count) Tags Into", action: nil, keyEquivalent: "")
+                mergeItem.submenu = mergeMenu
+                menu.addItem(mergeItem)
+                menu.addItem(.separator())
                 menu.addItem(withTitle: "Delete \(sel.count) Tags", action: #selector(deleteSelectedTags), keyEquivalent: "")
             } else {
                 menu.addItem(withTitle: "Rename", action: #selector(renameTag), keyEquivalent: "")
                 menu.addItem(withTitle: "Change Color…", action: #selector(recolorTag), keyEquivalent: "")
+                // Merge this tag into any other tag (alphabetical, like the sidebar).
+                if let clicked = clickedTag() {
+                    let others = parent.tagStore.tags
+                        .filter { $0.id != clicked.id }
+                        .sorted { $0.name < $1.name }
+                    if !others.isEmpty {
+                        let mergeMenu = NSMenu()
+                        for target in others {
+                            let item = NSMenuItem(title: target.name, action: #selector(mergeClickedInto(_:)), keyEquivalent: "")
+                            item.representedObject = target
+                            item.target = self
+                            mergeMenu.addItem(item)
+                        }
+                        let mergeItem = NSMenuItem(title: "Merge Into", action: nil, keyEquivalent: "")
+                        mergeItem.submenu = mergeMenu
+                        menu.addItem(mergeItem)
+                    }
+                }
                 menu.addItem(.separator())
                 menu.addItem(withTitle: "Delete", action: #selector(deleteTag), keyEquivalent: "")
             }
