@@ -360,6 +360,38 @@ final class AppStore {
         }
     }
 
+    /// Assign a tag to a set of bookmarks (drag & drop onto a tag row).
+    /// Additive only — never removes, unlike toggleTag.
+    func assignTag(_ tag: Tag, toBookmarkIds ids: Set<String>) async {
+        guard !ids.isEmpty else { return }
+        do {
+            var tagged = 0
+            for id in ids {
+                guard let bm = bookmarksStore.bookmarks.first(where: { $0.id == id }) else { continue }
+                var tagIds = bm.tags.map(\.id)
+                guard !tagIds.contains(tag.id) else { continue }
+                tagIds.append(tag.id)
+                var u = BookmarkUpdate(); u.tagIds = tagIds
+                let updated = try await api.updateBookmark(id: id, body: u)
+                if let idx = bookmarksStore.bookmarks.firstIndex(where: { $0.id == id }) {
+                    bookmarksStore.bookmarks[idx] = updated
+                }
+                if bookmarksStore.selectedBookmark?.id == id {
+                    bookmarksStore.selectedBookmark = updated
+                }
+                tagged += 1
+            }
+            try? await tagsStore.fetchTags() // refresh sidebar counts
+            if tagged > 0 {
+                uiStateStore.showInfo(tagged == 1
+                    ? "Tagged 1 bookmark with “\(tag.name)”."
+                    : "Tagged \(tagged) bookmarks with “\(tag.name)”.")
+            }
+        } catch {
+            handleUIError(error)
+        }
+    }
+
     /// Merge tags: bookmarks with any source tag get `target` instead; the
     /// sources are deleted. Not undoable (recreating the exact pre-merge state
     /// would require stripping the target from bookmarks that gained it), so
