@@ -124,7 +124,14 @@ struct SidebarOutlineView: NSViewRepresentable {
             newRoots.append(folders)
 
             let tags = node(id: "group:tags", kind: .group(title: AppSettings.shared.localized("Tags"), add: .tag))
-            tags.children = parent.tagStore.tags.map { tag in
+            let sortedTags = AppSettings.shared.tagSortMode == "count"
+                ? parent.tagStore.tags.sorted {
+                    $0.bookmarkCount != $1.bookmarkCount
+                        ? $0.bookmarkCount > $1.bookmarkCount
+                        : $0.name < $1.name
+                }
+                : parent.tagStore.tags
+            tags.children = sortedTags.map { tag in
                 node(id: "tag:\(tag.name)", kind: .tag(tag), count: tag.bookmarkCount)
             }
             newRoots.append(tags)
@@ -514,6 +521,14 @@ struct SidebarOutlineView: NSViewRepresentable {
                   let source = clickedTag(), source.id != target.id else { return }
             requestMerge(sources: [source], target: target)
         }
+        @objc private func sortTagsByName() {
+            AppSettings.shared.tagSortMode = "name"
+            Task { @MainActor in self.reload() }
+        }
+        @objc private func sortTagsByCount() {
+            AppSettings.shared.tagSortMode = "count"
+            Task { @MainActor in self.reload() }
+        }
         private func requestMerge(sources: [Tag], target: Tag) {
             guard !sources.isEmpty else { return }
             let names = sources.map { "\"\($0.name)\"" }.joined(separator: ", ")
@@ -553,6 +568,14 @@ extension SidebarOutlineView.Coordinator: NSMenuDelegate {
         menu.removeAllItems()
         guard let node = clickedNode() else { return }
         switch node.kind {
+        case .group(_, let add) where add == .tag:
+            // TAGS header: choose how the tag list is ordered.
+            let byName = NSMenuItem(title: "Sort by Name", action: #selector(sortTagsByName), keyEquivalent: "")
+            byName.state = AppSettings.shared.tagSortMode == "name" ? .on : .off
+            let byCount = NSMenuItem(title: "Sort by Count", action: #selector(sortTagsByCount), keyEquivalent: "")
+            byCount.state = AppSettings.shared.tagSortMode == "count" ? .on : .off
+            menu.addItem(byName)
+            menu.addItem(byCount)
         case .folder(let c):
             menu.addItem(withTitle: "New Subfolder", action: #selector(newSubfolder), keyEquivalent: "")
             menu.addItem(withTitle: "Rename", action: #selector(renameFolder), keyEquivalent: "")

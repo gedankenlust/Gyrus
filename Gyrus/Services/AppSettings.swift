@@ -52,6 +52,7 @@ public final class AppSettings {
         static let defaultViewMode = "defaultViewMode"
         static let defaultPreviewTab = "defaultPreviewTab"
         static let cardLayout = "cardLayout"
+        static let tagSortMode = "tagSortMode"
         static let enableReadStatus = "enableReadStatus"
         static let aiBrainConfig = "aiBrainConfig"
         static let didCompleteBrainOnboarding = "didCompleteBrainOnboarding"
@@ -104,6 +105,11 @@ public final class AppSettings {
     /// Grid card layout: "titleFirst" (title on top, URL below) or "urlFirst".
     public var cardLayout: String {
         didSet { defaults.set(cardLayout, forKey: Keys.cardLayout) }
+    }
+
+    /// Sidebar tag order: "name" (alphabetical) or "count" (most used first).
+    public var tagSortMode: String {
+        didSet { defaults.set(tagSortMode, forKey: Keys.tagSortMode) }
     }
 
     /// Whether the one-time AI-Brain setup prompt has been shown.
@@ -191,6 +197,7 @@ public final class AppSettings {
         defaultViewMode = d.string(forKey: Keys.defaultViewMode) ?? "grid"
         defaultPreviewTab = d.string(forKey: Keys.defaultPreviewTab) ?? "Info"
         cardLayout = d.string(forKey: Keys.cardLayout) ?? "titleFirst"
+        tagSortMode = d.string(forKey: Keys.tagSortMode) ?? "name"
         didCompleteBrainOnboarding = d.bool(forKey: Keys.didCompleteBrainOnboarding)
         if let data = d.data(forKey: Keys.searchHotkey),
            let config = try? JSONDecoder().decode(HotkeyConfig.self, from: data) {

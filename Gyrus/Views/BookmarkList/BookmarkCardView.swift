@@ -151,13 +151,21 @@ struct FaviconView: View {
 struct TagChip: View {
     let tag: Tag
 
+    // Calm chip: the tag color lives in a small dot, the text stays neutral —
+    // a list full of saturated colored labels competes with the titles for
+    // attention; the dot keeps the color signal without the noise.
     var body: some View {
-        Text(tag.name)
-            .font(.caption2)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(chipColor.opacity(0.15), in: Capsule())
-            .foregroundStyle(chipColor)
+        HStack(spacing: 4) {
+            Circle()
+                .fill(chipColor)
+                .frame(width: 6, height: 6)
+            Text(tag.name)
+                .foregroundStyle(.secondary)
+        }
+        .font(.caption2)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 2)
+        .background(chipColor.opacity(0.10), in: Capsule())
     }
 
     private var chipColor: Color {
