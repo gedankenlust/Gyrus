@@ -11,7 +11,7 @@ class LLMUnavailableError(Exception):
     Carries a user-friendly message meant to be shown directly in the UI."""
 
 
-def _build_system_prompt(context: str, title: str, url: str) -> str:
+def _build_system_prompt(context: str, title: str, url: str, language: str | None = None) -> str:
     """Anchor every conversation to the specific bookmark being viewed, so the
     model always knows which page it is talking about — even on the first
     message and across follow-ups."""
@@ -32,6 +32,14 @@ def _build_system_prompt(context: str, title: str, url: str) -> str:
         f"{context}\n"
         "--- END PAGE CONTENT ---"
     )
+    if language == "de":
+        # Placed last (recency helps the model weight it) and kept independent
+        # of whatever language the prompt/page content happens to be in — the
+        # app's UI language decides the reply language, not a guess.
+        header += (
+            "\n\nWICHTIG: Antworte auf Deutsch, unabhängig davon, in welcher "
+            "Sprache die Frage oder der Seiteninhalt verfasst sind."
+        )
     return header
 
 
@@ -56,6 +64,7 @@ class LLMService:
         history: Optional[List[Dict[str, str]]] = None,
         think: Optional[bool] = None,
         options: Optional[Dict[str, Any]] = None,
+        language: str | None = None,
     ) -> str:
         """
         Orchestrate the request to the LLM based on provider configuration.
@@ -63,12 +72,16 @@ class LLMService:
         ``think`` and ``options`` are forwarded to Ollama. Set ``think=False`` for
         short, mechanical tasks (e.g. tagging) so reasoning models like qwen3 skip
         their <think> phase — that alone is a ~40x speedup per call.
+
+        ``language`` ("de"/None) is the app's UI language — it steers the reply
+        language via the system prompt, independent of what language the user's
+        question or the page content happens to be in.
         """
         provider = provider_config.get("provider", "ollama")
         history = history or []
 
         if provider == "ollama":
-            return await LLMService._ask_ollama(prompt, context, provider_config, title, url, history, think, options)
+            return await LLMService._ask_ollama(prompt, context, provider_config, title, url, history, think, options, language)
         # Gyrus is local-only by design — there is no cloud provider. This guards
         # against an unexpected/legacy provider value in a stored config.
         raise LLMUnavailableError(
@@ -77,9 +90,9 @@ class LLMService:
         )
 
     @staticmethod
-    def _build_messages(prompt, context, title, url, history) -> List[Dict[str, str]]:
+    def _build_messages(prompt, context, title, url, history, language: str | None = None) -> List[Dict[str, str]]:
         messages: List[Dict[str, str]] = [
-            {"role": "system", "content": _build_system_prompt(context, title, url)}
+            {"role": "system", "content": _build_system_prompt(context, title, url, language)}
         ]
         for turn in (history or []):
             role = turn.get("role")
@@ -105,6 +118,7 @@ class LLMService:
         history: List[Dict[str, str]],
         think: Optional[bool] = None,
         options: Optional[Dict[str, Any]] = None,
+        language: str | None = None,
     ) -> str:
         """
         Send a chat request to a local Ollama instance, using role-based
@@ -112,7 +126,7 @@ class LLMService:
         """
         base_url = LLMService._ollama_base(provider_config)
         model = provider_config.get("model", "llama3")
-        messages = LLMService._build_messages(prompt, context, title, url, history)
+        messages = LLMService._build_messages(prompt, context, title, url, history, language)
         payload: Dict[str, Any] = {"model": model, "messages": messages, "stream": False}
         # think=False makes reasoning models (qwen3, deepseek-r1) skip their
         # <think> phase; it is a harmless no-op on plain models. Safe to always send.
@@ -156,6 +170,7 @@ class LLMService:
         title: str = "",
         url: str = "",
         history: Optional[List[Dict[str, str]]] = None,
+        language: str | None = None,
     ):
         """Yield the assistant reply token-by-token as it is generated, so the
         UI can render it live instead of waiting for the whole answer."""
@@ -163,7 +178,7 @@ class LLMService:
 
         base_url = LLMService._ollama_base(provider_config)
         model = provider_config.get("model", "llama3")
-        messages = LLMService._build_messages(prompt, context, title, url, history)
+        messages = LLMService._build_messages(prompt, context, title, url, history, language)
         payload = {"model": model, "messages": messages, "stream": True}
 
         client = _get_client()

@@ -42,7 +42,7 @@ def test_chat_stream_emits_tokens(client, brain_enabled, monkeypatch):
     async def fake_scrape(url):
         return {"content": "content long enough to serve as context " * 5, "title": "T"}
 
-    async def fake_stream(prompt, context, provider_config, title="", url="", history=None):
+    async def fake_stream(prompt, context, provider_config, title="", url="", history=None, language=None):
         for tok in ["Hel", "lo ", "world"]:
             yield tok
 

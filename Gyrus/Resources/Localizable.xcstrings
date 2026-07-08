@@ -470,6 +470,23 @@
         }
       }
     },
+    "Analyze UI/UX Structure": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UI/UX-Struktur analysieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyze UI/UX Structure"
+          }
+        }
+      }
+    },
     "Appearance": {
       "localizations": {
         "de": {
@@ -2498,6 +2515,23 @@
         }
       }
     },
+    "Extract Design Details": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Design-Details extrahieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Extract Design Details"
+          }
+        }
+      }
+    },
     "Factory Reset": {
       "localizations": {
         "de": {
@@ -2643,6 +2677,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "General"
+          }
+        }
+      }
+    },
+    "Generate MD Briefing": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MD-Briefing erstellen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generate MD Briefing"
           }
         }
       }
@@ -5486,6 +5537,23 @@
         }
       }
     },
+    "Show Core Web Vitals": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Core Web Vitals anzeigen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Core Web Vitals"
+          }
+        }
+      }
+    },
     "Show Gyrus in the menu bar": {
       "localizations": {
         "de": {
@@ -5822,6 +5890,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Storage location"
+          }
+        }
+      }
+    },
+    "Summarize content": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inhalt zusammenfassen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Summarize content"
           }
         }
       }

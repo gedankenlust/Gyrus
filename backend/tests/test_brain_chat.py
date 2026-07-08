@@ -20,7 +20,7 @@ def test_chat_passes_scraped_page_content_to_llm(client, brain_enabled, monkeypa
     async def fake_scrape(url):
         return {"content": "Harry Kane is 188 cm tall. Plays for Bayern München.", "title": "Harry Kane"}
 
-    async def fake_ask_llm(prompt, context, provider_config, title="", url="", history=None):
+    async def fake_ask_llm(prompt, context, provider_config, title="", url="", history=None, language=None):
         captured["prompt"] = prompt
         captured["context"] = context
         captured["title"] = title
@@ -56,6 +56,39 @@ def test_chat_passes_scraped_page_content_to_llm(client, brain_enabled, monkeypa
     ]
 
 
+def test_chat_with_german_language_instructs_german_reply(client, brain_enabled, monkeypatch):
+    from services.llm_service import LLMService
+
+    async def fake_scrape(url):
+        return {"content": "Some page content.", "title": "T"}
+
+    monkeypatch.setattr(scraper_module.scraper_service, "extract_content", fake_scrape)
+
+    captured_system_prompt = {}
+    real_build_messages = LLMService._build_messages
+
+    async def fake_ask_llm(prompt, context, provider_config, title="", url="", history=None, language=None):
+        messages = real_build_messages(prompt, context, title, url, history, language)
+        captured_system_prompt["text"] = messages[0]["content"]
+        return "Eine deutsche Antwort."
+
+    monkeypatch.setattr(llm_module.LLMService, "ask_llm", fake_ask_llm)
+
+    bm = client.post("/api/bookmarks", json={
+        "title": "T", "url": "https://example.com/de-test", "source": "manual",
+    }).json()
+
+    resp = client.post("/api/brain/chat", json={
+        "bookmark_id": bm["id"],
+        "prompt": "What is this about?",
+        "provider_config": {"provider": "ollama", "model": "llama3"},
+        "language": "de",
+    })
+
+    assert resp.status_code == 200
+    assert "Antworte auf Deutsch" in captured_system_prompt["text"]
+
+
 def test_chat_rescrapes_stale_cache_without_version_marker(client, brain_enabled, monkeypatch):
     """A cache written by an older scraper (no version marker) is re-scraped."""
     scrape_calls = {"n": 0}
@@ -64,7 +97,7 @@ def test_chat_rescrapes_stale_cache_without_version_marker(client, brain_enabled
         scrape_calls["n"] += 1
         return {"content": "FRESH content with the answer, plenty long " * 10, "title": "T"}
 
-    async def fake_ask_llm(prompt, context, provider_config, title="", url="", history=None):
+    async def fake_ask_llm(prompt, context, provider_config, title="", url="", history=None, language=None):
         return context
 
     monkeypatch.setattr(scraper_module.scraper_service, "extract_content", fake_scrape)

@@ -15,7 +15,30 @@ struct AIBrainTabView: View {
     private var config: AIBrainConfig {
         AppSettings.shared.aiBrainConfig
     }
-    
+
+    /// The actual prompt sent to the LLM must be in the app's language too —
+    /// the reply otherwise tends to mirror the prompt's language regardless
+    /// of the German "respond in German" system instruction on some models.
+    private var isGerman: Bool { AppSettings.shared.effectiveLanguageCode == "de" }
+
+    private static let quickStarts: [(title: LocalizedStringKey, en: String, de: String)] = [
+        ("Summarize content",
+         "Summarize the main content of this page.",
+         "Fasse den Hauptinhalt dieser Seite zusammen."),
+        ("Analyze UI/UX Structure",
+         "Analyze the UI and UX structure of this page based on its title and description.",
+         "Analysiere die UI- und UX-Struktur dieser Seite anhand von Titel und Beschreibung."),
+        ("Show Core Web Vitals",
+         "What are common Core Web Vitals to look for on a site like this?",
+         "Welche typischen Core Web Vitals sollte man bei einer solchen Seite beachten?"),
+        ("Extract Design Details",
+         "Extract potential design details, colors, and typography patterns mentioned or implied.",
+         "Extrahiere mögliche Design-Details, Farben und Typografie-Muster, die erwähnt oder impliziert werden."),
+        ("Generate MD Briefing",
+         "Generate a comprehensive Markdown briefing for this bookmark.",
+         "Erstelle ein umfassendes Markdown-Briefing für dieses Lesezeichen."),
+    ]
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -120,11 +143,9 @@ struct AIBrainTabView: View {
                 .padding(.bottom, 8)
             
             VStack(spacing: 8) {
-                QuickStartButton(title: "Summarize content") { sendPrompt("Summarize the main content of this page.") }
-                QuickStartButton(title: "Analyze UI/UX Structure") { sendPrompt("Analyze the UI and UX structure of this page based on its title and description.") }
-                QuickStartButton(title: "Show Core Web Vitals") { sendPrompt("What are common Core Web Vitals to look for on a site like this?") }
-                QuickStartButton(title: "Extract Design Details") { sendPrompt("Extract potential design details, colors, and typography patterns mentioned or implied.") }
-                QuickStartButton(title: "Generate MD Briefing") { sendPrompt("Generate a comprehensive Markdown briefing for this bookmark.") }
+                ForEach(Self.quickStarts, id: \.en) { qs in
+                    QuickStartButton(title: qs.title) { sendPrompt(isGerman ? qs.de : qs.en) }
+                }
             }
             .padding(.horizontal, 40)
             Spacer()
@@ -276,7 +297,7 @@ struct ChatBubble: View {
 }
 
 struct QuickStartButton: View {
-    let title: String
+    let title: LocalizedStringKey
     let action: () -> Void
     
     var body: some View {

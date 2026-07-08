@@ -54,6 +54,9 @@ class ChatRequest(BaseModel):
     prompt: str
     provider_config: Optional[Dict[str, Any]] = {"provider": "ollama", "model": "llama3"}
     history: Optional[list[ChatMessage]] = None
+    # "en" / "de" — the app's UI language, so replies match it regardless of
+    # what language the question or the page content is in.
+    language: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str
@@ -155,6 +158,7 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
             title=bookmark.title or "",
             url=bookmark.url or "",
             history=history,
+            language=request.language,
         )
     except LLMUnavailableError as e:
         # Clear, user-facing reason (Ollama down, model missing, cloud n/a).
@@ -197,6 +201,7 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
                 title=bookmark.title or "",
                 url=bookmark.url or "",
                 history=history,
+                language=request.language,
             ):
                 collected.append(piece)
                 yield piece
@@ -220,6 +225,7 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
 
 class SummarizeRequest(BaseModel):
     provider_config: Optional[Dict[str, Any]] = {"provider": "ollama", "model": "llama3"}
+    language: Optional[str] = None
 
 
 class SummarizeResponse(BaseModel):
@@ -238,13 +244,22 @@ async def summarize_bookmark(bookmark_id: str, request: SummarizeRequest = Summa
 
     context = await _prepare_context(db, bookmark)
 
+    if request.language == "de":
+        summarize_prompt = (
+            "Fasse diese Seite in 2-3 klaren, informativen Sätzen zusammen. "
+            "Konzentriere dich darauf, worum es wirklich geht. "
+            "Beginne nicht mit 'Diese Seite' oder 'Dieser Artikel'."
+        )
+    else:
+        summarize_prompt = (
+            "Summarize this page in 2-3 clear, informative sentences. "
+            "Focus on what it's actually about. "
+            "Do not start with 'This page' or 'This article'."
+        )
+
     try:
         summary = await LLMService.ask_llm(
-            prompt=(
-                "Summarize this page in 2-3 clear, informative sentences. "
-                "Focus on what it's actually about. "
-                "Do not start with 'This page' or 'This article'."
-            ),
+            prompt=summarize_prompt,
             context=context,
             # Was hardcoded to "llama3" regardless of the user's configured
             # model/URL — every other AI Brain endpoint (chat, auto-tag)
@@ -253,6 +268,7 @@ async def summarize_bookmark(bookmark_id: str, request: SummarizeRequest = Summa
             provider_config=request.provider_config,
             title=bookmark.title or "",
             url=bookmark.url or "",
+            language=request.language,
         )
     except LLMUnavailableError as e:
         raise HTTPException(status_code=503, detail=str(e))

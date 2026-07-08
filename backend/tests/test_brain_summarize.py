@@ -23,7 +23,7 @@ def test_summarize_uses_the_requests_provider_config(client, brain_enabled, monk
     async def fake_scrape(url):
         return {"content": "Some page content.", "title": "T"}
 
-    async def fake_ask_llm(prompt, context, provider_config, title="", url="", history=None):
+    async def fake_ask_llm(prompt, context, provider_config, title="", url="", history=None, language=None):
         captured["provider_config"] = provider_config
         return "A short summary."
 
@@ -50,7 +50,7 @@ def test_summarize_without_a_body_falls_back_to_default(client, brain_enabled, m
     async def fake_scrape(url):
         return {"content": "Some page content.", "title": "T"}
 
-    async def fake_ask_llm(prompt, context, provider_config, title="", url="", history=None):
+    async def fake_ask_llm(prompt, context, provider_config, title="", url="", history=None, language=None):
         return "A short summary."
 
     monkeypatch.setattr(scraper_module.scraper_service, "extract_content", fake_scrape)

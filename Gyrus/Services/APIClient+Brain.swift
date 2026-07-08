@@ -44,9 +44,10 @@ extension APIClient {
 
     /// Generate an LLM summary for a bookmark; the backend saves it to Notes.
     func summarize(bookmarkId: String, config: AIBrainConfig) async throws -> SummarizeResponse {
-        struct Body: Encodable { let provider_config: ProviderPayload }
+        struct Body: Encodable { let provider_config: ProviderPayload; let language: String }
         return try await post(base.appending(path: "/api/brain/summarize/\(bookmarkId)"),
-                              body: Body(provider_config: ProviderPayload(config)),
+                              body: Body(provider_config: ProviderPayload(config),
+                                        language: AppSettings.shared.effectiveLanguageCode),
                               timeout: APIClient.llmTimeout)
     }
 
@@ -60,6 +61,7 @@ extension APIClient {
             let prompt: String
             let provider_config: ProviderPayload
             let history: [HistoryMessage]
+            let language: String
         }
         struct ChatResponse: Decodable {
             let response: String
@@ -71,7 +73,8 @@ extension APIClient {
             bookmark_id: bookmarkId,
             prompt: prompt,
             provider_config: providerConfig,
-            history: history.map { HistoryMessage(role: $0.role, content: $0.content) }
+            history: history.map { HistoryMessage(role: $0.role, content: $0.content) },
+            language: AppSettings.shared.effectiveLanguageCode
         )
         let res: ChatResponse = try await post(base.appending(path: "/api/brain/chat"), body: body, timeout: APIClient.llmTimeout)
         return res.response
@@ -90,13 +93,15 @@ extension APIClient {
             let prompt: String
             let provider_config: ProviderPayload
             let history: [HistoryMessage]
+            let language: String
         }
 
         let providerConfig = ProviderPayload(config)
         let body = ChatRequest(
             bookmark_id: bookmarkId, prompt: prompt,
             provider_config: providerConfig,
-            history: history.map { HistoryMessage(role: $0.role, content: $0.content) }
+            history: history.map { HistoryMessage(role: $0.role, content: $0.content) },
+            language: AppSettings.shared.effectiveLanguageCode
         )
 
         let url = base.appending(path: "/api/brain/chat/stream")
