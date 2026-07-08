@@ -2548,6 +2548,23 @@
         }
       }
     },
+    "Fix Duplicate Colors": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doppelte Farben beheben"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fix Duplicate Colors"
+          }
+        }
+      }
+    },
     "Folder": {
       "localizations": {
         "de": {

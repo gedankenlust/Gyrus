@@ -6,6 +6,7 @@ from database import get_db
 from models.tag import Tag, BookmarkTag
 from models.bookmark import Bookmark
 from schemas.tag import TagCreate, TagUpdate, TagOut
+from services.tag_colors import next_color, rebalanced
 
 router = APIRouter(prefix="/api/tags", tags=["tags"])
 
@@ -21,8 +22,7 @@ class TagMerge(BaseModel):
     target_id: str
 
 
-@router.get("", response_model=list[TagOut])
-def list_tags(db: Session = Depends(get_db)):
+def _tags_out(db: Session) -> list[TagOut]:
     tags = db.query(Tag).order_by(Tag.name).all()
 
     # Count non-trashed bookmarks per tag (mirrors how folders are counted).
@@ -43,16 +43,36 @@ def list_tags(db: Session = Depends(get_db)):
     return out
 
 
+@router.get("", response_model=list[TagOut])
+def list_tags(db: Session = Depends(get_db)):
+    return _tags_out(db)
+
+
 @router.post("", response_model=TagOut, status_code=201)
 def create_tag(data: TagCreate, db: Session = Depends(get_db)):
     existing = db.query(Tag).filter(Tag.name == data.name).first()
     if existing:
         raise HTTPException(409, "Tag already exists")
-    tag = Tag(**data.model_dump())
+    color = data.color or next_color(db)
+    tag = Tag(name=data.name, color=color)
     db.add(tag)
     db.commit()
     db.refresh(tag)
     return tag
+
+
+@router.post("/rebalance-colors", response_model=list[TagOut])
+def rebalance_tag_colors(db: Session = Depends(get_db)):
+    """Reassign every tag a distinct color in one pass. Fixes a library where
+    many tags ended up with the same or a very similar color — either from
+    the old hash-based scheme, or just from having more tags than the
+    palette had room for at the time."""
+    tags = db.query(Tag).all()
+    colors = rebalanced([t.name for t in tags])
+    for t in tags:
+        t.color = colors[t.name]
+    db.commit()
+    return _tags_out(db)
 
 
 @router.post("/restore", response_model=TagOut, status_code=201)

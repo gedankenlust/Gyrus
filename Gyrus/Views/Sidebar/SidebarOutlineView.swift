@@ -537,6 +537,10 @@ struct SidebarOutlineView: NSViewRepresentable {
             AppSettings.shared.tagSortMode = "count"
             Task { @MainActor in self.reload() }
         }
+        @objc private func rebalanceTagColors() {
+            let ts = parent.tagStore
+            perform { try await ts.rebalanceTagColors() }
+        }
         private func requestMerge(sources: [Tag], target: Tag) {
             guard !sources.isEmpty else { return }
             let names = sources.map { "\"\($0.name)\"" }.joined(separator: ", ")
@@ -588,6 +592,8 @@ extension SidebarOutlineView.Coordinator: NSMenuDelegate {
             byCount.state = AppSettings.shared.tagSortMode == "count" ? .on : .off
             menu.addItem(byName)
             menu.addItem(byCount)
+            menu.addItem(.separator())
+            menu.addItem(withTitle: loc("Fix Duplicate Colors"), action: #selector(rebalanceTagColors), keyEquivalent: "")
         case .folder(let c):
             menu.addItem(withTitle: loc("New Subfolder"), action: #selector(newSubfolder), keyEquivalent: "")
             menu.addItem(withTitle: loc("Rename"), action: #selector(renameFolder), keyEquivalent: "")

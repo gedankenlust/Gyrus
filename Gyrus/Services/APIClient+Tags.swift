@@ -39,4 +39,11 @@ extension APIClient {
         return try await post(base.appending(path: "/api/tags/merge"),
                               body: Body(sourceIds: sourceIds, targetId: targetId))
     }
+
+    /// Reassign every tag a distinct color in one pass — repairs a library
+    /// where many tags ended up with the same or a very similar color.
+    @discardableResult
+    func rebalanceTagColors() async throws -> [Tag] {
+        try await post(base.appending(path: "/api/tags/rebalance-colors"), body: EmptyBody())
+    }
 }

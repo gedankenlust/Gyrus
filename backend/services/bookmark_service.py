@@ -7,6 +7,7 @@ from models.collection import Collection
 from models.tag import Tag, BookmarkTag
 from schemas.bookmark import BookmarkCreate, BookmarkUpdate
 from services.brain_sync_service import brain_sync_service
+from services.tag_colors import next_color as _next_tag_color
 
 logger = logging.getLogger(__name__)
 
@@ -381,28 +382,6 @@ def delete_note(db: Session, bookmark_id: str, note_id: str):
     return False
 
 
-# A small palette of distinct, dark-mode-friendly colors. Auto-tags pick from
-# it deterministically by name, so the same tag is always the same color but
-# different tags look visually distinct (instead of every tag being purple).
-_TAG_PALETTE = [
-    "#8B5CF6",  # violet
-    "#3B82F6",  # blue
-    "#10B981",  # emerald
-    "#F59E0B",  # amber
-    "#EF4444",  # red
-    "#EC4899",  # pink
-    "#14B8A6",  # teal
-    "#F97316",  # orange
-    "#6366F1",  # indigo
-    "#84CC16",  # lime
-]
-
-
-def _color_for_tag(name: str) -> str:
-    """Stable color for a tag name — same name → same color, spread across the palette."""
-    import hashlib
-    h = int(hashlib.sha256(name.encode("utf-8")).hexdigest(), 16)
-    return _TAG_PALETTE[h % len(_TAG_PALETTE)]
 
 
 async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict | None = None,
@@ -491,7 +470,7 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
         if not tag_name: continue
         tag = db.query(Tag).filter(Tag.name == tag_name).first()
         if not tag:
-            tag = Tag(name=tag_name, color=_color_for_tag(tag_name))
+            tag = Tag(name=tag_name, color=_next_tag_color(db))
             db.add(tag)
             db.flush()
         if tag.id not in current_tag_ids:
