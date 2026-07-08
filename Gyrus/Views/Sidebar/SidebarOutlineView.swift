@@ -119,6 +119,14 @@ struct SidebarOutlineView: NSViewRepresentable {
                                      kind: .special(title: AppSettings.shared.localized("Dead Links"), symbol: "exclamationmark.triangle.fill", tint: .systemRed),
                                      count: parent.bookmarkStore.deadBookmarkCount))
             }
+            // Trash sits with the other special filters, right after Dead Links
+            // and before Folders/Tags — not at the very end of the tree. Tags can
+            // grow long (dozens with AI auto-tagging), which would otherwise push
+            // Trash out of view and require scrolling past everything to reach it.
+            newRoots.append(node(id: "__trash__",
+                                 kind: .special(title: AppSettings.shared.localized("Trash"), symbol: "trash", tint: .secondaryLabelColor),
+                                 count: parent.bookmarkStore.trashCount))
+
             let folders = node(id: "group:folders", kind: .group(title: AppSettings.shared.localized("Folders"), add: .folder))
             folders.children = folderNodes(parent.store.collections)
             newRoots.append(folders)
@@ -135,12 +143,6 @@ struct SidebarOutlineView: NSViewRepresentable {
                 node(id: "tag:\(tag.name)", kind: .tag(tag), count: tag.bookmarkCount)
             }
             newRoots.append(tags)
-
-            // Trash is always shown (like Finder) so it's a predictable place to
-            // recover deleted bookmarks — even when currently empty.
-            newRoots.append(node(id: "__trash__",
-                                 kind: .special(title: AppSettings.shared.localized("Trash"), symbol: "trash", tint: .secondaryLabelColor),
-                                 count: parent.bookmarkStore.trashCount))
 
             roots = newRoots
             // Drop interned nodes that no longer exist.
