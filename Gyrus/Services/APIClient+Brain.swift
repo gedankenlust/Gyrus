@@ -43,13 +43,11 @@ extension APIClient {
     }
 
     /// Generate an LLM summary for a bookmark; the backend saves it to Notes.
-    func summarize(bookmarkId: String) async throws -> SummarizeResponse {
-        var req = URLRequest(url: base.appending(path: "/api/brain/summarize/\(bookmarkId)"))
-        req.httpMethod = "POST"
-        req.timeoutInterval = APIClient.llmTimeout
-        let (data, response) = try await URLSession.shared.data(for: req)
-        try checkStatus(response)
-        return try decoder.decode(SummarizeResponse.self, from: data)
+    func summarize(bookmarkId: String, config: AIBrainConfig) async throws -> SummarizeResponse {
+        struct Body: Encodable { let provider_config: ProviderPayload }
+        return try await post(base.appending(path: "/api/brain/summarize/\(bookmarkId)"),
+                              body: Body(provider_config: ProviderPayload(config)),
+                              timeout: APIClient.llmTimeout)
     }
 
     func aiChat(bookmarkId: String, prompt: String, history: [(role: String, content: String)] = [], config: AIBrainConfig) async throws -> String {

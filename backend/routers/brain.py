@@ -218,12 +218,17 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
 
 
+class SummarizeRequest(BaseModel):
+    provider_config: Optional[Dict[str, Any]] = {"provider": "ollama", "model": "llama3"}
+
+
 class SummarizeResponse(BaseModel):
     summary: str
 
 
 @router.post("/summarize/{bookmark_id}", response_model=SummarizeResponse)
-async def summarize_bookmark(bookmark_id: str, db: Session = Depends(get_db)):
+async def summarize_bookmark(bookmark_id: str, request: SummarizeRequest = SummarizeRequest(),
+                             db: Session = Depends(get_db)):
     """Generate a 2-3 sentence summary of a bookmark's page content using the
     local LLM, then save it as an AI note. Idempotent: safe to call again to
     refresh the summary. Requires Ollama and the AI Brain to be enabled."""
@@ -241,7 +246,11 @@ async def summarize_bookmark(bookmark_id: str, db: Session = Depends(get_db)):
                 "Do not start with 'This page' or 'This article'."
             ),
             context=context,
-            provider_config={"provider": "ollama", "model": "llama3"},
+            # Was hardcoded to "llama3" regardless of the user's configured
+            # model/URL — every other AI Brain endpoint (chat, auto-tag)
+            # already takes this from the client. Anyone not literally
+            # running llama3 got a 503 no matter what they had set up.
+            provider_config=request.provider_config,
             title=bookmark.title or "",
             url=bookmark.url or "",
         )

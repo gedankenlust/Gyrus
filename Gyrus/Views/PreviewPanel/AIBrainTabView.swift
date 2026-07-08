@@ -43,7 +43,7 @@ struct AIBrainTabView: View {
                 Button {
                     Task {
                         do {
-                            let resp = try await APIClient.shared.summarize(bookmarkId: bookmark.id)
+                            let resp = try await APIClient.shared.summarize(bookmarkId: bookmark.id, config: config)
                             if !resp.summary.isEmpty {
                                 AppStore.shared.uiStateStore.showInfo("Summary added to Notes.")
                             }
