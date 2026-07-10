@@ -13,6 +13,7 @@ from services.llm_service import LLMService, LLMUnavailableError
 from services.scraper_service import scraper_service, _is_youtube as is_youtube
 from services.brain_sync_service import brain_sync_service
 from services import brain_chat_service
+from services import visual_snapshot_service
 
 import logging
 logger = logging.getLogger(__name__)
@@ -123,6 +124,30 @@ def clear_brain_messages(bookmark_id: str, db: Session = Depends(get_db)):
     deleted = brain_chat_service.clear_messages(db, bookmark_id)
     brain_sync_service.clear_chat_interactions(db, bookmark)
     return {"deleted": deleted}
+
+
+@router.get("/bookmarks/{bookmark_id}/visual-snapshot")
+def get_visual_snapshot(bookmark_id: str, db: Session = Depends(get_db)):
+    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    snapshot = visual_snapshot_service.read_snapshot(bookmark_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="Visual snapshot not found")
+    return snapshot
+
+
+@router.post("/bookmarks/{bookmark_id}/visual-snapshot")
+async def create_visual_snapshot(bookmark_id: str, db: Session = Depends(get_db)):
+    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    try:
+        return await visual_snapshot_service.capture_snapshot(
+            bookmark.id, bookmark.url, title=bookmark.title or ""
+        )
+    except visual_snapshot_service.VisualSnapshotUnavailable as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
 async def _prepare_context(db: Session, bookmark) -> str:
     """Build the page context for an LLM chat: read the cached scraped section

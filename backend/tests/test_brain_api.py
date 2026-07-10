@@ -137,3 +137,76 @@ async def test_config_disabled_does_not_create_dir(client, tmp_path):
     resp = client.post("/api/brain/config", json={"root_dir": str(target), "is_enabled": False})
     assert resp.status_code == 200
     assert not target.exists()  # disabled → no directory litter
+
+
+def test_get_visual_snapshot_not_found(client):
+    bm = client.post("/api/bookmarks", json={
+        "title": "Design Ref",
+        "url": "https://design.example",
+        "source": "manual",
+    }).json()
+
+    resp = client.get(f"/api/brain/bookmarks/{bm['id']}/visual-snapshot")
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Visual snapshot not found"
+
+
+def test_get_visual_snapshot_returns_saved_data(client, monkeypatch):
+    bm = client.post("/api/bookmarks", json={
+        "title": "Design Ref",
+        "url": "https://design.example",
+        "source": "manual",
+    }).json()
+    snapshot = {"bookmark_id": bm["id"], "viewports": [{"name": "desktop"}]}
+
+    monkeypatch.setattr(
+        "routers.brain.visual_snapshot_service.read_snapshot",
+        lambda bookmark_id: snapshot if bookmark_id == bm["id"] else None,
+    )
+
+    resp = client.get(f"/api/brain/bookmarks/{bm['id']}/visual-snapshot")
+
+    assert resp.status_code == 200
+    assert resp.json() == snapshot
+
+
+def test_create_visual_snapshot_uses_bookmark_url(client, monkeypatch):
+    captured = {}
+    bm = client.post("/api/bookmarks", json={
+        "title": "Design Ref",
+        "url": "https://design.example",
+        "source": "manual",
+    }).json()
+
+    async def fake_capture(bookmark_id, url, title=""):
+        captured.update({"bookmark_id": bookmark_id, "url": url, "title": title})
+        return {"bookmark_id": bookmark_id, "url": url, "title": title, "viewports": []}
+
+    monkeypatch.setattr("routers.brain.visual_snapshot_service.capture_snapshot", fake_capture)
+
+    resp = client.post(f"/api/brain/bookmarks/{bm['id']}/visual-snapshot")
+
+    assert resp.status_code == 200
+    assert captured == {"bookmark_id": bm["id"], "url": bm["url"], "title": bm["title"]}
+    assert resp.json()["viewports"] == []
+
+
+def test_create_visual_snapshot_reports_missing_runtime(client, monkeypatch):
+    from services.visual_snapshot_service import VisualSnapshotUnavailable
+
+    bm = client.post("/api/bookmarks", json={
+        "title": "Design Ref",
+        "url": "https://design.example",
+        "source": "manual",
+    }).json()
+
+    async def fake_capture(*args, **kwargs):
+        raise VisualSnapshotUnavailable("Playwright missing")
+
+    monkeypatch.setattr("routers.brain.visual_snapshot_service.capture_snapshot", fake_capture)
+
+    resp = client.post(f"/api/brain/bookmarks/{bm['id']}/visual-snapshot")
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "Playwright missing"

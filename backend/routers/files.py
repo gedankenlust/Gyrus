@@ -19,6 +19,14 @@ def _safe_path(subdir: str, filename: str) -> Path | None:
     return candidate
 
 
+def _safe_nested_path(subdir: str, folder: str, filename: str) -> Path | None:
+    base = (DATA_DIR / subdir / Path(folder).name).resolve()
+    candidate = (base / Path(filename).name).resolve()
+    if candidate.parent != base:
+        return None
+    return candidate
+
+
 @router.get("/favicons/{filename}")
 def get_favicon(filename: str):
     path = _safe_path("favicons", filename)
@@ -32,4 +40,12 @@ def get_og_image(filename: str):
     path = _safe_path("og_images", filename)
     if path is None or not path.exists():
         raise HTTPException(404, "OG image not found")
+    return FileResponse(str(path))
+
+
+@router.get("/visual-snapshots/{bookmark_id}/{filename}")
+def get_visual_snapshot_file(bookmark_id: str, filename: str):
+    path = _safe_nested_path("visual_snapshots", bookmark_id, filename)
+    if path is None or not path.exists():
+        raise HTTPException(404, "Visual snapshot file not found")
     return FileResponse(str(path))
