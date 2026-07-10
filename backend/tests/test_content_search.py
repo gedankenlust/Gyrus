@@ -1,5 +1,6 @@
 """Full-text search matches cached page content, not just title/url."""
 from services import bookmark_service
+from services import brain_chat_service
 
 BOOKMARK = {"title": "Plain Title", "url": "https://example.com", "source": "manual"}
 
@@ -24,3 +25,13 @@ def test_content_search_ignores_trashed(client, db):
 
     client.delete(f"/api/bookmarks/{bm['id']}")  # move to trash
     assert client.get("/api/search?q=xyzzy").json() == []
+
+
+def test_search_matches_persisted_brain_chat(client, db):
+    bm = client.post("/api/bookmarks", json=BOOKMARK).json()
+    brain_chat_service.add_message(
+        db, bm["id"], "assistant", "The durable answer mentions nebula-cabinet."
+    )
+
+    results = client.get("/api/search?q=nebula-cabinet").json()
+    assert any(b["id"] == bm["id"] for b in results)

@@ -34,6 +34,7 @@ class Bookmark(Base):
     collection: Mapped["Collection | None"] = relationship("Collection", back_populates="bookmarks")
     bookmark_tags: Mapped[list["BookmarkTag"]] = relationship("BookmarkTag", back_populates="bookmark", cascade="all, delete-orphan")
     bookmark_notes: Mapped[list["BookmarkNote"]] = relationship("BookmarkNote", back_populates="bookmark", cascade="all, delete-orphan", order_by="BookmarkNote.created_at.desc()")
+    brain_messages: Mapped[list["BrainMessage"]] = relationship("BrainMessage", back_populates="bookmark", cascade="all, delete-orphan", order_by="BrainMessage.created_at.asc()")
 
     @property
     def tags(self):
@@ -52,3 +53,17 @@ class BookmarkNote(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     bookmark: Mapped["Bookmark"] = relationship("Bookmark", back_populates="bookmark_notes")
+
+
+class BrainMessage(Base):
+    __tablename__ = "brain_messages"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    bookmark_id: Mapped[str] = mapped_column(String, ForeignKey("bookmarks.id", ondelete="CASCADE"), index=True)
+    role: Mapped[str] = mapped_column(String, nullable=False)  # "user" or "assistant"
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str | None] = mapped_column(String, nullable=True)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="complete")  # complete, stopped, error
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+
+    bookmark: Mapped["Bookmark"] = relationship("Bookmark", back_populates="brain_messages")

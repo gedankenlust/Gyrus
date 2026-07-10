@@ -476,13 +476,13 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "UI/UX-Struktur analysieren"
+            "value": "Inhaltsstruktur analysieren"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Analyze UI/UX Structure"
+            "value": "Analyze Content Structure"
           }
         }
       }
@@ -2521,13 +2521,13 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Design-Details extrahieren"
+            "value": "Design-Hinweise prüfen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Extract Design Details"
+            "value": "Check Design Clues"
           }
         }
       }
@@ -5543,13 +5543,13 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Core Web Vitals anzeigen"
+            "value": "UX-Checks ableiten"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Show Core Web Vitals"
+            "value": "Suggest UX Checks"
           }
         }
       }

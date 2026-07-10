@@ -2,6 +2,7 @@ import os
 import pytest
 from pathlib import Path
 from services.brain_sync_service import brain_sync_service
+from services import brain_chat_service
 from database import DATA_DIR
 
 def test_clear_cache(client):
@@ -73,11 +74,11 @@ def test_backup(client):
     assert "gyrus_backup.json" in resp.headers["content-disposition"]
     body = resp.json()
     assert body["version"] == 1
-    for key in ("collections", "tags", "bookmarks", "bookmark_notes", "bookmark_tags"):
+    for key in ("collections", "tags", "bookmarks", "bookmark_notes", "brain_messages", "bookmark_tags"):
         assert key in body
 
 
-def test_backup_restore_roundtrip(client):
+def test_backup_restore_roundtrip(client, db):
     # Build some data: folder + nested folder + tag + bookmark with a note.
     parent = client.post("/api/collections", json={"name": "Work"}).json()
     child = client.post("/api/collections", json={"name": "Sub", "parent_id": parent["id"]}).json()
@@ -85,6 +86,8 @@ def test_backup_restore_roundtrip(client):
         "title": "Roundtrip", "url": "https://roundtrip.example.com",
         "collection_id": child["id"], "source": "manual"}).json()
     client.post(f"/api/bookmarks/{bm['id']}/notes", json={"content": "keep me", "source": "user"})
+    brain_chat_service.add_message(db, bm["id"], "user", "remember me", model="llama3")
+    brain_chat_service.add_message(db, bm["id"], "assistant", "I remembered it.", model="llama3")
 
     # Backup → JSON.
     backup = client.get("/api/data/backup")
@@ -109,3 +112,5 @@ def test_backup_restore_roundtrip(client):
     restored = client.get(f"/api/bookmarks/{bm['id']}").json()
     assert restored["url"] == "https://roundtrip.example.com"
     assert any(n["content"] == "keep me" for n in restored["bookmark_notes"])
+    chat = client.get(f"/api/brain/bookmarks/{bm['id']}/messages").json()
+    assert any(m["content"] == "remember me" for m in chat)

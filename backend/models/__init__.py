@@ -1,5 +1,5 @@
-from .bookmark import Bookmark
+from .bookmark import Bookmark, BookmarkNote, BrainMessage
 from .collection import Collection
 from .tag import Tag, BookmarkTag
 
-__all__ = ["Bookmark", "Collection", "Tag", "BookmarkTag"]
+__all__ = ["Bookmark", "BookmarkNote", "BrainMessage", "Collection", "Tag", "BookmarkTag"]

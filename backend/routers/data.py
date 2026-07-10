@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db, DATA_DIR
 from services.brain_sync_service import brain_sync_service
-from models.bookmark import Bookmark, BookmarkNote
+from models.bookmark import Bookmark, BookmarkNote, BrainMessage
 from models.collection import Collection
 from models.tag import Tag, BookmarkTag
 
@@ -55,6 +55,7 @@ async def clear_bookmarks(db: Session = Depends(get_db)):
         # Order matters for foreign key constraints if they aren't ON DELETE CASCADE
         # In Gyrus, they seem to be set up well, but we can be explicit.
         db.query(BookmarkTag).delete()
+        db.query(BrainMessage).delete()
         db.query(BookmarkNote).delete()
         db.query(Bookmark).delete()
         db.query(Collection).delete()
@@ -109,6 +110,14 @@ def backup(db: Session = Depends(get_db)):
             }
             for n in db.query(BookmarkNote).all()
         ],
+        "brain_messages": [
+            {
+                "id": m.id, "bookmark_id": m.bookmark_id, "role": m.role,
+                "content": m.content, "model": m.model, "status": m.status,
+                "created_at": _iso(m.created_at),
+            }
+            for m in db.query(BrainMessage).all()
+        ],
         "bookmark_tags": [
             {"bookmark_id": bt.bookmark_id, "tag_id": bt.tag_id}
             for bt in db.query(BookmarkTag).all()
@@ -126,6 +135,7 @@ class RestoreData(BaseModel):
     tags: list[dict] = []
     bookmarks: list[dict] = []
     bookmark_notes: list[dict] = []
+    brain_messages: list[dict] = []
     bookmark_tags: list[dict] = []
 
 
@@ -135,6 +145,7 @@ def restore(data: RestoreData, db: Session = Depends(get_db)):
     try:
         # 1. Wipe existing data (FK-safe order).
         db.query(BookmarkTag).delete()
+        db.query(BrainMessage).delete()
         db.query(BookmarkNote).delete()
         db.query(Bookmark).delete()
         db.query(Collection).delete()
@@ -178,6 +189,13 @@ def restore(data: RestoreData, db: Session = Depends(get_db)):
                                 content=n.get("content", ""), source=n.get("source", "user"),
                                 created_at=_parse_dt(n.get("created_at")),
                                 updated_at=_parse_dt(n.get("updated_at"))))
+        for m in data.brain_messages:
+            db.add(BrainMessage(id=m["id"], bookmark_id=m["bookmark_id"],
+                                role=m.get("role", "assistant"),
+                                content=m.get("content", ""),
+                                model=m.get("model"),
+                                status=m.get("status", "complete"),
+                                created_at=_parse_dt(m.get("created_at"))))
         for bt in data.bookmark_tags:
             db.add(BookmarkTag(bookmark_id=bt["bookmark_id"], tag_id=bt["tag_id"]))
 

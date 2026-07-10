@@ -26,14 +26,14 @@ struct AIBrainTabView: View {
          "Summarize the main content of this page.",
          "Fasse den Hauptinhalt dieser Seite zusammen."),
         ("Analyze UI/UX Structure",
-         "Analyze the UI and UX structure of this page based on its title and description.",
-         "Analysiere die UI- und UX-Struktur dieser Seite anhand von Titel und Beschreibung."),
+         "Analyze the content structure and likely user intent of this page. Use only evidence from the saved title, URL, description, and extracted text. Do not infer visual layout, colors, or typography unless they are explicitly mentioned.",
+         "Analysiere die Inhaltsstruktur und wahrscheinliche Nutzerintention dieser Seite. Nutze nur Hinweise aus gespeichertem Titel, URL, Beschreibung und extrahiertem Text. Leite kein visuelles Layout, keine Farben und keine Typografie ab, sofern sie nicht ausdrücklich erwähnt werden."),
         ("Show Core Web Vitals",
-         "What are common Core Web Vitals to look for on a site like this?",
-         "Welche typischen Core Web Vitals sollte man bei einer solchen Seite beachten?"),
+         "Create a practical Core Web Vitals and UX checklist for this page type. Make clear that these are checks to run, not measured results.",
+         "Erstelle eine praktische Core-Web-Vitals- und UX-Checkliste für diesen Seitentyp. Mache klar, dass es Prüfpunkte sind und keine gemessenen Ergebnisse."),
         ("Extract Design Details",
-         "Extract potential design details, colors, and typography patterns mentioned or implied.",
-         "Extrahiere mögliche Design-Details, Farben und Typografie-Muster, die erwähnt oder impliziert werden."),
+         "List only design, brand, color, typography, or layout clues that are explicitly present in the saved metadata or extracted page text. If none are present, say that the Brain cannot inspect the rendered page and should not guess.",
+         "Liste nur Design-, Marken-, Farb-, Typografie- oder Layout-Hinweise auf, die ausdrücklich in den gespeicherten Metadaten oder im extrahierten Seitentext vorkommen. Wenn keine vorhanden sind, sage, dass der Brain die gerenderte Seite nicht sehen kann und nicht raten sollte."),
         ("Generate MD Briefing",
          "Generate a comprehensive Markdown briefing for this bookmark.",
          "Erstelle ein umfassendes Markdown-Briefing für dieses Lesezeichen."),
@@ -50,6 +50,9 @@ struct AIBrainTabView: View {
             }
             
             inputArea
+        }
+        .task(id: bookmark.id) {
+            await chat.load(bookmarkId: bookmark.id)
         }
     }
     

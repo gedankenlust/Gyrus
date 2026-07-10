@@ -8,9 +8,11 @@ from pydantic import BaseModel
 
 from database import get_db, SessionLocal
 from models.bookmark import Bookmark
+from schemas.bookmark import BrainMessageOut
 from services.llm_service import LLMService, LLMUnavailableError
 from services.scraper_service import scraper_service, _is_youtube as is_youtube
 from services.brain_sync_service import brain_sync_service
+from services import brain_chat_service
 
 import logging
 logger = logging.getLogger(__name__)
@@ -67,6 +69,13 @@ class BrainConfigUpdate(BaseModel):
     embedding_model: Optional[str] = None
     ollama_url: Optional[str] = None
 
+
+def _provider_model(provider_config: Optional[Dict[str, Any]]) -> str | None:
+    if not provider_config:
+        return None
+    model = provider_config.get("model")
+    return model if isinstance(model, str) and model else None
+
 def _reconcile_brain_blocking():
     """Reconcile folder structure + rebuild the index, with its own session.
     Heavy for large libraries, so it runs OFF the event loop (see /config)."""
@@ -96,6 +105,24 @@ async def update_brain_config(config: BrainConfigUpdate):
     if config.is_enabled:
         asyncio.get_event_loop().run_in_executor(None, _reconcile_brain_blocking)
     return {"status": "ok", "root_dir": str(brain_sync_service.root_dir), "is_enabled": brain_sync_service.is_enabled}
+
+
+@router.get("/bookmarks/{bookmark_id}/messages", response_model=list[BrainMessageOut])
+def list_brain_messages(bookmark_id: str, db: Session = Depends(get_db)):
+    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    return brain_chat_service.list_messages(db, bookmark_id)
+
+
+@router.delete("/bookmarks/{bookmark_id}/messages")
+def clear_brain_messages(bookmark_id: str, db: Session = Depends(get_db)):
+    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    deleted = brain_chat_service.clear_messages(db, bookmark_id)
+    brain_sync_service.clear_chat_interactions(db, bookmark)
+    return {"deleted": deleted}
 
 async def _prepare_context(db: Session, bookmark) -> str:
     """Build the page context for an LLM chat: read the cached scraped section
@@ -146,6 +173,10 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
 
     # 2. Build the page context (cached scrape, re-scraping when stale).
     context = await _prepare_context(db, bookmark)
+    model = _provider_model(request.provider_config)
+    brain_chat_service.add_message(
+        db, bookmark.id, "user", request.prompt, model=model, status="complete"
+    )
 
     # 3. Call LLM — pass the bookmark identity and recent history so every
     #    turn stays anchored to this specific page.
@@ -161,10 +192,21 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
             language=request.language,
         )
     except LLMUnavailableError as e:
+        brain_chat_service.add_message(
+            db, bookmark.id, "assistant", str(e), model=model, status="error"
+        )
         # Clear, user-facing reason (Ollama down, model missing, cloud n/a).
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"LLM Error: {str(e)}")
+        detail = f"LLM Error: {str(e)}"
+        brain_chat_service.add_message(
+            db, bookmark.id, "assistant", detail, model=model, status="error"
+        )
+        raise HTTPException(status_code=500, detail=detail)
+
+    brain_chat_service.add_message(
+        db, bookmark.id, "assistant", response_text, model=model, status="complete"
+    )
 
     # 4. Append interaction to .md file
     try:
@@ -190,9 +232,14 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
 
     context = await _prepare_context(db, bookmark)
     history = [{"role": m.role, "content": m.content} for m in (request.history or [])]
+    model = _provider_model(request.provider_config)
+    brain_chat_service.add_message(
+        db, bookmark.id, "user", request.prompt, model=model, status="complete"
+    )
 
     async def generate():
         collected: list[str] = []
+        saved = False
         try:
             async for piece in LLMService.stream_ollama(
                 prompt=request.prompt,
@@ -206,15 +253,38 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
                 collected.append(piece)
                 yield piece
         except LLMUnavailableError as e:
+            brain_chat_service.add_message(
+                db, bookmark.id, "assistant", str(e), model=model, status="error"
+            )
+            saved = True
             yield f"\n\n[GYRUS-ERROR] {e}"
             return
+        except asyncio.CancelledError:
+            if collected:
+                full = "".join(collected)
+                brain_chat_service.add_message(
+                    db, bookmark.id, "assistant", full, model=model, status="stopped"
+                )
+                saved = True
+                try:
+                    brain_sync_service.append_interaction(db, bookmark, request.prompt, full)
+                except Exception as e:
+                    logger.warning(f"Failed to append stopped interaction: {e}")
+            raise
         except Exception as e:
+            brain_chat_service.add_message(
+                db, bookmark.id, "assistant", str(e), model=model, status="error"
+            )
+            saved = True
             yield f"\n\n[GYRUS-ERROR] {e}"
             return
 
         # Persist the completed answer (best-effort) once streaming finishes.
         full = "".join(collected)
-        if full:
+        if full and not saved:
+            brain_chat_service.add_message(
+                db, bookmark.id, "assistant", full, model=model, status="complete"
+            )
             try:
                 brain_sync_service.append_interaction(db, bookmark, request.prompt, full)
             except Exception as e:

@@ -39,6 +39,18 @@ class BookmarkNoteOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BrainMessageOut(BaseModel):
+    id: str
+    bookmark_id: str
+    role: str
+    content: str
+    model: str | None = None
+    status: str = "complete"
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class BookmarkOut(BaseModel):
     id: str
     title: str

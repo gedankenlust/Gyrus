@@ -191,6 +191,29 @@ class BrainSyncService:
         with open(path, "a", encoding="utf-8") as f:
             f.write(interaction)
 
+    def clear_chat_interactions(self, db: Session, bookmark: Bookmark):
+        """Remove persisted chat transcript blocks from the markdown mirror.
+
+        The database is the authoritative chat store; this keeps the optional
+        Markdown mirror consistent when the user clears a conversation in the UI.
+        """
+        if not self.is_enabled:
+            return
+        path = self._get_bookmark_file_path(db, bookmark)
+        if not path.exists():
+            return
+        try:
+            text = path.read_text(encoding="utf-8")
+            cleaned = re.sub(
+                r"\n{2,}## Chat Interaction \([^\n]*\)\n.*?(?=\n{2,}## Chat Interaction \(|\Z)",
+                "",
+                text,
+                flags=re.DOTALL,
+            ).rstrip() + "\n"
+            path.write_text(cleaned, encoding="utf-8")
+        except Exception as e:
+            logger.warning("Failed to clear markdown chat interactions: %s", e)
+
     def delete_bookmark_file(self, db: Session, bookmark: Bookmark):
         """Removes the bookmark file from disk."""
         path = self._get_bookmark_file_path(db, bookmark)

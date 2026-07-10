@@ -2,11 +2,23 @@ import Foundation
 import Observation
 
 struct ChatMessage: Identifiable, Equatable {
-    let id = UUID()
+    let id: String
     var text: String          // var: updated in place while streaming
     let isUser: Bool
     var isError: Bool = false
-    let timestamp = Date()
+    let timestamp: Date
+
+    init(id: String = UUID().uuidString,
+         text: String,
+         isUser: Bool,
+         isError: Bool = false,
+         timestamp: Date = Date()) {
+        self.id = id
+        self.text = text
+        self.isUser = isUser
+        self.isError = isError
+        self.timestamp = timestamp
+    }
 }
 
 /// Holds one conversation per bookmark, shared across the app. Because the
@@ -23,10 +35,34 @@ final class BrainChatStore {
     private(set) var conversations: [String: [ChatMessage]] = [:]
     private(set) var sending: Set<String> = []
     private var tasks: [String: Task<Void, Never>] = [:]
+    private var loading: Set<String> = []
 
     func messages(for bookmarkId: String) -> [ChatMessage] { conversations[bookmarkId] ?? [] }
     func isSending(_ bookmarkId: String) -> Bool { sending.contains(bookmarkId) }
     func hasConversation(_ bookmarkId: String) -> Bool { !(conversations[bookmarkId] ?? []).isEmpty }
+
+    func load(bookmarkId: String) async {
+        guard !loading.contains(bookmarkId) else { return }
+        loading.insert(bookmarkId)
+        defer { loading.remove(bookmarkId) }
+
+        do {
+            let persisted = try await APIClient.shared.brainMessages(bookmarkId: bookmarkId)
+            guard !sending.contains(bookmarkId) else { return }
+            conversations[bookmarkId] = persisted.map {
+                let text = $0.status == "stopped" ? $0.content + " …(stopped)" : $0.content
+                return ChatMessage(
+                    id: $0.id,
+                    text: text,
+                    isUser: $0.role == "user",
+                    isError: $0.status == "error",
+                    timestamp: $0.createdAt
+                )
+            }
+        } catch {
+            // Non-fatal: the tab can still start a fresh local conversation.
+        }
+    }
 
     func send(bookmark: Bookmark, prompt: String, config: AIBrainConfig) {
         let id = bookmark.id
@@ -76,6 +112,9 @@ final class BrainChatStore {
         tasks[bookmarkId] = nil
         sending.remove(bookmarkId)
         conversations[bookmarkId] = []
+        Task {
+            try? await APIClient.shared.clearBrainMessages(bookmarkId: bookmarkId)
+        }
     }
 
     // MARK: - Mutation helpers (main-actor isolated)

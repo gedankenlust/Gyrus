@@ -12,6 +12,7 @@ final class BackendLauncher {
     var error: String?
 
     private var process: Process?
+    private var logHandle: FileHandle?
 
     private var backendDir: URL {
         // 1. Prefer the repo source in development. #filePath resolves to the
@@ -75,9 +76,9 @@ final class BackendLauncher {
            let pid = Int32(pidStr.trimmingCharacters(in: .whitespacesAndNewlines)) {
             kill(pid, SIGTERM)
             try? FileManager.default.removeItem(at: pidFile)
-            return
         }
-        // Fallback: kill any process holding port 8080 (handles pre-PID-file sessions)
+        // Also kill any process holding port 8080. A stale PID file can point
+        // to one backend while another old listener still owns the port.
         killPortHolder(Config.backendPort)
     }
 
@@ -131,6 +132,14 @@ final class BackendLauncher {
         ]
         proc.currentDirectoryURL = backendDir
         proc.environment = ProcessInfo.processInfo.environment
+        let logURL = dataDir.appendingPathComponent("backend.log")
+        FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        if let handle = try? FileHandle(forWritingTo: logURL) {
+            try? handle.truncate(atOffset: 0)
+            proc.standardOutput = handle
+            proc.standardError = handle
+            logHandle = handle
+        }
 
         do {
             try proc.run()
@@ -154,6 +163,8 @@ final class BackendLauncher {
 
     func stop() {
         process?.terminate()
+        try? logHandle?.close()
+        logHandle = nil
         try? FileManager.default.removeItem(at: pidFile)
         process = nil
         isRunning = false

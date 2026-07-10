@@ -3,6 +3,30 @@ import Foundation
 // MARK: - AI Brain: config, model discovery, chat, summarize
 
 extension APIClient {
+    struct BrainMessageDTO: Decodable {
+        let id: String
+        let bookmarkId: String
+        let role: String
+        let content: String
+        let model: String?
+        let status: String
+        let createdAt: Date
+
+        enum CodingKeys: String, CodingKey {
+            case id, role, content, model, status
+            case bookmarkId = "bookmark_id"
+            case createdAt = "created_at"
+        }
+    }
+
+    func brainMessages(bookmarkId: String) async throws -> [BrainMessageDTO] {
+        try await get(base.appending(path: "/api/brain/bookmarks/\(bookmarkId)/messages"))
+    }
+
+    func clearBrainMessages(bookmarkId: String) async throws {
+        try await delete(base.appending(path: "/api/brain/bookmarks/\(bookmarkId)/messages"))
+    }
+
     func updateAIBrainConfig(_ config: AIBrainConfig) async throws {
         struct Body: Encodable {
             let root_dir: String?
@@ -20,7 +44,12 @@ extension APIClient {
             ollama_model: config.ollamaModel,
             embedding_model: config.embeddingModel
         )
-        let _: [String: String] = try await post(base.appending(path: "/api/brain/config"), body: body)
+        struct Response: Decodable {
+            let status: String
+            let root_dir: String
+            let is_enabled: Bool
+        }
+        let _: Response = try await post(base.appending(path: "/api/brain/config"), body: body)
     }
 
     /// Installed Ollama models split by capability, so the UI can offer chat
@@ -87,59 +116,20 @@ extension APIClient {
     func aiChatStream(bookmarkId: String, prompt: String,
                       history: [(role: String, content: String)] = [],
                       config: AIBrainConfig) -> AsyncThrowingStream<String, Error> {
-        struct HistoryMessage: Encodable { let role: String; let content: String }
-        struct ChatRequest: Encodable {
-            let bookmark_id: String
-            let prompt: String
-            let provider_config: ProviderPayload
-            let history: [HistoryMessage]
-            let language: String
-        }
-
-        let providerConfig = ProviderPayload(config)
-        let body = ChatRequest(
-            bookmark_id: bookmarkId, prompt: prompt,
-            provider_config: providerConfig,
-            history: history.map { HistoryMessage(role: $0.role, content: $0.content) },
-            language: AppSettings.shared.effectiveLanguageCode
-        )
-
-        let url = base.appending(path: "/api/brain/chat/stream")
-        let encoder = self.encoder
-        let sentinel = "[GYRUS-ERROR]"
-
+        // The FastAPI streaming wrapper currently closes its chunked response
+        // early on macOS URLSession ("cannot parse response"). Use the stable
+        // non-streaming endpoint behind the same UI until streaming is rebuilt.
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    var request = URLRequest(url: url)
-                    request.httpMethod = "POST"
-                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    request.httpBody = try encoder.encode(body)
-                    // A cold Ollama model can take a while before the first token.
-                    request.timeoutInterval = APIClient.llmTimeout
-
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
-                    if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-                        throw APIError.serverError(http.statusCode)
-                    }
-
-                    // Decode cumulatively so multibyte UTF-8 never splits, and
-                    // emit only the newly added suffix as a delta.
-                    var data = Data()
-                    var emitted = ""
-                    for try await byte in bytes {
-                        if Task.isCancelled { break }
-                        data.append(byte)
-                        guard let full = String(data: data, encoding: .utf8) else { continue }
-                        if let r = full.range(of: sentinel) {
-                            let msg = full[r.upperBound...].trimmingCharacters(in: .whitespacesAndNewlines)
-                            throw APIError.serverMessage(msg.isEmpty ? "AI request failed" : msg)
-                        }
-                        if full.count > emitted.count {
-                            let delta = String(full[full.index(full.startIndex, offsetBy: emitted.count)...])
-                            emitted = full
-                            continuation.yield(delta)
-                        }
+                    let response = try await self.aiChat(
+                        bookmarkId: bookmarkId,
+                        prompt: prompt,
+                        history: history,
+                        config: config
+                    )
+                    if !Task.isCancelled {
+                        continuation.yield(response)
                     }
                     continuation.finish()
                 } catch {

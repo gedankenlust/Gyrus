@@ -3,7 +3,7 @@ import logging
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from models.bookmark import Bookmark, BookmarkNote
+from models.bookmark import Bookmark, BookmarkNote, BrainMessage
 from models.tag import Tag, BookmarkTag
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,21 @@ def search_bookmarks(db: Session, query: str, limit: int = 50, offset: int = 0) 
             seen.add(bookmark_id)
             ids.append(bookmark_id)
 
-    # 3. Also match by tag name, so searching for a tag finds every bookmark
+    # 3. Also match persisted AI Brain conversations. They are not "Notes"
+    # unless the user promotes them, but users still expect old Q&A to lead
+    # back to the bookmark where the conversation happened.
+    chat_rows = (
+        db.query(BrainMessage.bookmark_id)
+        .filter(BrainMessage.content.ilike(note_pattern))
+        .distinct()
+        .all()
+    )
+    for (bookmark_id,) in chat_rows:
+        if bookmark_id not in seen:
+            seen.add(bookmark_id)
+            ids.append(bookmark_id)
+
+    # 4. Also match by tag name, so searching for a tag finds every bookmark
     #    carrying it (the FTS index doesn't cover tags either).
     tag_pattern = f"%{q}%"
     tag_rows = (
@@ -102,7 +116,7 @@ def search_bookmarks(db: Session, query: str, limit: int = 50, offset: int = 0) 
             seen.add(bookmark_id)
             ids.append(bookmark_id)
 
-    # 4. Paginate the merged id list, then load and return in order.
+    # 5. Paginate the merged id list, then load and return in order.
     page_ids = ids[offset: offset + limit]
     if not page_ids:
         return []
