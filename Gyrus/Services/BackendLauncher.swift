@@ -63,9 +63,16 @@ final class BackendLauncher {
         return FileManager.default.fileExists(atPath: py.path) ? py : nil
     }
 
-    /// The interpreter to run the backend with: the bundled runtime if it
-    /// exists, otherwise the dev venv.
-    private var pythonExecutable: URL { bundledRuntimePython ?? venvPython }
+    /// The interpreter to run the backend with. Dev builds use the repo venv so
+    /// optional tools installed there (e.g. Playwright) are available; bundled
+    /// apps use the self-contained runtime when present.
+    private var usesBundledRuntime: Bool { isBundledBackend && bundledRuntimePython != nil }
+    private var pythonExecutable: URL {
+        if usesBundledRuntime, let runtime = bundledRuntimePython {
+            return runtime
+        }
+        return venvPython
+    }
 
     private init() {}
 
@@ -107,7 +114,7 @@ final class BackendLauncher {
         // With a bundled runtime there's nothing to set up — skip the
         // venv/pip bootstrap entirely (no system Python needed). Otherwise
         // fall back to building a venv from the system Python (dev machines).
-        if bundledRuntimePython == nil {
+        if !usesBundledRuntime {
             do {
                 try await bootstrapIfNeeded()
             } catch {
