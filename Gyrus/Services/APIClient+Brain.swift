@@ -3,6 +3,50 @@ import Foundation
 // MARK: - AI Brain: config, model discovery, chat, summarize
 
 extension APIClient {
+    struct VisualSnapshotDTO: Decodable {
+        let bookmarkId: String
+        let url: String
+        let title: String
+        let capturedAt: String
+        let viewports: [VisualViewportDTO]
+
+        enum CodingKeys: String, CodingKey {
+            case url, title, viewports
+            case bookmarkId = "bookmark_id"
+            case capturedAt = "captured_at"
+        }
+    }
+
+    struct VisualViewportDTO: Decodable {
+        let name: String
+        let width: Int
+        let height: Int
+        let screenshot: String
+        let screenshotURL: String
+        let dominantColors: [String]
+        let observedColors: [String]
+        let observedFonts: [String]
+        let structure: VisualStructureDTO
+
+        enum CodingKeys: String, CodingKey {
+            case name, width, height, screenshot, structure
+            case screenshotURL = "screenshot_url"
+            case dominantColors = "dominant_colors"
+            case observedColors = "observed_colors"
+            case observedFonts = "observed_fonts"
+        }
+    }
+
+    struct VisualStructureDTO: Decodable {
+        let h1: [String]
+        let h2: [String]
+        let links: Int
+        let buttons: Int
+        let images: Int
+        let svgs: Int
+        let forms: Int
+    }
+
     struct BrainMessageDTO: Decodable {
         let id: String
         let bookmarkId: String
@@ -25,6 +69,22 @@ extension APIClient {
 
     func clearBrainMessages(bookmarkId: String) async throws {
         try await delete(base.appending(path: "/api/brain/bookmarks/\(bookmarkId)/messages"))
+    }
+
+    func visualSnapshot(bookmarkId: String) async throws -> VisualSnapshotDTO {
+        try await get(base.appending(path: "/api/brain/bookmarks/\(bookmarkId)/visual-snapshot"))
+    }
+
+    func createVisualSnapshot(bookmarkId: String) async throws -> VisualSnapshotDTO {
+        try await post(base.appending(path: "/api/brain/bookmarks/\(bookmarkId)/visual-snapshot"),
+                       body: EmptyBody(), timeout: APIClient.llmTimeout)
+    }
+
+    func visualSnapshotFileURL(path: String) -> URL {
+        if path.hasPrefix("/") {
+            return base.appending(path: path)
+        }
+        return base.appending(path: "/\(path)")
     }
 
     func updateAIBrainConfig(_ config: AIBrainConfig) async throws {
