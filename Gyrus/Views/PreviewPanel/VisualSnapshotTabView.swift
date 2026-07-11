@@ -183,7 +183,6 @@ struct VisualSnapshotTabView: View {
     private var snapshotContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                viewportPicker
                 outdatedSnapshotNotice
                 sectionPicker
 
@@ -192,28 +191,40 @@ struct VisualSnapshotTabView: View {
                     case .review:
                         reviewSection
                     case .overview:
+                        viewportPicker
                         overviewSection(selectedViewport)
                     case .visual:
+                        viewportPicker
                         screenshotSection(selectedViewport)
                     case .colors:
+                        viewportPicker
                         colorsSection
                     case .typography:
+                        viewportPicker
                         typographySection(selectedViewport)
                     case .components:
+                        viewportPicker
                         componentsSection(selectedViewport)
                     case .layout:
+                        viewportPicker
                         layoutSection(selectedViewport)
                     case .assets:
+                        viewportPicker
                         assetsSection(selectedViewport)
                     case .seo:
+                        viewportPicker
                         seoSection(selectedViewport)
                     case .accessibility:
+                        viewportPicker
                         accessibilitySection(selectedViewport)
                     case .network:
+                        viewportPicker
                         networkSection(selectedViewport)
                     case .console:
+                        viewportPicker
                         consoleSection(selectedViewport)
                     case .raw:
+                        viewportPicker
                         elementSamplesSection(selectedViewport)
                     }
                 }
@@ -317,46 +328,75 @@ struct VisualSnapshotTabView: View {
     }
 
     private var reviewSection: some View {
-        SnapshotSection(title: "Viewport Review", icon: "macwindow.on.rectangle") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 10) {
-                    Picker("Mode", selection: $reviewMode) {
-                        ForEach(DesignReviewMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
+        VStack(alignment: .leading, spacing: 10) {
+            reviewViewportPicker
+
+            HStack(spacing: 10) {
+                Picker("Mode", selection: $reviewMode) {
+                    ForEach(DesignReviewMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
                     }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 260)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 180)
 
-                    Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
+                Button {
+                    guard let snapshot else { return }
+                    Task { await exportViewportPDF(snapshot) }
+                } label: {
+                    if isExportingPDF {
+                        ProgressView().scaleEffect(0.55)
+                    } else {
+                        Label("PDF", systemImage: "doc.richtext")
+                            .font(.caption.weight(.medium))
+                    }
+                }
+                .buttonStyle(.borderless)
+                .disabled(snapshot?.viewports.isEmpty ?? true || isExportingPDF)
+            }
+
+            if let snapshot, snapshot.viewports.isEmpty {
+                Text("No viewports captured yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if let snapshot, let selectedViewport {
+                switch reviewMode {
+                case .snapshot:
+                    SnapshotViewportFrame(viewport: selectedViewport)
+                case .live:
+                    LiveViewportFrame(url: URL(string: snapshot.url), viewport: selectedViewport)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var reviewViewportPicker: some View {
+        if let snapshot, snapshot.viewports.count > 1 {
+            HStack(spacing: 6) {
+                ForEach(snapshot.viewports, id: \.name) { viewport in
                     Button {
-                        guard let snapshot else { return }
-                        Task { await exportViewportPDF(snapshot) }
+                        selectedViewportName = viewport.name
                     } label: {
-                        if isExportingPDF {
-                            ProgressView().scaleEffect(0.55)
-                        } else {
-                            Label("Export PDF", systemImage: "doc.richtext")
-                                .font(.caption.weight(.medium))
+                        HStack(spacing: 6) {
+                            Image(systemName: viewportIcon(viewport.name))
+                                .font(.caption2.weight(.semibold))
+                            Text(viewport.name.capitalized)
+                                .font(.caption.weight(.semibold))
                         }
+                        .foregroundStyle((selectedViewport?.name == viewport.name) ? .white : .primary)
+                        .frame(minWidth: 82, minHeight: 28)
+                        .background(
+                            (selectedViewport?.name == viewport.name ? Color.accentColor : Color.secondary.opacity(0.16)),
+                            in: RoundedRectangle(cornerRadius: 7)
+                        )
                     }
-                    .buttonStyle(.borderless)
-                    .disabled(snapshot?.viewports.isEmpty ?? true || isExportingPDF)
+                    .buttonStyle(.plain)
                 }
-
-                if let snapshot, snapshot.viewports.isEmpty {
-                    Text("No viewports captured yet.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else if let snapshot, let selectedViewport {
-                    switch reviewMode {
-                    case .snapshot:
-                        SnapshotViewportFrame(viewport: selectedViewport)
-                    case .live:
-                        LiveViewportFrame(url: URL(string: snapshot.url), viewport: selectedViewport)
-                    }
-                }
+                Spacer(minLength: 0)
             }
         }
     }
@@ -750,7 +790,9 @@ private struct SnapshotViewportFrame: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(.secondary.opacity(0.2), lineWidth: 1)
             )
+            .frame(maxWidth: reviewFrameMaxWidth(for: viewport), alignment: .topLeading)
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
 
@@ -765,8 +807,10 @@ private struct LiveViewportFrame: View {
             if let url {
                 GeometryReader { proxy in
                     let viewportWidth = CGFloat(viewport.width)
-                    let visibleHeight = min(CGFloat(viewport.height), 760)
-                    let scale = min(1, max(0.24, proxy.size.width / max(viewportWidth, 1)))
+                    let visibleHeight = min(CGFloat(viewport.height), reviewLiveHeight(for: viewport))
+                    let frameMaxWidth = reviewFrameMaxWidth(for: viewport)
+                    let availableWidth = min(proxy.size.width, frameMaxWidth)
+                    let scale = min(1, max(0.22, availableWidth / max(viewportWidth, 1)))
 
                     LiveViewportWebView(url: url, viewport: viewport)
                         .frame(width: viewportWidth, height: visibleHeight)
@@ -778,14 +822,15 @@ private struct LiveViewportFrame: View {
                                 .stroke(.secondary.opacity(0.2), lineWidth: 1)
                         )
                 }
-                .frame(height: min(CGFloat(viewport.height), 760) * min(1, 900 / CGFloat(max(viewport.width, 1))))
-                .frame(minHeight: 220)
+                .frame(height: reviewScaledLiveHeight(for: viewport))
+                .frame(minHeight: 180)
             } else {
                 Text("Invalid URL.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
 }
 
@@ -1373,6 +1418,38 @@ private func safeFilename(_ value: String) -> String {
         .joined(separator: "-")
         .trimmingCharacters(in: .whitespacesAndNewlines)
     return cleaned.isEmpty ? "gyrus" : String(cleaned.prefix(80))
+}
+
+private func reviewFrameMaxWidth(for viewport: APIClient.VisualViewportDTO) -> CGFloat {
+    switch viewport.name {
+    case "desktop":
+        760
+    case "tablet":
+        520
+    case "mobile":
+        320
+    default:
+        min(CGFloat(viewport.width), 620)
+    }
+}
+
+private func reviewLiveHeight(for viewport: APIClient.VisualViewportDTO) -> CGFloat {
+    switch viewport.name {
+    case "desktop":
+        620
+    case "tablet":
+        640
+    case "mobile":
+        600
+    default:
+        min(CGFloat(viewport.height), 620)
+    }
+}
+
+private func reviewScaledLiveHeight(for viewport: APIClient.VisualViewportDTO) -> CGFloat {
+    let viewportWidth = CGFloat(max(viewport.width, 1))
+    let scale = min(1, max(0.22, reviewFrameMaxWidth(for: viewport) / viewportWidth))
+    return reviewLiveHeight(for: viewport) * scale
 }
 
 private func frequency(_ values: [String], limit: Int = 8) -> [String] {
