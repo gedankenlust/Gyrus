@@ -12,6 +12,7 @@ from database import DATA_DIR
 SNAPSHOT_DIR = DATA_DIR / "visual_snapshots"
 VIEWPORTS = [
     {"name": "desktop", "width": 1440, "height": 1200, "device_scale_factor": 1},
+    {"name": "tablet", "width": 834, "height": 1112, "device_scale_factor": 2},
     {"name": "mobile", "width": 390, "height": 844, "device_scale_factor": 2},
 ]
 
@@ -65,7 +66,7 @@ async def capture_snapshot(bookmark_id: str, url: str, title: str = "") -> dict[
                 page = await browser.new_page(
                     viewport={"width": viewport["width"], "height": viewport["height"]},
                     device_scale_factor=viewport["device_scale_factor"],
-                    is_mobile=viewport["name"] == "mobile",
+                    is_mobile=viewport["name"] in {"tablet", "mobile"},
                 )
                 network_entries: dict[str, dict[str, Any]] = {}
                 console_messages: list[dict[str, Any]] = []

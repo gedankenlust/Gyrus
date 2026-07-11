@@ -1,6 +1,10 @@
 import SwiftUI
 import AppKit
 
+private let designMetricColumns = [GridItem(.adaptive(minimum: 96), spacing: 8)]
+private let designSectionColumns = [GridItem(.adaptive(minimum: 116), spacing: 8)]
+private let designViewportColumns = [GridItem(.adaptive(minimum: 148), spacing: 8)]
+
 private enum DesignInspectorSection: String, CaseIterable, Identifiable {
     case overview
     case visual
@@ -196,25 +200,25 @@ struct VisualSnapshotTabView: View {
     }
 
     private var sectionPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(DesignInspectorSection.allCases) { section in
-                    Button {
-                        selectedSection = section
-                    } label: {
-                        Label(section.title, systemImage: section.icon)
-                            .labelStyle(.titleAndIcon)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(selectedSection == section ? .white : .primary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                selectedSection == section ? Color.accentColor : Color.secondary.opacity(0.14),
-                                in: RoundedRectangle(cornerRadius: 6)
-                            )
-                    }
-                    .buttonStyle(.plain)
+        LazyVGrid(columns: designSectionColumns, alignment: .leading, spacing: 8) {
+            ForEach(DesignInspectorSection.allCases) { section in
+                Button {
+                    selectedSection = section
+                } label: {
+                    Label(section.title, systemImage: section.icon)
+                        .labelStyle(.titleAndIcon)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(selectedSection == section ? .white : .primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .frame(maxWidth: .infinity, minHeight: 34, alignment: .center)
+                        .background(
+                            selectedSection == section ? Color.accentColor : Color.secondary.opacity(0.14),
+                            in: RoundedRectangle(cornerRadius: 7)
+                        )
                 }
+                .buttonStyle(.plain)
+                .help(section.title)
             }
         }
     }
@@ -222,25 +226,42 @@ struct VisualSnapshotTabView: View {
     @ViewBuilder
     private var viewportPicker: some View {
         if let snapshot, snapshot.viewports.count > 1 {
-            HStack(spacing: 6) {
+            LazyVGrid(columns: designViewportColumns, alignment: .leading, spacing: 8) {
                 ForEach(snapshot.viewports, id: \.name) { viewport in
                     Button {
                         selectedViewportName = viewport.name
                     } label: {
-                        Text("\(viewport.name.capitalized) \(viewport.width)x\(viewport.height)")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle((selectedViewport?.name == viewport.name) ? .white : .primary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(
-                                (selectedViewport?.name == viewport.name ? Color.accentColor : Color.secondary.opacity(0.16)),
-                                in: RoundedRectangle(cornerRadius: 6)
-                            )
+                        HStack(spacing: 7) {
+                            Image(systemName: viewportIcon(viewport.name))
+                                .font(.caption.weight(.semibold))
+                            Text("\(viewport.name.capitalized) \(viewport.width)x\(viewport.height)")
+                                .font(.caption.weight(.medium))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
+                        }
+                        .foregroundStyle((selectedViewport?.name == viewport.name) ? .white : .primary)
+                        .frame(maxWidth: .infinity, minHeight: 34, alignment: .center)
+                        .background(
+                            (selectedViewport?.name == viewport.name ? Color.accentColor : Color.secondary.opacity(0.16)),
+                            in: RoundedRectangle(cornerRadius: 7)
+                        )
                     }
                     .buttonStyle(.plain)
                 }
-                Spacer()
             }
+        }
+    }
+
+    private func viewportIcon(_ name: String) -> String {
+        switch name {
+        case "desktop":
+            "desktopcomputer"
+        case "tablet":
+            "ipad"
+        case "mobile":
+            "iphone"
+        default:
+            "rectangle"
         }
     }
 
@@ -279,7 +300,7 @@ struct VisualSnapshotTabView: View {
     private func overviewSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             SnapshotSection(title: "Overview", icon: "rectangle.grid.2x2") {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 8)], spacing: 8) {
+                LazyVGrid(columns: designMetricColumns, spacing: 8) {
                     MetricPill(label: "Colors", value: colors.count)
                     MetricPill(label: "Fonts", value: viewport.observedFonts.count)
                     MetricPill(label: "Elements", value: viewport.elementSamples?.count ?? 0)
@@ -341,7 +362,7 @@ struct VisualSnapshotTabView: View {
     private func structureSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
         SnapshotSection(title: "Structure", icon: "list.bullet.rectangle") {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
+                LazyVGrid(columns: designMetricColumns, spacing: 8) {
                     MetricPill(label: "Links", value: viewport.structure.links)
                     MetricPill(label: "Buttons", value: viewport.structure.buttons)
                     MetricPill(label: "Images", value: viewport.structure.images)
@@ -404,7 +425,7 @@ struct VisualSnapshotTabView: View {
 
         return SnapshotSection(title: "Layout", icon: "rectangle.3.group") {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
+                LazyVGrid(columns: designMetricColumns, spacing: 8) {
                     MetricPill(label: "Viewport W", value: viewport.width)
                     MetricPill(label: "Viewport H", value: viewport.height)
                     MetricPill(label: "Max Element W", value: maxWidth)
@@ -420,7 +441,7 @@ struct VisualSnapshotTabView: View {
     private func assetsSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
         SnapshotSection(title: "Assets", icon: "photo.on.rectangle.angled") {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
+                LazyVGrid(columns: designMetricColumns, spacing: 8) {
                     MetricPill(label: "Images", value: viewport.assets?.images?.count ?? viewport.structure.images)
                     MetricPill(label: "Icons", value: viewport.assets?.icons?.count ?? 0)
                     MetricPill(label: "CSS", value: viewport.assets?.stylesheets?.count ?? 0)
@@ -453,7 +474,7 @@ struct VisualSnapshotTabView: View {
                 if let robots = viewport.seo?.robots, !robots.isEmpty {
                     CopyRow(value: "Robots: \(robots)", systemImage: "gearshape")
                 }
-                HStack(spacing: 8) {
+                LazyVGrid(columns: designMetricColumns, spacing: 8) {
                     MetricPill(label: "Internal", value: viewport.seo?.internalLinks ?? 0)
                     MetricPill(label: "External", value: viewport.seo?.externalLinks ?? 0)
                     MetricPill(label: "JSON-LD", value: viewport.seo?.jsonLd?.count ?? 0)
@@ -472,7 +493,7 @@ struct VisualSnapshotTabView: View {
     private func accessibilitySection(_ viewport: APIClient.VisualViewportDTO) -> some View {
         SnapshotSection(title: "Accessibility", icon: "accessibility") {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
+                LazyVGrid(columns: designMetricColumns, spacing: 8) {
                     MetricPill(label: "Missing Alt", value: viewport.accessibility?.missingAltImages?.count ?? 0)
                     MetricPill(label: "Empty Buttons", value: viewport.accessibility?.emptyButtons?.count ?? 0)
                     MetricPill(label: "Unlabeled Inputs", value: viewport.accessibility?.unlabeledInputs?.count ?? 0)
@@ -490,7 +511,7 @@ struct VisualSnapshotTabView: View {
     private func networkSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
         SnapshotSection(title: "Network", icon: "point.3.connected.trianglepath.dotted") {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
+                LazyVGrid(columns: designMetricColumns, spacing: 8) {
                     MetricPill(label: "Requests", value: viewport.network?.requestCount ?? 0)
                     MetricPill(label: "Failed", value: viewport.network?.failedRequests?.count ?? 0)
                     MetricPill(label: "Large", value: viewport.network?.largeRequests?.count ?? 0)
@@ -618,7 +639,7 @@ private struct MetricPill: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
-        .frame(minWidth: 54)
+        .frame(maxWidth: .infinity, minHeight: 58)
         .padding(.vertical, 6)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 6))
     }
