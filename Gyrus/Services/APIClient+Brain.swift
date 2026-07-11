@@ -18,6 +18,8 @@ extension APIClient {
     }
 
     struct VisualViewportDTO: Decodable {
+        let pageTitle: String?
+        let metaDescription: String?
         let name: String
         let width: Int
         let height: Int
@@ -27,13 +29,17 @@ extension APIClient {
         let observedColors: [String]
         let observedFonts: [String]
         let structure: VisualStructureDTO
+        let elementSamples: [VisualElementSampleDTO]?
 
         enum CodingKeys: String, CodingKey {
             case name, width, height, screenshot, structure
+            case pageTitle = "page_title"
+            case metaDescription = "meta_description"
             case screenshotURL = "screenshot_url"
             case dominantColors = "dominant_colors"
             case observedColors = "observed_colors"
             case observedFonts = "observed_fonts"
+            case elementSamples = "element_samples"
         }
     }
 
@@ -45,6 +51,48 @@ extension APIClient {
         let images: Int
         let svgs: Int
         let forms: Int
+    }
+
+    struct VisualElementSampleDTO: Decodable, Identifiable {
+        var id: String {
+            "\(selectorHint)-\(x)-\(y)-\(width)-\(height)-\(text)"
+        }
+
+        let tag: String
+        let selectorHint: String
+        let text: String
+        let x: Int
+        let y: Int
+        let width: Int
+        let height: Int
+        let display: String
+        let position: String
+        let fontFamily: String
+        let fontSize: String
+        let fontWeight: String
+        let lineHeight: String
+        let color: String
+        let backgroundColor: String
+        let borderRadius: String
+        let boxShadow: String
+        let letterSpacing: String
+        let textTransform: String
+        let margin: String
+        let padding: String
+
+        enum CodingKeys: String, CodingKey {
+            case tag, text, x, y, width, height, display, position, color, margin, padding
+            case selectorHint = "selector_hint"
+            case fontFamily = "font_family"
+            case fontSize = "font_size"
+            case fontWeight = "font_weight"
+            case lineHeight = "line_height"
+            case backgroundColor = "background_color"
+            case borderRadius = "border_radius"
+            case boxShadow = "box_shadow"
+            case letterSpacing = "letter_spacing"
+            case textTransform = "text_transform"
+        }
     }
 
     struct BrainMessageDTO: Decodable {

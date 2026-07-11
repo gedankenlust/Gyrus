@@ -9,9 +9,12 @@ from services.brain_sync_service import brain_sync_service
 
 @pytest.fixture
 def brain_enabled(tmp_path):
+    original_root = brain_sync_service.root_dir
+    original_enabled = brain_sync_service.is_enabled
     brain_sync_service.update_config(str(tmp_path), True)
     yield
-    brain_sync_service.update_config(None, False)
+    brain_sync_service.root_dir = original_root
+    brain_sync_service.is_enabled = original_enabled
 
 
 def test_chat_passes_scraped_page_content_to_llm(client, brain_enabled, monkeypatch):
@@ -54,6 +57,78 @@ def test_chat_passes_scraped_page_content_to_llm(client, brain_enabled, monkeypa
         {"role": "user", "content": "hi"},
         {"role": "assistant", "content": "hello"},
     ]
+
+
+def test_chat_includes_visual_snapshot_context(client, brain_enabled, monkeypatch):
+    captured = {}
+
+    async def fake_scrape(url):
+        return {"content": "Page text long enough to become context. " * 8, "title": "Design Ref"}
+
+    async def fake_ask_llm(prompt, context, provider_config, title="", url="", history=None, language=None):
+        captured["context"] = context
+        return "Snapshot-aware answer."
+
+    monkeypatch.setattr(scraper_module.scraper_service, "extract_content", fake_scrape)
+    monkeypatch.setattr(llm_module.LLMService, "ask_llm", fake_ask_llm)
+
+    bm = client.post("/api/bookmarks", json={
+        "title": "Design Ref",
+        "url": "https://design.example",
+        "source": "manual",
+    }).json()
+
+    snapshot = {
+        "bookmark_id": bm["id"],
+        "captured_at": "2026-07-11T07:00:00+00:00",
+        "viewports": [{
+            "name": "desktop",
+            "width": 1440,
+            "height": 1200,
+            "page_title": "Design Ref",
+            "dominant_colors": ["#ff3366"],
+            "observed_colors": ["rgb(17, 24, 39)"],
+            "observed_fonts": ["Inter, sans-serif"],
+            "structure": {"links": 4, "buttons": 2, "images": 1, "svgs": 3, "forms": 0, "h1": ["Hero"], "h2": []},
+            "element_samples": [{
+                "tag": "button",
+                "selector_hint": ".cta.primary",
+                "text": "Start now",
+                "x": 100,
+                "y": 200,
+                "width": 180,
+                "height": 44,
+                "display": "inline-flex",
+                "position": "static",
+                "font_family": "Inter, sans-serif",
+                "font_size": "16px",
+                "font_weight": "700",
+                "color": "rgb(255, 255, 255)",
+                "background_color": "rgb(255, 51, 102)",
+                "padding": "12px 18px 12px 18px",
+                "margin": "0px",
+                "border_radius": "8px",
+                "box_shadow": "none",
+            }],
+        }],
+    }
+    monkeypatch.setattr(
+        "routers.brain.visual_snapshot_service.read_snapshot",
+        lambda bookmark_id: snapshot if bookmark_id == bm["id"] else None,
+    )
+
+    resp = client.post("/api/brain/chat", json={
+        "bookmark_id": bm["id"],
+        "prompt": "Welche Farben und CTA-Styles nutzt die Seite?",
+        "provider_config": {"provider": "ollama", "model": "llama3"},
+    })
+
+    assert resp.status_code == 200
+    assert "Visual Snapshot" in captured["context"]
+    assert "#ff3366" in captured["context"]
+    assert "Inter, sans-serif" in captured["context"]
+    assert ".cta.primary" in captured["context"]
+    assert "radius=8px" in captured["context"]
 
 
 def test_chat_with_german_language_instructs_german_reply(client, brain_enabled, monkeypatch):

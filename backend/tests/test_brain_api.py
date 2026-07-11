@@ -13,9 +13,12 @@ def temp_brain_root(tmp_path):
     root = tmp_path / "gyrus_brain_test"
     root.mkdir()
     original_root = brain_sync_service.root_dir
+    original_enabled = brain_sync_service.is_enabled
     brain_sync_service.root_dir = root
+    brain_sync_service.is_enabled = True
     yield root
     brain_sync_service.root_dir = original_root
+    brain_sync_service.is_enabled = original_enabled
 
 @pytest.mark.asyncio
 async def test_chat_with_bookmark_success(client, db, temp_brain_root):

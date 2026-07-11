@@ -6,9 +6,6 @@ struct AIBrainTabView: View {
     private let chat = BrainChatStore.shared
     @State private var currentPrompt: String = ""
     @State private var scrollProxy: ScrollViewProxy? = nil
-    @State private var visualSnapshot: APIClient.VisualSnapshotDTO?
-    @State private var isLoadingVisualSnapshot = false
-    @State private var isCapturingVisualSnapshot = false
 
     // Conversation state lives in the shared store, keyed by bookmark — so it
     // survives switching bookmarks and runs in the background.
@@ -45,10 +42,6 @@ struct AIBrainTabView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-
-            if visualSnapshot != nil || isLoadingVisualSnapshot || isCapturingVisualSnapshot {
-                visualSnapshotPanel
-            }
             
             if messages.isEmpty && !isSending {
                 quickStarts
@@ -60,7 +53,6 @@ struct AIBrainTabView: View {
         }
         .task(id: bookmark.id) {
             await chat.load(bookmarkId: bookmark.id)
-            await loadVisualSnapshot()
         }
     }
     
@@ -73,19 +65,6 @@ struct AIBrainTabView: View {
                 if isSending {
                     ProgressView().scaleEffect(0.5)
                 }
-                Button {
-                    Task { await captureVisualSnapshot() }
-                } label: {
-                    if isCapturingVisualSnapshot {
-                        ProgressView().scaleEffect(0.5)
-                    } else {
-                        Image(systemName: "camera.metering.center.weighted")
-                    }
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Create a design snapshot")
-                .disabled(isSending || isCapturingVisualSnapshot)
                 // Summarize button — quick one-tap note generation
                 Button {
                     Task {
@@ -119,76 +98,6 @@ struct AIBrainTabView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(.bar)
-            Divider()
-        }
-    }
-
-    @ViewBuilder
-    private var visualSnapshotPanel: some View {
-        if isLoadingVisualSnapshot && visualSnapshot == nil {
-            HStack(spacing: 8) {
-                ProgressView().scaleEffect(0.55)
-                Text("Loading design snapshot...")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            Divider()
-        } else if isCapturingVisualSnapshot {
-            HStack(spacing: 8) {
-                ProgressView().scaleEffect(0.55)
-                Text("Creating design snapshot...")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            Divider()
-        } else if let snapshot = visualSnapshot {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Label("Design Snapshot", systemImage: "camera.viewfinder")
-                        .font(.caption.bold())
-                    Spacer()
-                    Text(snapshot.viewports.map(\.name).joined(separator: " / "))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let first = snapshot.viewports.first {
-                    VisualPalette(colors: first.dominantColors)
-
-                    if !first.observedFonts.isEmpty {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Fonts")
-                                .font(.caption2.bold())
-                                .foregroundStyle(.secondary)
-                            Text(first.observedFonts.prefix(2).joined(separator: "\n"))
-                                .font(.caption2)
-                                .lineLimit(2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    if let h1 = first.structure.h1.first {
-                        Text(h1)
-                            .font(.caption)
-                            .lineLimit(1)
-                            .foregroundStyle(.primary)
-                    }
-                }
-
-                HStack(spacing: 8) {
-                    ForEach(snapshot.viewports, id: \.name) { viewport in
-                        VisualSnapshotThumbnail(viewport: viewport)
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
             Divider()
         }
     }
@@ -295,31 +204,6 @@ struct AIBrainTabView: View {
         chat.send(bookmark: bookmark, prompt: trimmed, config: config)
     }
 
-    private func loadVisualSnapshot() async {
-        isLoadingVisualSnapshot = true
-        defer { isLoadingVisualSnapshot = false }
-        do {
-            visualSnapshot = try await APIClient.shared.visualSnapshot(bookmarkId: bookmark.id)
-        } catch APIError.serverMessage(let message) where message == "Visual snapshot not found" {
-            visualSnapshot = nil
-        } catch APIError.serverError(404) {
-            visualSnapshot = nil
-        } catch {
-            visualSnapshot = nil
-        }
-    }
-
-    private func captureVisualSnapshot() async {
-        isCapturingVisualSnapshot = true
-        defer { isCapturingVisualSnapshot = false }
-        do {
-            visualSnapshot = try await APIClient.shared.createVisualSnapshot(bookmarkId: bookmark.id)
-            AppStore.shared.uiStateStore.showInfo("Design snapshot created.")
-        } catch {
-            AppStore.shared.uiStateStore.showError(error.localizedDescription)
-        }
-    }
-    
     private func scrollToBottom() {
         withAnimation {
             if isSending {
@@ -428,72 +312,5 @@ struct QuickStartButton: View {
                 .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-    }
-}
-
-struct VisualPalette: View {
-    let colors: [String]
-
-    var body: some View {
-        HStack(spacing: 5) {
-            ForEach(Array(colors.prefix(8)), id: \.self) { color in
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color(hexString: color) ?? .secondary.opacity(0.25))
-                    .frame(width: 18, height: 18)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 3)
-                            .stroke(.secondary.opacity(0.18), lineWidth: 1)
-                    )
-                    .help(color)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-}
-
-struct VisualSnapshotThumbnail: View {
-    let viewport: APIClient.VisualViewportDTO
-
-    private var url: URL {
-        APIClient.shared.visualSnapshotFileURL(path: viewport.screenshotURL)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                default:
-                    Rectangle()
-                        .fill(.quaternary)
-                        .overlay {
-                            Image(systemName: "photo")
-                                .foregroundStyle(.secondary)
-                        }
-                }
-            }
-            .frame(height: 82)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-
-            Text(viewport.name.capitalized)
-                .font(.caption2.bold())
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-private extension Color {
-    init?(hexString: String) {
-        var value = hexString.trimmingCharacters(in: .whitespacesAndNewlines)
-        if value.hasPrefix("#") { value.removeFirst() }
-        guard value.count == 6, let intValue = Int(value, radix: 16) else { return nil }
-        let red = Double((intValue >> 16) & 0xff) / 255
-        let green = Double((intValue >> 8) & 0xff) / 255
-        let blue = Double(intValue & 0xff) / 255
-        self.init(red: red, green: green, blue: blue)
     }
 }

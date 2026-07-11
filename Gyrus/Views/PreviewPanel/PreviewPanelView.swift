@@ -38,6 +38,7 @@ struct MarkdownTextEditor: NSViewRepresentable {
 enum PreviewTab: String, CaseIterable, Identifiable {
     case info = "Info"
     case reader = "Reader"
+    case snapshot = "Snapshot"
     case brain = "AI Brain"
     case notes = "Notes"
     case web = "Web"
@@ -153,6 +154,7 @@ struct BookmarkDetailView: View {
                 switch selectedTab {
                 case .info: infoMode
                 case .reader: readerMode
+                case .snapshot: VisualSnapshotTabView(bookmark: bookmark)
                 case .brain: AIBrainTabView(bookmark: bookmark)
                 case .notes: notesMode
                 case .web: webMode

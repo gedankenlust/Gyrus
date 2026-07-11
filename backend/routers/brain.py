@@ -77,6 +77,87 @@ def _provider_model(provider_config: Optional[Dict[str, Any]]) -> str | None:
     model = provider_config.get("model")
     return model if isinstance(model, str) and model else None
 
+
+def _visual_snapshot_context(bookmark_id: str) -> str:
+    snapshot = visual_snapshot_service.read_snapshot(bookmark_id)
+    if not snapshot:
+        return ""
+
+    lines: list[str] = [
+        "## Visual Snapshot (Rendered page / computed styles)",
+        "This section is captured from a headless browser and may be used as direct evidence for visual design questions.",
+    ]
+    if snapshot.get("captured_at"):
+        lines.append(f"Captured at: {snapshot.get('captured_at')}")
+
+    for viewport in snapshot.get("viewports", [])[:2]:
+        name = viewport.get("name", "viewport")
+        width = viewport.get("width", "")
+        height = viewport.get("height", "")
+        lines.append(f"\n### Viewport: {name} ({width}x{height})")
+
+        page_title = viewport.get("page_title")
+        if page_title:
+            lines.append(f"Page title: {page_title}")
+        meta_description = viewport.get("meta_description")
+        if meta_description:
+            lines.append(f"Meta description: {meta_description[:500]}")
+
+        colors = []
+        for color in (viewport.get("dominant_colors") or []) + (viewport.get("observed_colors") or []):
+            if color and color not in colors:
+                colors.append(color)
+        if colors:
+            lines.append("Colors: " + ", ".join(colors[:24]))
+
+        fonts = viewport.get("observed_fonts") or []
+        if fonts:
+            lines.append("Fonts: " + " | ".join(fonts[:8]))
+
+        structure = viewport.get("structure") or {}
+        if structure:
+            lines.append(
+                "Structure: "
+                f"links={structure.get('links', 0)}, "
+                f"buttons={structure.get('buttons', 0)}, "
+                f"images={structure.get('images', 0)}, "
+                f"svgs={structure.get('svgs', 0)}, "
+                f"forms={structure.get('forms', 0)}"
+            )
+            for heading in (structure.get("h1") or [])[:4]:
+                lines.append(f"H1: {heading}")
+            for heading in (structure.get("h2") or [])[:8]:
+                lines.append(f"H2: {heading}")
+
+        lines.append("Computed element samples:")
+        for sample in (viewport.get("element_samples") or [])[:28]:
+            selector = sample.get("selector_hint") or sample.get("tag") or "element"
+            text = (sample.get("text") or "").replace("\n", " ")[:120]
+            lines.append(
+                "- "
+                f"{selector} ({sample.get('tag', '')}) "
+                f"{sample.get('width', 0)}x{sample.get('height', 0)} at "
+                f"{sample.get('x', 0)},{sample.get('y', 0)}; "
+                f"display={sample.get('display', '')}; "
+                f"position={sample.get('position', '')}; "
+                f"font={sample.get('font_family', '')}; "
+                f"size={sample.get('font_size', '')}; "
+                f"weight={sample.get('font_weight', '')}; "
+                f"color={sample.get('color', '')}; "
+                f"background={sample.get('background_color', '')}; "
+                f"padding={sample.get('padding', '')}; "
+                f"margin={sample.get('margin', '')}; "
+                f"radius={sample.get('border_radius', '')}; "
+                f"shadow={sample.get('box_shadow', '')}; "
+                f"text={text}"
+            )
+
+    text = "\n".join(lines)
+    MAX_SNAPSHOT_CONTEXT_CHARS = 7000
+    if len(text) > MAX_SNAPSHOT_CONTEXT_CHARS:
+        text = text[:MAX_SNAPSHOT_CONTEXT_CHARS] + "... [Visual Snapshot Truncated]"
+    return text
+
 def _reconcile_brain_blocking():
     """Reconcile folder structure + rebuild the index, with its own session.
     Heavy for large libraries, so it runs OFF the event loop (see /config)."""
@@ -158,8 +239,9 @@ async def _prepare_context(db: Session, bookmark) -> str:
         brain_sync_service.sync_bookmark(db, bookmark)
 
     full_text = ""
-    with open(file_path, "r", encoding="utf-8") as f:
-        full_text = f.read()
+    if file_path.exists():
+        with open(file_path, "r", encoding="utf-8") as f:
+            full_text = f.read()
 
     context = ""
     if "## Content (Scraped)" in full_text:
@@ -183,9 +265,12 @@ async def _prepare_context(db: Session, bookmark) -> str:
             context = f"Title: {bookmark.title}\nDescription: {bookmark.description}\nURL: {bookmark.url}"
 
     context = context.replace(SCRAPE_MARKER, "").strip()
-    MAX_CONTEXT_CHARS = 15000
+    MAX_CONTEXT_CHARS = 12000
     if len(context) > MAX_CONTEXT_CHARS:
         context = context[:MAX_CONTEXT_CHARS] + "... [Content Truncated]"
+    visual_context = _visual_snapshot_context(bookmark.id)
+    if visual_context:
+        context = f"{context}\n\n{visual_context}" if context else visual_context
     return context
 
 
