@@ -1,11 +1,14 @@
 import SwiftUI
 import AppKit
+import WebKit
+import UniformTypeIdentifiers
 
 private let designMetricColumns = [GridItem(.adaptive(minimum: 96), spacing: 8)]
 private let designSectionColumns = [GridItem(.adaptive(minimum: 116), spacing: 8)]
 private let designViewportColumns = [GridItem(.adaptive(minimum: 148), spacing: 8)]
 
 private enum DesignInspectorSection: String, CaseIterable, Identifiable {
+    case review
     case overview
     case visual
     case colors
@@ -23,6 +26,7 @@ private enum DesignInspectorSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .review: "Review"
         case .overview: "Overview"
         case .visual: "Visual"
         case .colors: "Colors"
@@ -40,6 +44,7 @@ private enum DesignInspectorSection: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .review: "macwindow.on.rectangle"
         case .overview: "rectangle.grid.2x2"
         case .visual: "photo"
         case .colors: "eyedropper"
@@ -56,14 +61,23 @@ private enum DesignInspectorSection: String, CaseIterable, Identifiable {
     }
 }
 
+private enum DesignReviewMode: String, CaseIterable, Identifiable {
+    case snapshot = "Snapshot"
+    case live = "Live"
+
+    var id: String { rawValue }
+}
+
 struct VisualSnapshotTabView: View {
     let bookmark: Bookmark
 
     @State private var snapshot: APIClient.VisualSnapshotDTO?
     @State private var selectedViewportName: String?
-    @State private var selectedSection: DesignInspectorSection = .overview
+    @State private var selectedSection: DesignInspectorSection = .review
+    @State private var reviewMode: DesignReviewMode = .snapshot
     @State private var isLoading = false
     @State private var isCapturing = false
+    @State private var isExportingPDF = false
 
     private var selectedViewport: APIClient.VisualViewportDTO? {
         guard let snapshot else { return nil }
@@ -175,6 +189,8 @@ struct VisualSnapshotTabView: View {
 
                 if let selectedViewport {
                     switch selectedSection {
+                    case .review:
+                        reviewSection
                     case .overview:
                         overviewSection(selectedViewport)
                     case .visual:
@@ -297,6 +313,55 @@ struct VisualSnapshotTabView: View {
             "iphone"
         default:
             "rectangle"
+        }
+    }
+
+    private var reviewSection: some View {
+        SnapshotSection(title: "Viewport Review", icon: "macwindow.on.rectangle") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Picker("Mode", selection: $reviewMode) {
+                        ForEach(DesignReviewMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: 260)
+
+                    Spacer(minLength: 0)
+
+                    Button {
+                        guard let snapshot else { return }
+                        Task { await exportViewportPDF(snapshot) }
+                    } label: {
+                        if isExportingPDF {
+                            ProgressView().scaleEffect(0.55)
+                        } else {
+                            Label("Export PDF", systemImage: "doc.richtext")
+                                .font(.caption.weight(.medium))
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(snapshot?.viewports.isEmpty ?? true || isExportingPDF)
+                }
+
+                if let snapshot, snapshot.viewports.isEmpty {
+                    Text("No viewports captured yet.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if let snapshot {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ForEach(snapshot.viewports, id: \.name) { viewport in
+                            switch reviewMode {
+                            case .snapshot:
+                                SnapshotViewportFrame(viewport: viewport)
+                            case .live:
+                                LiveViewportFrame(url: URL(string: snapshot.url), viewport: viewport)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -577,6 +642,44 @@ struct VisualSnapshotTabView: View {
         }
     }
 
+    @MainActor
+    private func exportViewportPDF(_ snapshot: APIClient.VisualSnapshotDTO) async {
+        isExportingPDF = true
+        defer { isExportingPDF = false }
+
+        do {
+            var pages: [(viewport: APIClient.VisualViewportDTO, image: NSImage)] = []
+            for viewport in snapshot.viewports {
+                let url = APIClient.shared.visualSnapshotFileURL(path: viewport.screenshotURL)
+                let (data, _) = try await URLSession.shared.data(from: url)
+                if let image = NSImage(data: data) {
+                    pages.append((viewport, image))
+                }
+            }
+
+            guard !pages.isEmpty else {
+                AppStore.shared.uiStateStore.showError("No screenshots available for PDF export.")
+                return
+            }
+
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.pdf]
+            panel.nameFieldStringValue = "\(safeFilename(snapshot.title.isEmpty ? bookmark.title : snapshot.title))-viewports.pdf"
+            panel.canCreateDirectories = true
+            guard panel.runModal() == .OK, let outputURL = panel.url else { return }
+
+            guard let data = viewportPDFData(snapshot: snapshot, pages: pages) else {
+                AppStore.shared.uiStateStore.showError("Could not create PDF.")
+                return
+            }
+
+            try data.write(to: outputURL)
+            AppStore.shared.uiStateStore.showInfo("Viewport PDF exported.")
+        } catch {
+            AppStore.shared.uiStateStore.showError(error.localizedDescription)
+        }
+    }
+
     private func loadSnapshot() async {
         isLoading = true
         defer { isLoading = false }
@@ -618,6 +721,147 @@ private struct SnapshotSection<Content: View>: View {
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
             content
+        }
+    }
+}
+
+private struct SnapshotViewportFrame: View {
+    let viewport: APIClient.VisualViewportDTO
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ViewportFrameHeader(viewport: viewport, trailing: "Snapshot")
+
+            ScrollView {
+                AsyncImage(url: APIClient.shared.visualSnapshotFileURL(path: viewport.screenshotURL)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFit()
+                    default:
+                        Rectangle()
+                            .fill(.quaternary)
+                            .frame(height: 260)
+                            .overlay {
+                                Image(systemName: "photo")
+                                    .foregroundStyle(.secondary)
+                            }
+                    }
+                }
+            }
+            .frame(maxHeight: 620)
+            .background(.white)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(.secondary.opacity(0.2), lineWidth: 1)
+            )
+        }
+    }
+}
+
+private struct LiveViewportFrame: View {
+    let url: URL?
+    let viewport: APIClient.VisualViewportDTO
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ViewportFrameHeader(viewport: viewport, trailing: "Live")
+
+            if let url {
+                GeometryReader { proxy in
+                    let viewportWidth = CGFloat(viewport.width)
+                    let visibleHeight = min(CGFloat(viewport.height), 760)
+                    let scale = min(1, max(0.24, proxy.size.width / max(viewportWidth, 1)))
+
+                    LiveViewportWebView(url: url, viewport: viewport)
+                        .frame(width: viewportWidth, height: visibleHeight)
+                        .scaleEffect(scale, anchor: .topLeading)
+                        .frame(width: viewportWidth * scale, height: visibleHeight * scale, alignment: .topLeading)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(.secondary.opacity(0.2), lineWidth: 1)
+                        )
+                }
+                .frame(height: min(CGFloat(viewport.height), 760) * min(1, 900 / CGFloat(max(viewport.width, 1))))
+                .frame(minHeight: 220)
+            } else {
+                Text("Invalid URL.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct ViewportFrameHeader: View {
+    let viewport: APIClient.VisualViewportDTO
+    let trailing: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: viewportFrameIcon(viewport.name))
+                .foregroundStyle(.secondary)
+            Text("\(viewport.name.capitalized) \(viewport.width)x\(viewport.height)")
+                .font(.caption.bold())
+            Spacer()
+            Text(trailing)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func viewportFrameIcon(_ name: String) -> String {
+        switch name {
+        case "desktop": "desktopcomputer"
+        case "tablet": "ipad"
+        case "mobile": "iphone"
+        default: "rectangle"
+        }
+    }
+}
+
+private struct LiveViewportWebView: NSViewRepresentable {
+    let url: URL
+    let viewport: APIClient.VisualViewportDTO
+
+    func makeNSView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.navigationDelegate = context.coordinator
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.load(request)
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        if context.coordinator.currentURL != url {
+            webView.load(request)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(url: url)
+    }
+
+    private var request: URLRequest {
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 30
+        return request
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        var currentURL: URL
+
+        init(url: URL) {
+            currentURL = url
+        }
+
+        func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            currentURL = webView.url ?? currentURL
         }
     }
 }
@@ -1071,6 +1315,71 @@ private extension Color {
 private func copy(_ value: String) {
     NSPasteboard.general.clearContents()
     NSPasteboard.general.setString(value, forType: .string)
+}
+
+private func viewportPDFData(
+    snapshot: APIClient.VisualSnapshotDTO,
+    pages: [(viewport: APIClient.VisualViewportDTO, image: NSImage)]
+) -> Data? {
+    let data = NSMutableData()
+    guard let consumer = CGDataConsumer(data: data) else { return nil }
+    var mediaBox = CGRect(x: 0, y: 0, width: 595, height: 842)
+    guard let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil) else { return nil }
+
+    let margin: CGFloat = 36
+    let titleHeight: CGFloat = 54
+    let pageWidth: CGFloat = 595
+    let imageWidth = pageWidth - margin * 2
+
+    for page in pages {
+        guard let cgImage = page.image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { continue }
+        let imageSize = page.image.size
+        let scale = imageWidth / max(imageSize.width, 1)
+        let imageHeight = imageSize.height * scale
+        let pageHeight = max(CGFloat(842), imageHeight + titleHeight + margin * 2)
+        let pageRect = CGRect(x: 0, y: 0, width: pageWidth, height: pageHeight)
+
+        context.beginPDFPage([kCGPDFContextMediaBox as String: pageRect] as CFDictionary)
+        context.setFillColor(NSColor.textBackgroundColor.cgColor)
+        context.fill(pageRect)
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        let title = "\(page.viewport.name.capitalized) \(page.viewport.width)x\(page.viewport.height)"
+        let subtitle = snapshot.url
+        (title as NSString).draw(
+            in: CGRect(x: margin, y: pageHeight - margin - 22, width: imageWidth, height: 22),
+            withAttributes: [
+                .font: NSFont.boldSystemFont(ofSize: 14),
+                .foregroundColor: NSColor.labelColor,
+            ]
+        )
+        (subtitle as NSString).draw(
+            in: CGRect(x: margin, y: pageHeight - margin - 42, width: imageWidth, height: 18),
+            withAttributes: [
+                .font: NSFont.systemFont(ofSize: 9),
+                .foregroundColor: NSColor.secondaryLabelColor,
+            ]
+        )
+        NSGraphicsContext.restoreGraphicsState()
+
+        let imageRect = CGRect(x: margin, y: margin, width: imageWidth, height: imageHeight)
+        context.interpolationQuality = .high
+        context.draw(cgImage, in: imageRect)
+        context.endPDFPage()
+    }
+
+    context.closePDF()
+    return data as Data
+}
+
+private func safeFilename(_ value: String) -> String {
+    let illegal = CharacterSet(charactersIn: "/\\?%*|\"<>:")
+    let cleaned = value
+        .components(separatedBy: illegal)
+        .joined(separator: "-")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    return cleaned.isEmpty ? "gyrus" : String(cleaned.prefix(80))
 }
 
 private func frequency(_ values: [String], limit: Int = 8) -> [String] {
