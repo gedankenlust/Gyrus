@@ -1,11 +1,57 @@
 import SwiftUI
 import AppKit
 
+private enum DesignInspectorSection: String, CaseIterable, Identifiable {
+    case overview
+    case visual
+    case colors
+    case typography
+    case components
+    case layout
+    case assets
+    case seo
+    case accessibility
+    case raw
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .overview: "Overview"
+        case .visual: "Visual"
+        case .colors: "Colors"
+        case .typography: "Type"
+        case .components: "Components"
+        case .layout: "Layout"
+        case .assets: "Assets"
+        case .seo: "SEO"
+        case .accessibility: "A11y"
+        case .raw: "Raw"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .overview: "rectangle.grid.2x2"
+        case .visual: "photo"
+        case .colors: "eyedropper"
+        case .typography: "textformat"
+        case .components: "square.stack.3d.up"
+        case .layout: "rectangle.3.group"
+        case .assets: "photo.on.rectangle.angled"
+        case .seo: "magnifyingglass"
+        case .accessibility: "accessibility"
+        case .raw: "curlybraces.square"
+        }
+    }
+}
+
 struct VisualSnapshotTabView: View {
     let bookmark: Bookmark
 
     @State private var snapshot: APIClient.VisualSnapshotDTO?
     @State private var selectedViewportName: String?
+    @State private var selectedSection: DesignInspectorSection = .overview
     @State private var isLoading = false
     @State private var isCapturing = false
 
@@ -43,7 +89,7 @@ struct VisualSnapshotTabView: View {
     private var header: some View {
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Label("Snapshot", systemImage: "camera.viewfinder")
+                Label("Design", systemImage: "viewfinder")
                     .font(.headline)
                 Spacer()
                 if isCapturing {
@@ -52,7 +98,7 @@ struct VisualSnapshotTabView: View {
                 Button {
                     Task { await captureSnapshot() }
                 } label: {
-                    Label(snapshot == nil ? "Capture" : "Recapture", systemImage: "camera.metering.center.weighted")
+                    Label(snapshot == nil ? "Inspect" : "Reinspect", systemImage: "camera.metering.center.weighted")
                         .font(.caption.weight(.medium))
                 }
                 .buttonStyle(.borderless)
@@ -83,9 +129,9 @@ struct VisualSnapshotTabView: View {
                 .font(.system(size: 42))
                 .foregroundStyle(.secondary.opacity(0.55))
             VStack(spacing: 6) {
-                Text("No design snapshot yet")
+                Text("No design inspection yet")
                     .font(.headline)
-                Text("Capture the rendered page to inspect screenshots, colors, typography, layout and computed styles.")
+                Text("Inspect the rendered page to collect visual, CSS, typography, structure and component evidence.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -94,7 +140,7 @@ struct VisualSnapshotTabView: View {
             Button {
                 Task { await captureSnapshot() }
             } label: {
-                Label("Capture Snapshot", systemImage: "camera.metering.center.weighted")
+                Label("Inspect Page", systemImage: "camera.metering.center.weighted")
             }
             .buttonStyle(.borderedProminent)
             .disabled(isCapturing)
@@ -108,16 +154,58 @@ struct VisualSnapshotTabView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 viewportPicker
+                sectionPicker
 
                 if let selectedViewport {
-                    screenshotSection(selectedViewport)
-                    colorsSection
-                    typographySection(selectedViewport)
-                    structureSection(selectedViewport)
-                    elementSamplesSection(selectedViewport)
+                    switch selectedSection {
+                    case .overview:
+                        overviewSection(selectedViewport)
+                    case .visual:
+                        screenshotSection(selectedViewport)
+                    case .colors:
+                        colorsSection
+                    case .typography:
+                        typographySection(selectedViewport)
+                    case .components:
+                        componentsSection(selectedViewport)
+                    case .layout:
+                        layoutSection(selectedViewport)
+                    case .assets:
+                        assetsSection(selectedViewport)
+                    case .seo:
+                        seoSection(selectedViewport)
+                    case .accessibility:
+                        accessibilitySection(selectedViewport)
+                    case .raw:
+                        elementSamplesSection(selectedViewport)
+                    }
                 }
             }
             .padding(16)
+        }
+    }
+
+    private var sectionPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(DesignInspectorSection.allCases) { section in
+                    Button {
+                        selectedSection = section
+                    } label: {
+                        Label(section.title, systemImage: section.icon)
+                            .labelStyle(.titleAndIcon)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(selectedSection == section ? .white : .primary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                selectedSection == section ? Color.accentColor : Color.secondary.opacity(0.14),
+                                in: RoundedRectangle(cornerRadius: 6)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 
@@ -178,6 +266,34 @@ struct VisualSnapshotTabView: View {
         }
     }
 
+    private func overviewSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            SnapshotSection(title: "Overview", icon: "rectangle.grid.2x2") {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 8)], spacing: 8) {
+                    MetricPill(label: "Colors", value: colors.count)
+                    MetricPill(label: "Fonts", value: viewport.observedFonts.count)
+                    MetricPill(label: "Elements", value: viewport.elementSamples?.count ?? 0)
+                    MetricPill(label: "Buttons", value: viewport.structure.buttons)
+                    MetricPill(label: "Images", value: viewport.structure.images)
+                    MetricPill(label: "SVG", value: viewport.structure.svgs)
+                }
+
+                if let metaDescription = viewport.metaDescription, !metaDescription.isEmpty {
+                    Text(metaDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                        .textSelection(.enabled)
+                }
+            }
+
+            screenshotSection(viewport)
+            colorsSection
+            typographySection(viewport)
+            structureSection(viewport)
+        }
+    }
+
     private var colorsSection: some View {
         SnapshotSection(title: "Colors", icon: "eyedropper") {
             if colors.isEmpty {
@@ -232,6 +348,99 @@ struct VisualSnapshotTabView: View {
                 ForEach(Array((viewport.elementSamples ?? []).prefix(80))) { sample in
                     ElementSampleRow(sample: sample)
                 }
+            }
+        }
+    }
+
+    private func componentsSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        let samples = viewport.elementSamples ?? []
+        let groups = [
+            ComponentGroup(title: "Navigation", icon: "point.3.connected.trianglepath.dotted", samples: samples.matching(["nav", "header", "menu"])),
+            ComponentGroup(title: "Hero / Sections", icon: "rectangle.topthird.inset.filled", samples: samples.matching(["hero", "section", "main", "article"])),
+            ComponentGroup(title: "CTA / Buttons", icon: "button.programmable", samples: samples.filter { $0.tag == "button" || $0.selectorHint.localizedCaseInsensitiveContains("btn") || $0.selectorHint.localizedCaseInsensitiveContains("cta") }),
+            ComponentGroup(title: "Cards", icon: "rectangle.stack", samples: samples.matching(["card", "tile", "item"])),
+            ComponentGroup(title: "Forms", icon: "rectangle.and.pencil.and.ellipsis", samples: samples.filter { ["form", "input", "textarea", "select", "label"].contains($0.tag) }),
+        ]
+
+        return SnapshotSection(title: "Components", icon: "square.stack.3d.up") {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(groups.filter { !$0.samples.isEmpty }) { group in
+                    ComponentGroupView(group: group)
+                }
+
+                if groups.allSatisfy({ $0.samples.isEmpty }) {
+                    Text("No obvious component patterns found yet. Raw computed elements are still available in Raw.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func layoutSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        let samples = viewport.elementSamples ?? []
+        let maxWidth = samples.map(\.width).max() ?? 0
+        let commonRadii = frequency(samples.map(\.borderRadius).filter { !$0.isEmpty && $0 != "0px" })
+        let commonPadding = frequency(samples.map(\.padding).filter { !$0.isEmpty })
+        let commonDisplay = frequency(samples.map(\.display).filter { !$0.isEmpty })
+
+        return SnapshotSection(title: "Layout", icon: "rectangle.3.group") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    MetricPill(label: "Viewport W", value: viewport.width)
+                    MetricPill(label: "Viewport H", value: viewport.height)
+                    MetricPill(label: "Max Element W", value: maxWidth)
+                }
+
+                InspectorList(title: "Display Patterns", values: commonDisplay)
+                InspectorList(title: "Padding Patterns", values: commonPadding)
+                InspectorList(title: "Radius Patterns", values: commonRadii)
+            }
+        }
+    }
+
+    private func assetsSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        SnapshotSection(title: "Assets", icon: "photo.on.rectangle.angled") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    MetricPill(label: "Images", value: viewport.structure.images)
+                    MetricPill(label: "SVG", value: viewport.structure.svgs)
+                }
+                Text("Next phase: extract image URLs, logo candidates, SVG/icon usage, OG images, dimensions and asset file sizes from the DevTools capture.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func seoSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        SnapshotSection(title: "SEO / Content", icon: "magnifyingglass") {
+            VStack(alignment: .leading, spacing: 8) {
+                if let pageTitle = viewport.pageTitle, !pageTitle.isEmpty {
+                    CopyRow(value: "Title: \(pageTitle)", systemImage: "textformat.size")
+                }
+                if let metaDescription = viewport.metaDescription, !metaDescription.isEmpty {
+                    CopyRow(value: "Description: \(metaDescription)", systemImage: "text.quote")
+                }
+                structureSection(viewport)
+                Text("Next phase: add canonical, OG/Twitter tags, JSON-LD, language, robots hints and internal/external link breakdown.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func accessibilitySection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        SnapshotSection(title: "Accessibility", icon: "accessibility") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    MetricPill(label: "Buttons", value: viewport.structure.buttons)
+                    MetricPill(label: "Images", value: viewport.structure.images)
+                    MetricPill(label: "Forms", value: viewport.structure.forms)
+                }
+                Text("Next phase: run contrast checks, alt text detection, button/link names, form labels, heading order and tap target checks.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -336,6 +545,58 @@ private struct MetricPill: View {
         .frame(minWidth: 54)
         .padding(.vertical, 6)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+private struct ComponentGroup: Identifiable {
+    let title: String
+    let icon: String
+    let samples: [APIClient.VisualElementSampleDTO]
+
+    var id: String { title }
+}
+
+private struct ComponentGroupView: View {
+    let group: ComponentGroup
+
+    var body: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(group.samples.prefix(12))) { sample in
+                    ElementSampleRow(sample: sample)
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            HStack(spacing: 8) {
+                Label(group.title, systemImage: group.icon)
+                    .font(.caption.bold())
+                Spacer()
+                Text("\(group.samples.count)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(8)
+        .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 7))
+    }
+}
+
+private struct InspectorList: View {
+    let title: String
+    let values: [String]
+
+    var body: some View {
+        if !values.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+                ForEach(values, id: \.self) { value in
+                    CopyRow(value: value, systemImage: "doc.on.doc")
+                }
+            }
+        }
     }
 }
 
@@ -507,4 +768,24 @@ private extension Color {
 private func copy(_ value: String) {
     NSPasteboard.general.clearContents()
     NSPasteboard.general.setString(value, forType: .string)
+}
+
+private func frequency(_ values: [String], limit: Int = 8) -> [String] {
+    let counts = Dictionary(grouping: values, by: { $0 }).mapValues(\.count)
+    return counts
+        .sorted { lhs, rhs in
+            if lhs.value == rhs.value { return lhs.key < rhs.key }
+            return lhs.value > rhs.value
+        }
+        .prefix(limit)
+        .map { "\($0.key) (\($0.value)x)" }
+}
+
+private extension Array where Element == APIClient.VisualElementSampleDTO {
+    func matching(_ needles: [String]) -> [APIClient.VisualElementSampleDTO] {
+        filter { sample in
+            let haystack = "\(sample.tag) \(sample.selectorHint) \(sample.text)".lowercased()
+            return needles.contains { haystack.contains($0.lowercased()) }
+        }
+    }
 }

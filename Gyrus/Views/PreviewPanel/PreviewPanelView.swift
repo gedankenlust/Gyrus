@@ -38,11 +38,16 @@ struct MarkdownTextEditor: NSViewRepresentable {
 enum PreviewTab: String, CaseIterable, Identifiable {
     case info = "Info"
     case reader = "Reader"
-    case snapshot = "Snapshot"
+    case design = "Design"
     case brain = "AI Brain"
     case notes = "Notes"
     case web = "Web"
     var id: String { rawValue }
+
+    static func fromPreference(_ value: String) -> PreviewTab? {
+        if value == "Snapshot" { return .design }
+        return PreviewTab(rawValue: value)
+    }
 }
 
 // MARK: - Root
@@ -113,7 +118,7 @@ struct BookmarkDetailView: View {
     @Environment(TagStore.self) private var tagStore
     
     @State private var controller   = WebController()
-    @State private var selectedTab: PreviewTab = PreviewTab(rawValue: AppSettings.shared.defaultPreviewTab) ?? .info
+    @State private var selectedTab: PreviewTab = PreviewTab.fromPreference(AppSettings.shared.defaultPreviewTab) ?? .info
     @State private var isEditing    = false
     @State private var newNoteText  = ""
     @State private var readerContent: String = "Loading..."
@@ -139,7 +144,7 @@ struct BookmarkDetailView: View {
     /// The user's preferred starting tab, falling back to Info if that tab
     /// isn't available (e.g. AI Brain while the brain is disabled).
     private var preferredTab: PreviewTab {
-        let pref = PreviewTab(rawValue: AppSettings.shared.defaultPreviewTab) ?? .info
+        let pref = PreviewTab.fromPreference(AppSettings.shared.defaultPreviewTab) ?? .info
         return availableTabs.contains(pref) ? pref : .info
     }
 
@@ -154,7 +159,7 @@ struct BookmarkDetailView: View {
                 switch selectedTab {
                 case .info: infoMode
                 case .reader: readerMode
-                case .snapshot: VisualSnapshotTabView(bookmark: bookmark)
+                case .design: VisualSnapshotTabView(bookmark: bookmark)
                 case .brain: AIBrainTabView(bookmark: bookmark)
                 case .notes: notesMode
                 case .web: webMode

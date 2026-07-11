@@ -147,7 +147,7 @@ private struct AppearancePane: View {
                 Picker("Open bookmarks on", selection: $settings.defaultPreviewTab) {
                     Text("Info").tag("Info")
                     Text("Reader").tag("Reader")
-                    Text("Snapshot").tag("Snapshot")
+                    Text("Design").tag("Design")
                     Text("AI Brain").tag("AI Brain")
                     Text("Notes").tag("Notes")
                     Text("Web").tag("Web")
