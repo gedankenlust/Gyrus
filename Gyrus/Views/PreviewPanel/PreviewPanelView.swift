@@ -171,13 +171,35 @@ struct BookmarkDetailView: View {
     }
 
     private var tabPicker: some View {
-        Picker("View Mode", selection: $selectedTab) {
+        HStack(spacing: 0) {
             ForEach(availableTabs) { tab in
-                Text(tab.rawValue).tag(tab)
+                Button {
+                    selectedTab = tab
+                } label: {
+                    Text(tab.rawValue)
+                        .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .medium))
+                        .foregroundStyle(selectedTab == tab ? .white : .primary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 30)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .background {
+                    if selectedTab == tab {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.accentColor)
+                    }
+                }
+
+                if tab.id != availableTabs.last?.id {
+                    Divider()
+                        .frame(height: 18)
+                        .padding(.horizontal, 6)
+                }
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        .padding(3)
+        .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 9))
         .padding(10)
         .background(.bar)
     }
