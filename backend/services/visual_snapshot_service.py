@@ -57,96 +57,108 @@ async def capture_snapshot(bookmark_id: str, url: str, title: str = "") -> dict[
         "title": title,
         "captured_at": datetime.now(timezone.utc).isoformat(),
         "viewports": [],
+        "errors": [],
     }
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         try:
             for viewport in VIEWPORTS:
-                page = await browser.new_page(
-                    viewport={"width": viewport["width"], "height": viewport["height"]},
-                    device_scale_factor=viewport["device_scale_factor"],
-                    is_mobile=viewport["name"] in {"tablet", "mobile"},
-                )
-                network_entries: dict[str, dict[str, Any]] = {}
-                console_messages: list[dict[str, Any]] = []
-
-                def on_request(request):
-                    network_entries[request.url] = {
-                        "url": request.url,
-                        "method": request.method,
-                        "resource_type": request.resource_type,
-                        "status": None,
-                        "failed": False,
-                        "failure": None,
-                    }
-
-                def on_response(response):
-                    entry = network_entries.setdefault(response.url, {"url": response.url})
-                    entry.update(
-                        {
-                            "status": response.status,
-                            "resource_type": response.request.resource_type,
-                            "method": response.request.method,
-                            "failed": response.status >= 400,
-                            "content_type": response.headers.get("content-type", ""),
-                            "content_length": response.headers.get("content-length", ""),
-                        }
+                page = None
+                try:
+                    page = await browser.new_page(
+                        viewport={"width": viewport["width"], "height": viewport["height"]},
+                        device_scale_factor=viewport["device_scale_factor"],
+                        is_mobile=viewport["name"] in {"tablet", "mobile"},
                     )
+                    network_entries: dict[str, dict[str, Any]] = {}
+                    console_messages: list[dict[str, Any]] = []
 
-                def on_request_failed(request):
-                    entry = network_entries.setdefault(request.url, {"url": request.url})
-                    failure = request.failure or ""
-                    entry.update(
-                        {
+                    def on_request(request):
+                        network_entries[request.url] = {
+                            "url": request.url,
                             "method": request.method,
                             "resource_type": request.resource_type,
-                            "failed": True,
-                            "failure": failure,
+                            "status": None,
+                            "failed": False,
+                            "failure": None,
                         }
-                    )
 
-                def on_console(message):
-                    console_messages.append(
+                    def on_response(response):
+                        entry = network_entries.setdefault(response.url, {"url": response.url})
+                        entry.update(
+                            {
+                                "status": response.status,
+                                "resource_type": response.request.resource_type,
+                                "method": response.request.method,
+                                "failed": response.status >= 400,
+                                "content_type": response.headers.get("content-type", ""),
+                                "content_length": response.headers.get("content-length", ""),
+                            }
+                        )
+
+                    def on_request_failed(request):
+                        entry = network_entries.setdefault(request.url, {"url": request.url})
+                        failure = request.failure or ""
+                        entry.update(
+                            {
+                                "method": request.method,
+                                "resource_type": request.resource_type,
+                                "failed": True,
+                                "failure": failure,
+                            }
+                        )
+
+                    def on_console(message):
+                        console_messages.append(
+                            {
+                                "type": message.type,
+                                "text": message.text[:1000],
+                                "location": message.location,
+                            }
+                        )
+
+                    page.on("request", on_request)
+                    page.on("response", on_response)
+                    page.on("requestfailed", on_request_failed)
+                    page.on("console", on_console)
+
+                    await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+                    try:
+                        await page.wait_for_load_state("networkidle", timeout=5_000)
+                    except Exception:
+                        pass
+
+                    screenshot_name = f"{viewport['name']}.png"
+                    screenshot_path = out_dir / screenshot_name
+                    await page.screenshot(path=str(screenshot_path), full_page=True)
+
+                    data = await page.evaluate(_VISUAL_EXTRACTOR_JS)
+                    data.update(
                         {
-                            "type": message.type,
-                            "text": message.text[:1000],
-                            "location": message.location,
+                            "name": viewport["name"],
+                            "width": viewport["width"],
+                            "height": viewport["height"],
+                            "screenshot": screenshot_name,
+                            "screenshot_url": (
+                                f"/api/files/visual-snapshots/{bookmark_id}/{screenshot_name}"
+                            ),
+                            "dominant_colors": _dominant_colors(screenshot_path),
+                            "network": _network_summary(network_entries),
+                            "console_messages": console_messages[:60],
                         }
                     )
-
-                page.on("request", on_request)
-                page.on("response", on_response)
-                page.on("requestfailed", on_request_failed)
-                page.on("console", on_console)
-
-                await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-                try:
-                    await page.wait_for_load_state("networkidle", timeout=5_000)
-                except Exception:
-                    pass
-
-                screenshot_name = f"{viewport['name']}.png"
-                screenshot_path = out_dir / screenshot_name
-                await page.screenshot(path=str(screenshot_path), full_page=True)
-
-                data = await page.evaluate(_VISUAL_EXTRACTOR_JS)
-                data.update(
-                    {
-                        "name": viewport["name"],
-                        "width": viewport["width"],
-                        "height": viewport["height"],
-                        "screenshot": screenshot_name,
-                        "screenshot_url": (
-                            f"/api/files/visual-snapshots/{bookmark_id}/{screenshot_name}"
-                        ),
-                        "dominant_colors": _dominant_colors(screenshot_path),
-                        "network": _network_summary(network_entries),
-                        "console_messages": console_messages[:60],
-                    }
-                )
-                snapshot["viewports"].append(data)
-                await page.close()
+                    snapshot["viewports"].append(data)
+                except Exception as e:
+                    snapshot["errors"].append(
+                        {
+                            "viewport": viewport["name"],
+                            "message": str(e)[:1000],
+                        }
+                    )
+                finally:
+                    if page is not None:
+                        await page.close()
         finally:
             await browser.close()
 
@@ -236,10 +248,12 @@ _VISUAL_EXTRACTOR_JS = r"""
   const samples = [];
 
   function textOf(el) {
+    if (!el) return '';
     return (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 160);
   }
 
   function attr(el, name) {
+    if (!el) return '';
     return el.getAttribute(name) || '';
   }
 
