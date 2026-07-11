@@ -105,6 +105,11 @@ struct VisualSnapshotTabView: View {
         return snapshot.viewports.first
     }
 
+    private var overviewViewport: APIClient.VisualViewportDTO? {
+        guard let snapshot else { return nil }
+        return snapshot.viewports.first(where: { $0.name == "desktop" }) ?? snapshot.viewports.first
+    }
+
     private var colors: [SnapshotColor] {
         guard let viewport = selectedViewport else { return [] }
         return SnapshotColor.unique(from: viewport.dominantColors + viewport.observedColors)
@@ -208,8 +213,7 @@ struct VisualSnapshotTabView: View {
                     case .review:
                         reviewSection
                     case .overview:
-                        viewportPicker
-                        overviewSection(selectedViewport)
+                        overviewSection(overviewViewport ?? selectedViewport)
                     case .visual:
                         viewportPicker
                         screenshotSection(selectedViewport)
