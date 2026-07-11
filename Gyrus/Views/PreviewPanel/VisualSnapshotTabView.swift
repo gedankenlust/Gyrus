@@ -213,39 +213,40 @@ struct VisualSnapshotTabView: View {
                     case .review:
                         reviewSection
                     case .overview:
-                        overviewSection(overviewViewport ?? selectedViewport)
+                        compactViewportPicker
+                        overviewSection(selectedViewport)
                     case .visual:
-                        viewportPicker
+                        compactViewportPicker
                         screenshotSection(selectedViewport)
                     case .colors:
-                        viewportPicker
+                        compactViewportPicker
                         styleSection(selectedViewport)
                     case .typography:
-                        viewportPicker
+                        compactViewportPicker
                         typographySection(selectedViewport)
                     case .components:
-                        viewportPicker
+                        compactViewportPicker
                         componentsSection(selectedViewport)
                     case .layout:
-                        viewportPicker
+                        compactViewportPicker
                         layoutSection(selectedViewport)
                     case .assets:
-                        viewportPicker
+                        compactViewportPicker
                         assetsSection(selectedViewport)
                     case .seo:
-                        viewportPicker
+                        compactViewportPicker
                         seoSection(selectedViewport)
                     case .accessibility:
-                        viewportPicker
+                        compactViewportPicker
                         accessibilitySection(selectedViewport)
                     case .network:
-                        viewportPicker
+                        compactViewportPicker
                         networkSection(selectedViewport)
                     case .console:
-                        viewportPicker
+                        compactViewportPicker
                         consoleSection(selectedViewport)
                     case .raw:
-                        viewportPicker
+                        compactViewportPicker
                         elementSamplesSection(selectedViewport)
                     }
                 }
@@ -346,6 +347,40 @@ struct VisualSnapshotTabView: View {
                     }
                     .buttonStyle(.plain)
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var compactViewportPicker: some View {
+        if let snapshot, snapshot.viewports.count > 1, let selectedViewport {
+            HStack(spacing: 8) {
+                Label("Viewport", systemImage: viewportIcon(selectedViewport.name))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Menu {
+                    ForEach(snapshot.viewports, id: \.name) { viewport in
+                        Button {
+                            selectedViewportName = viewport.name
+                        } label: {
+                            Label(
+                                "\(viewport.name.capitalized) \(viewport.width)x\(viewport.height)",
+                                systemImage: viewportIcon(viewport.name)
+                            )
+                        }
+                    }
+                } label: {
+                    Text("\(selectedViewport.name.capitalized) \(selectedViewport.width)x\(selectedViewport.height)")
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.secondary.opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
             }
         }
     }
