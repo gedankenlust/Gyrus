@@ -4,6 +4,7 @@ import pytest
 
 from services import llm_service as llm_module
 from services import scraper_service as scraper_module
+from services.site_structure_service import site_structure_service
 from services.brain_sync_service import brain_sync_service
 
 
@@ -129,6 +130,46 @@ def test_chat_includes_visual_snapshot_context(client, brain_enabled, monkeypatc
     assert "Inter, sans-serif" in captured["context"]
     assert ".cta.primary" in captured["context"]
     assert "radius=8px" in captured["context"]
+
+
+def test_chat_includes_site_structure_context_for_page_count_questions(client, brain_enabled, monkeypatch):
+    captured = {}
+
+    async def fake_scrape(url):
+        return {"content": "Page text long enough to become context. " * 8, "title": "Site"}
+
+    async def fake_site_context(bookmark_id, url, force_refresh=False):
+        return (
+            "## Site Structure (same-origin crawl)\n"
+            "Discovered internal HTML pages: 4\n"
+            "Pages:\n"
+            "- / — Home\n"
+            "- /kontakt — Kontakt"
+        )
+
+    async def fake_ask_llm(prompt, context, provider_config, title="", url="", history=None, language=None):
+        captured["context"] = context
+        return "Es wurden 4 interne HTML-Seiten gefunden."
+
+    monkeypatch.setattr(scraper_module.scraper_service, "extract_content", fake_scrape)
+    monkeypatch.setattr(site_structure_service, "context_for_url", fake_site_context)
+    monkeypatch.setattr(llm_module.LLMService, "ask_llm", fake_ask_llm)
+
+    bm = client.post("/api/bookmarks", json={
+        "title": "Site",
+        "url": "https://example.com",
+        "source": "manual",
+    }).json()
+
+    resp = client.post("/api/brain/chat", json={
+        "bookmark_id": bm["id"],
+        "prompt": "Wie viele Seiten hat die Webseite?",
+        "provider_config": {"provider": "ollama", "model": "llama3"},
+    })
+
+    assert resp.status_code == 200
+    assert "Site Structure" in captured["context"]
+    assert "Discovered internal HTML pages: 4" in captured["context"]
 
 
 def test_chat_with_german_language_instructs_german_reply(client, brain_enabled, monkeypatch):

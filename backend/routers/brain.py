@@ -14,6 +14,7 @@ from services.scraper_service import scraper_service, _is_youtube as is_youtube
 from services.brain_sync_service import brain_sync_service
 from services import brain_chat_service
 from services import visual_snapshot_service
+from services.site_structure_service import site_structure_service
 
 import logging
 logger = logging.getLogger(__name__)
@@ -230,7 +231,7 @@ async def create_visual_snapshot(bookmark_id: str, db: Session = Depends(get_db)
     except visual_snapshot_service.VisualSnapshotUnavailable as e:
         raise HTTPException(status_code=503, detail=str(e))
 
-async def _prepare_context(db: Session, bookmark) -> str:
+async def _prepare_context(db: Session, bookmark, prompt: str | None = None) -> str:
     """Build the page context for an LLM chat: read the cached scraped section
     from the bookmark's markdown file, re-scraping when it's missing/stale.
     Shared by the blocking and streaming chat endpoints."""
@@ -268,6 +269,10 @@ async def _prepare_context(db: Session, bookmark) -> str:
     MAX_CONTEXT_CHARS = 12000
     if len(context) > MAX_CONTEXT_CHARS:
         context = context[:MAX_CONTEXT_CHARS] + "... [Content Truncated]"
+    if site_structure_service.should_include_for_prompt(prompt):
+        site_context = await site_structure_service.context_for_url(bookmark.id, bookmark.url)
+        if site_context:
+            context = f"{context}\n\n{site_context}" if context else site_context
     visual_context = _visual_snapshot_context(bookmark.id)
     if visual_context:
         context = f"{context}\n\n{visual_context}" if context else visual_context
@@ -282,7 +287,7 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
         raise HTTPException(status_code=404, detail="Bookmark not found")
 
     # 2. Build the page context (cached scrape, re-scraping when stale).
-    context = await _prepare_context(db, bookmark)
+    context = await _prepare_context(db, bookmark, request.prompt)
     model = _provider_model(request.provider_config)
     brain_chat_service.add_message(
         db, bookmark.id, "user", request.prompt, model=model, status="complete"
@@ -340,7 +345,7 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
     if not bookmark:
         raise HTTPException(status_code=404, detail="Bookmark not found")
 
-    context = await _prepare_context(db, bookmark)
+    context = await _prepare_context(db, bookmark, request.prompt)
     history = [{"role": m.role, "content": m.content} for m in (request.history or [])]
     model = _provider_model(request.provider_config)
     brain_chat_service.add_message(
