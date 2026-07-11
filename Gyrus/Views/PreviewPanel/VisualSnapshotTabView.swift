@@ -349,16 +349,12 @@ struct VisualSnapshotTabView: View {
                     Text("No viewports captured yet.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                } else if let snapshot {
-                    VStack(alignment: .leading, spacing: 16) {
-                        ForEach(snapshot.viewports, id: \.name) { viewport in
-                            switch reviewMode {
-                            case .snapshot:
-                                SnapshotViewportFrame(viewport: viewport)
-                            case .live:
-                                LiveViewportFrame(url: URL(string: snapshot.url), viewport: viewport)
-                            }
-                        }
+                } else if let snapshot, let selectedViewport {
+                    switch reviewMode {
+                    case .snapshot:
+                        SnapshotViewportFrame(viewport: selectedViewport)
+                    case .live:
+                        LiveViewportFrame(url: URL(string: snapshot.url), viewport: selectedViewport)
                     }
                 }
             }
@@ -732,25 +728,22 @@ private struct SnapshotViewportFrame: View {
         VStack(alignment: .leading, spacing: 8) {
             ViewportFrameHeader(viewport: viewport, trailing: "Snapshot")
 
-            ScrollView {
-                AsyncImage(url: APIClient.shared.visualSnapshotFileURL(path: viewport.screenshotURL)) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFit()
-                    default:
-                        Rectangle()
-                            .fill(.quaternary)
-                            .frame(height: 260)
-                            .overlay {
-                                Image(systemName: "photo")
-                                    .foregroundStyle(.secondary)
-                            }
-                    }
+            AsyncImage(url: APIClient.shared.visualSnapshotFileURL(path: viewport.screenshotURL)) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFit()
+                default:
+                    Rectangle()
+                        .fill(.quaternary)
+                        .frame(height: 260)
+                        .overlay {
+                            Image(systemName: "photo")
+                                .foregroundStyle(.secondary)
+                        }
                 }
             }
-            .frame(maxHeight: 620)
             .background(.white)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(
