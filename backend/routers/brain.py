@@ -159,6 +159,16 @@ def _visual_snapshot_context(bookmark_id: str) -> str:
         text = text[:MAX_SNAPSHOT_CONTEXT_CHARS] + "... [Visual Snapshot Truncated]"
     return text
 
+
+def _save_assistant_reply(db: Session, bookmark, prompt: str, response_text: str, model: str | None) -> None:
+    brain_chat_service.add_message(
+        db, bookmark.id, "assistant", response_text, model=model, status="complete"
+    )
+    try:
+        brain_sync_service.append_interaction(db, bookmark, prompt, response_text)
+    except Exception as e:
+        logger.warning(f"Failed to append interaction: {e}")
+
 def _reconcile_brain_blocking():
     """Reconcile folder structure + rebuild the index, with its own session.
     Heavy for large libraries, so it runs OFF the event loop (see /config)."""
@@ -286,12 +296,20 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
     if not bookmark:
         raise HTTPException(status_code=404, detail="Bookmark not found")
 
-    # 2. Build the page context (cached scrape, re-scraping when stale).
-    context = await _prepare_context(db, bookmark, request.prompt)
     model = _provider_model(request.provider_config)
     brain_chat_service.add_message(
         db, bookmark.id, "user", request.prompt, model=model, status="complete"
     )
+
+    if site_structure_service.is_page_count_prompt(request.prompt):
+        response_text = await site_structure_service.page_count_answer_for_url(
+            bookmark.id, bookmark.url, language=request.language
+        )
+        _save_assistant_reply(db, bookmark, request.prompt, response_text, model)
+        return ChatResponse(response=response_text)
+
+    # 2. Build the page context (cached scrape, re-scraping when stale).
+    context = await _prepare_context(db, bookmark, request.prompt)
 
     # 3. Call LLM — pass the bookmark identity and recent history so every
     #    turn stays anchored to this specific page.
@@ -319,16 +337,7 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
         )
         raise HTTPException(status_code=500, detail=detail)
 
-    brain_chat_service.add_message(
-        db, bookmark.id, "assistant", response_text, model=model, status="complete"
-    )
-
-    # 4. Append interaction to .md file
-    try:
-        brain_sync_service.append_interaction(db, bookmark, request.prompt, response_text)
-    except Exception as e:
-        # Don't fail the whole request if sync fails, but log it
-        logger.warning(f"Failed to append interaction: {e}")
+    _save_assistant_reply(db, bookmark, request.prompt, response_text, model)
 
     return ChatResponse(response=response_text)
 
@@ -345,12 +354,20 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
     if not bookmark:
         raise HTTPException(status_code=404, detail="Bookmark not found")
 
-    context = await _prepare_context(db, bookmark, request.prompt)
-    history = [{"role": m.role, "content": m.content} for m in (request.history or [])]
     model = _provider_model(request.provider_config)
     brain_chat_service.add_message(
         db, bookmark.id, "user", request.prompt, model=model, status="complete"
     )
+
+    if site_structure_service.is_page_count_prompt(request.prompt):
+        response_text = await site_structure_service.page_count_answer_for_url(
+            bookmark.id, bookmark.url, language=request.language
+        )
+        _save_assistant_reply(db, bookmark, request.prompt, response_text, model)
+        return StreamingResponse(iter([response_text]), media_type="text/plain; charset=utf-8")
+
+    context = await _prepare_context(db, bookmark, request.prompt)
+    history = [{"role": m.role, "content": m.content} for m in (request.history or [])]
 
     async def generate():
         collected: list[str] = []

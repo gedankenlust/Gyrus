@@ -75,6 +75,20 @@ class SiteStructureService:
         )
         return any(needle in text for needle in needles)
 
+    def is_page_count_prompt(self, prompt: str | None) -> bool:
+        text = " ".join((prompt or "").lower().split())
+        count_needles = (
+            "wie viele seiten",
+            "wieviele seiten",
+            "wie viel seiten",
+            "anzahl der seiten",
+            "seiten hat",
+            "seiten gibt",
+            "how many pages",
+            "number of pages",
+        )
+        return any(needle in text for needle in count_needles)
+
     async def context_for_url(
         self,
         bookmark_id: str,
@@ -82,11 +96,32 @@ class SiteStructureService:
         *,
         force_refresh: bool = False,
     ) -> str:
+        data = await self.data_for_url(bookmark_id, url, force_refresh=force_refresh)
+        return self._format_context(data)
+
+    async def data_for_url(
+        self,
+        bookmark_id: str,
+        url: str,
+        *,
+        force_refresh: bool = False,
+    ) -> dict:
         cached = None if force_refresh else self._read_cache(bookmark_id, url)
         data = cached or await self.crawl(url)
         if not cached:
             self._write_cache(bookmark_id, url, data)
-        return self._format_context(data)
+        return data
+
+    async def page_count_answer_for_url(
+        self,
+        bookmark_id: str,
+        url: str,
+        *,
+        language: str | None = None,
+        force_refresh: bool = False,
+    ) -> str:
+        data = await self.data_for_url(bookmark_id, url, force_refresh=force_refresh)
+        return self._format_page_count_answer(data, language=language)
 
     async def crawl(self, start_url: str) -> dict:
         parsed = urlparse(start_url)
@@ -180,6 +215,7 @@ class SiteStructureService:
             "limit": self.max_pages,
             "limit_reached": limit_reached,
             "sitemap_pages": len(sitemap_urls),
+            "sitemap_page_urls": sitemap_urls[:300],
             "sitemap_sources": sitemap_sources,
             "errors": errors[:5],
         }
@@ -367,6 +403,110 @@ class SiteStructureService:
             for heading in (page.get("headings") or [])[:3]:
                 lines.append(f"  {heading[:220]}")
         return "\n".join(lines)
+
+    def _format_page_count_answer(self, data: dict, *, language: str | None = None) -> str:
+        pages = data.get("pages") or []
+        sitemap_pages = int(data.get("sitemap_pages") or 0)
+        discovered_pages = len(pages)
+        count = max(sitemap_pages, discovered_pages)
+        limit_reached = bool(data.get("limit_reached"))
+        sitemap_sources = data.get("sitemap_sources") or []
+
+        source = "sitemap" if sitemap_pages else "crawl"
+        if sitemap_pages and discovered_pages and sitemap_pages != discovered_pages:
+            source = "sitemap_and_crawl"
+
+        if language == "de":
+            if count == 0:
+                return (
+                    "Ich konnte keine internen HTML-Seiten für diese Domain finden. "
+                    "Das kann passieren, wenn die Seite Crawling blockiert, keine Sitemap anbietet "
+                    "oder interne Links erst per JavaScript nachlädt."
+                )
+
+            if source == "sitemap":
+                first = f"Die Sitemap listet {count} interne Seiten/URLs für diese Domain."
+            elif source == "sitemap_and_crawl":
+                first = (
+                    f"Gyrus hat {count} interne Seiten/URLs gefunden: "
+                    f"{sitemap_pages} in der Sitemap und {discovered_pages} per internem Crawl."
+                )
+            elif limit_reached:
+                first = f"Gyrus hat mindestens {count} interne HTML-Seiten gefunden."
+            else:
+                first = f"Gyrus hat {count} interne HTML-Seiten gefunden."
+
+            lines = [
+                first,
+                "Das ist keine LLM-Schätzung, sondern das aktuelle Ergebnis aus Sitemap/interner Link-Erkennung. "
+                "Nicht verlinkte oder absichtlich versteckte Seiten können trotzdem fehlen.",
+            ]
+            if sitemap_sources:
+                lines.append("Quelle: " + ", ".join(sitemap_sources[:3]))
+            page_lines = self._page_list_lines(data, limit=20)
+            if page_lines:
+                lines.append("\nGefundene Seiten:")
+                lines.extend(page_lines)
+            return "\n".join(lines)
+
+        if count == 0:
+            return (
+                "I could not find internal HTML pages for this domain. This can happen if crawling is blocked, "
+                "no sitemap is available, or internal links are loaded only through JavaScript."
+            )
+        if source == "sitemap":
+            first = f"The sitemap lists {count} internal pages/URLs for this domain."
+        elif source == "sitemap_and_crawl":
+            first = (
+                f"Gyrus found {count} internal pages/URLs: "
+                f"{sitemap_pages} in the sitemap and {discovered_pages} through internal crawling."
+            )
+        elif limit_reached:
+            first = f"Gyrus found at least {count} internal HTML pages."
+        else:
+            first = f"Gyrus found {count} internal HTML pages."
+        lines = [
+            first,
+            "This is not an LLM estimate; it is the current sitemap/internal-link discovery result. "
+            "Unlinked or intentionally hidden pages can still be missing.",
+        ]
+        if sitemap_sources:
+            lines.append("Source: " + ", ".join(sitemap_sources[:3]))
+        page_lines = self._page_list_lines(data, limit=20)
+        if page_lines:
+            lines.append("\nFound pages:")
+            lines.extend(page_lines)
+        return "\n".join(lines)
+
+    def _page_list_lines(self, data: dict, *, limit: int = 20) -> list[str]:
+        pages = data.get("pages") or []
+        page_by_url = {page.get("url"): page for page in pages if page.get("url")}
+        sitemap_urls = data.get("sitemap_page_urls") or []
+        if sitemap_urls:
+            urls = sitemap_urls[:limit]
+            lines = []
+            for idx, url in enumerate(urls, start=1):
+                page = page_by_url.get(url) or {}
+                title = page.get("title") or self._path_label(url)
+                lines.append(f"{idx}. {title} ({self._path_label(url)})")
+            return lines
+
+        lines = []
+        for idx, page in enumerate(pages[:limit], start=1):
+            title = page.get("title") or self._path_label(page.get("url") or page.get("path") or "")
+            path = page.get("path") or self._path_label(page.get("url") or "")
+            lines.append(f"{idx}. {title} ({path})")
+        return lines
+
+    def _path_label(self, url_or_path: str) -> str:
+        if not url_or_path:
+            return "/"
+        parsed = urlparse(url_or_path)
+        if parsed.scheme and parsed.netloc:
+            path = parsed.path or "/"
+        else:
+            path = url_or_path
+        return path.rstrip("/") if path != "/" else "/"
 
     def _cache_path(self, bookmark_id: str, url: str) -> Path:
         digest = hashlib.sha1(url.encode("utf-8")).hexdigest()[:12]

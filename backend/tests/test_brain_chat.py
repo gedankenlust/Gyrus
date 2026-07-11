@@ -132,7 +132,7 @@ def test_chat_includes_visual_snapshot_context(client, brain_enabled, monkeypatc
     assert "radius=8px" in captured["context"]
 
 
-def test_chat_includes_site_structure_context_for_page_count_questions(client, brain_enabled, monkeypatch):
+def test_chat_includes_site_structure_context_for_structure_questions(client, brain_enabled, monkeypatch):
     captured = {}
 
     async def fake_scrape(url):
@@ -163,13 +163,58 @@ def test_chat_includes_site_structure_context_for_page_count_questions(client, b
 
     resp = client.post("/api/brain/chat", json={
         "bookmark_id": bm["id"],
-        "prompt": "Wie viele Seiten hat die Webseite?",
+        "prompt": "Liste alle Unterseiten auf",
         "provider_config": {"provider": "ollama", "model": "llama3"},
     })
 
     assert resp.status_code == 200
     assert "Site Structure" in captured["context"]
     assert "Exact discovered/listed page count to report: 4" in captured["context"]
+
+
+def test_chat_answers_page_count_without_llm(client, brain_enabled, monkeypatch):
+    async def fake_data_for_url(bookmark_id, url, force_refresh=False):
+        return {
+            "origin": "https://example.com",
+            "pages": [
+                {"url": "https://example.com/", "path": "/", "title": "Home"},
+                {"url": "https://example.com/about", "path": "/about", "title": "About"},
+                {"url": "https://example.com/contact", "path": "/contact", "title": "Contact"},
+            ],
+            "limit": 80,
+            "limit_reached": False,
+            "sitemap_pages": 0,
+            "sitemap_page_urls": [],
+            "sitemap_sources": [],
+            "errors": [],
+        }
+
+    async def llm_should_not_run(*args, **kwargs):
+        raise AssertionError("LLM should not be called for page-count questions")
+
+    monkeypatch.setattr(site_structure_service, "data_for_url", fake_data_for_url)
+    monkeypatch.setattr(llm_module.LLMService, "ask_llm", llm_should_not_run)
+
+    bm = client.post("/api/bookmarks", json={
+        "title": "Site",
+        "url": "https://example.com",
+        "source": "manual",
+    }).json()
+
+    resp = client.post("/api/brain/chat", json={
+        "bookmark_id": bm["id"],
+        "prompt": "Wie viele Seiten hat die Webseite?",
+        "provider_config": {"provider": "ollama", "model": "llama3"},
+        "history": [{"role": "assistant", "content": "Vielleicht 150 bis 200 Seiten."}],
+        "language": "de",
+    })
+
+    assert resp.status_code == 200
+    text = resp.json()["response"]
+    assert "Gyrus hat 3 interne HTML-Seiten gefunden." in text
+    assert "keine LLM-Schätzung" in text
+    assert "ca." not in text
+    assert "150" not in text
 
 
 def test_chat_with_german_language_instructs_german_reply(client, brain_enabled, monkeypatch):

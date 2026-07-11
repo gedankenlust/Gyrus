@@ -3,6 +3,7 @@ import pytest
 
 from services import llm_service as llm_module
 from services import scraper_service as scraper_module
+from services.site_structure_service import site_structure_service
 from services.llm_service import LLMUnavailableError
 from services.brain_sync_service import brain_sync_service
 
@@ -64,6 +65,39 @@ def test_chat_stream_emits_tokens(client, brain_enabled, monkeypatch):
         ("user", "hi", "complete"),
         ("assistant", "Hello world", "complete"),
     ]
+
+
+def test_chat_stream_answers_page_count_without_llm(client, brain_enabled, monkeypatch):
+    async def fake_data_for_url(bookmark_id, url, force_refresh=False):
+        return {
+            "origin": "https://example.com",
+            "pages": [{"url": "https://example.com/", "path": "/", "title": "Home"}],
+            "limit": 80,
+            "limit_reached": False,
+            "sitemap_pages": 1,
+            "sitemap_page_urls": ["https://example.com/"],
+            "sitemap_sources": ["https://example.com/sitemap.xml"],
+            "errors": [],
+        }
+
+    async def stream_should_not_run(*args, **kwargs):
+        raise AssertionError("LLM stream should not be called for page-count questions")
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(site_structure_service, "data_for_url", fake_data_for_url)
+    monkeypatch.setattr(llm_module.LLMService, "stream_ollama", stream_should_not_run)
+
+    bm = _make_bookmark(client)
+    resp = client.post("/api/brain/chat/stream", json={
+        "bookmark_id": bm["id"],
+        "prompt": "Wie viele Seiten hat die Webseite?",
+        "provider_config": {"provider": "ollama", "model": "llama3"},
+        "language": "de",
+    })
+
+    assert resp.status_code == 200
+    assert "Die Sitemap listet 1 interne Seiten/URLs" in resp.text
+    assert "keine LLM-Schätzung" in resp.text
 
 
 def test_chat_stream_reports_error_inline(client, brain_enabled, monkeypatch):
