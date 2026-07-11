@@ -79,6 +79,12 @@ struct VisualSnapshotTabView: View {
         return SnapshotColor.unique(from: viewport.dominantColors + viewport.observedColors)
     }
 
+    private var missingViewportNames: [String] {
+        guard let snapshot else { return [] }
+        let captured = Set(snapshot.viewports.map(\.name))
+        return ["desktop", "tablet", "mobile"].filter { !captured.contains($0) }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -164,6 +170,7 @@ struct VisualSnapshotTabView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 viewportPicker
+                outdatedSnapshotNotice
                 sectionPicker
 
                 if let selectedViewport {
@@ -196,6 +203,34 @@ struct VisualSnapshotTabView: View {
                 }
             }
             .padding(16)
+        }
+    }
+
+    @ViewBuilder
+    private var outdatedSnapshotNotice: some View {
+        if !missingViewportNames.isEmpty {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Snapshot needs reinspection")
+                        .font(.caption.bold())
+                    Text("Missing: \(missingViewportNames.map(\.capitalized).joined(separator: ", "))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    Task { await captureSnapshot() }
+                } label: {
+                    Label("Reinspect", systemImage: "camera.metering.center.weighted")
+                        .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.borderless)
+                .disabled(isCapturing)
+            }
+            .padding(10)
+            .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 8))
         }
     }
 
