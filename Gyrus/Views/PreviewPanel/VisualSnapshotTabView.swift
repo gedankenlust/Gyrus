@@ -1545,11 +1545,11 @@ private func reviewPreviewScale(for viewport: APIClient.VisualViewportDTO) -> CG
 private func reviewFrameMaxWidth(for viewport: APIClient.VisualViewportDTO) -> CGFloat {
     switch viewport.name {
     case "desktop":
-        940
+        620
     case "tablet":
-        500
+        340
     case "mobile":
-        285
+        220
     default:
         min(CGFloat(viewport.width), 620)
     }
@@ -1558,11 +1558,11 @@ private func reviewFrameMaxWidth(for viewport: APIClient.VisualViewportDTO) -> C
 private func reviewFrameMaxHeight(for viewport: APIClient.VisualViewportDTO) -> CGFloat {
     switch viewport.name {
     case "desktop":
-        785
+        420
     case "tablet":
-        560
+        420
     case "mobile":
-        560
+        420
     default:
         min(CGFloat(viewport.height), 560)
     }
