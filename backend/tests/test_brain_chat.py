@@ -141,7 +141,7 @@ def test_chat_includes_site_structure_context_for_page_count_questions(client, b
     async def fake_site_context(bookmark_id, url, force_refresh=False):
         return (
             "## Site Structure (same-origin crawl)\n"
-            "Discovered internal HTML pages: 4\n"
+            "Exact discovered/listed page count to report: 4\n"
             "Pages:\n"
             "- / — Home\n"
             "- /kontakt — Kontakt"
@@ -169,7 +169,7 @@ def test_chat_includes_site_structure_context_for_page_count_questions(client, b
 
     assert resp.status_code == 200
     assert "Site Structure" in captured["context"]
-    assert "Discovered internal HTML pages: 4" in captured["context"]
+    assert "Exact discovered/listed page count to report: 4" in captured["context"]
 
 
 def test_chat_with_german_language_instructs_german_reply(client, brain_enabled, monkeypatch):

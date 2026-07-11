@@ -17,6 +17,8 @@ from services.scraper_service import _BROWSER_UA
 
 logger = logging.getLogger(__name__)
 
+CACHE_VERSION = 2
+
 
 _ASSET_EXTENSIONS = {
     ".7z", ".avi", ".css", ".csv", ".doc", ".docx", ".gif", ".ico", ".jpeg",
@@ -51,8 +53,11 @@ class SiteStructureService:
         text = (prompt or "").lower()
         needles = (
             "wie viele seiten",
+            "wieviele seiten",
+            "wie viel seiten",
             "anzahl der seiten",
             "seiten hat",
+            "seiten gibt",
             "unterseiten",
             "alle seiten",
             "seitenstruktur",
@@ -102,6 +107,7 @@ class SiteStructureService:
         queued: set[str] = set()
         queue: list[str] = []
         sitemap_urls: list[str] = []
+        sitemap_sources: list[str] = []
         errors: list[str] = []
 
         def enqueue(candidate: str | None) -> None:
@@ -121,15 +127,9 @@ class SiteStructureService:
             follow_redirects=True,
             headers=self.headers,
         ) as client:
-            sitemap_result = await self._fetch_text(
-                client,
-                urljoin(origin, "/sitemap.xml"),
-                "application/xml,text/xml,text/html;q=0.8,*/*;q=0.5",
-            )
-            if sitemap_result:
-                sitemap_urls = self._extract_sitemap_urls(sitemap_result.text, origin)
-                for sitemap_url in sitemap_urls[: self.max_pages]:
-                    enqueue(sitemap_url)
+            sitemap_urls, sitemap_sources = await self._discover_sitemap_urls(client, origin)
+            for sitemap_url in sitemap_urls[: self.max_pages]:
+                enqueue(sitemap_url)
 
             while queue and len(pages) < self.max_pages and time.monotonic() < deadline:
                 batch: list[str] = []
@@ -172,6 +172,7 @@ class SiteStructureService:
             key=lambda item: (0 if item.get("url") == start_normalized else 1, item.get("path") or item.get("url")),
         )
         return {
+            "version": CACHE_VERSION,
             "url": start_url,
             "origin": origin,
             "captured_at": int(time.time()),
@@ -179,6 +180,7 @@ class SiteStructureService:
             "limit": self.max_pages,
             "limit_reached": limit_reached,
             "sitemap_pages": len(sitemap_urls),
+            "sitemap_sources": sitemap_sources,
             "errors": errors[:5],
         }
 
@@ -230,6 +232,46 @@ class SiteStructureService:
             "links": links,
         }
 
+    async def _discover_sitemap_urls(self, client: httpx.AsyncClient, origin: str) -> tuple[list[str], list[str]]:
+        sitemap_queue = [
+            urljoin(origin, "/sitemap.xml"),
+            urljoin(origin, "/sitemap_index.xml"),
+            urljoin(origin, "/wp-sitemap.xml"),
+        ]
+        seen_sitemaps: set[str] = set()
+        page_urls: list[str] = []
+        seen_pages: set[str] = set()
+        sources: list[str] = []
+
+        while sitemap_queue and len(seen_sitemaps) < 20:
+            sitemap_url = sitemap_queue.pop(0)
+            if sitemap_url in seen_sitemaps:
+                continue
+            seen_sitemaps.add(sitemap_url)
+            result = await self._fetch_text(
+                client,
+                sitemap_url,
+                "application/xml,text/xml,text/html;q=0.8,*/*;q=0.5",
+            )
+            if not result or not result.text:
+                continue
+            sources.append(result.url)
+            for raw in self._extract_sitemap_locations(result.text):
+                loc = html_lib.unescape(raw.strip())
+                if self._looks_like_sitemap(loc, origin):
+                    child = self._normalize_sitemap_url(loc, origin, result.url)
+                    if child and child not in seen_sitemaps and child not in sitemap_queue:
+                        sitemap_queue.append(child)
+                    continue
+                page_url = self._normalize_internal_url(loc, origin, result.url)
+                if page_url and page_url not in seen_pages:
+                    seen_pages.add(page_url)
+                    page_urls.append(page_url)
+        return page_urls, sources
+
+    def _extract_sitemap_locations(self, xml_text: str) -> list[str]:
+        return re.findall(r"<loc>\s*([^<]+?)\s*</loc>", xml_text, flags=re.I)
+
     def _extract_sitemap_urls(self, xml_text: str, origin: str) -> list[str]:
         locs = re.findall(r"<loc>\s*([^<]+?)\s*</loc>", xml_text, flags=re.I)
         out: list[str] = []
@@ -240,6 +282,24 @@ class SiteStructureService:
                 seen.add(url)
                 out.append(url)
         return out
+
+    def _looks_like_sitemap(self, value: str, origin: str) -> bool:
+        parsed = urlparse(urljoin(origin, value))
+        path = parsed.path.lower()
+        return path.endswith(".xml") and "sitemap" in path
+
+    def _normalize_sitemap_url(self, value: str | None, origin: str, base_url: str) -> str | None:
+        if not value:
+            return None
+        try:
+            resolved = urlparse(urljoin(base_url, value.strip()))
+        except Exception:
+            return None
+        if resolved.scheme not in {"http", "https"} or not resolved.netloc:
+            return None
+        if f"{resolved.scheme}://{resolved.netloc}".lower() != origin.lower():
+            return None
+        return urlunparse(resolved._replace(fragment="", query=""))
 
     def _normalize_internal_url(self, value: str | None, origin: str, base_url: str) -> str | None:
         if not value:
@@ -266,18 +326,34 @@ class SiteStructureService:
 
     def _format_context(self, data: dict) -> str:
         pages = data.get("pages") or []
+        sitemap_pages = int(data.get("sitemap_pages") or 0)
+        discovered_pages = len(pages)
+        answer_count = max(sitemap_pages, discovered_pages)
+        if sitemap_pages and discovered_pages and sitemap_pages != discovered_pages:
+            count_source = "sitemap plus internal crawl"
+        else:
+            count_source = "sitemap" if sitemap_pages else "crawl"
         lines = [
             "## Site Structure (same-origin crawl)",
             "Use this section as evidence for questions about page count, sitemap, internal pages, and website structure.",
+            "Page-count answer rules:",
+            "- Never estimate, extrapolate, or say 'approximately' for page counts.",
+            f"- If asked how many pages the website has, answer with this exact discovered/listed count: {answer_count}.",
+            "- Do not call this a guaranteed total of the whole website; say it is what Gyrus found/listed.",
+            f"- Count source: {count_source}. If source includes sitemap, say the sitemap lists same-origin page URLs.",
+            "- If the crawl limit was reached and no sitemap count exists, say 'at least' the discovered count.",
             f"Origin: {data.get('origin') or ''}",
-            f"Discovered internal HTML pages: {len(pages)}",
+            f"Exact discovered/listed page count to report: {answer_count}",
+            f"Discovered internal HTML pages by crawl: {discovered_pages}",
+            f"Same-origin page URLs listed in sitemap(s): {sitemap_pages}",
             f"Crawl limit: {data.get('limit', self.max_pages)}",
             f"Limit reached: {'yes' if data.get('limit_reached') else 'no'}",
-            f"Sitemap URLs found: {data.get('sitemap_pages', 0)}",
         ]
+        if data.get("sitemap_sources"):
+            lines.append("Sitemap sources checked: " + ", ".join(data.get("sitemap_sources", [])[:6]))
         if data.get("errors") and not pages:
             lines.append("Crawler notes: " + " | ".join(data.get("errors", [])[:3]))
-        if data.get("limit_reached"):
+        if data.get("limit_reached") and not sitemap_pages:
             lines.append("When answering page-count questions, say 'at least' this number because the crawl limit was reached.")
 
         lines.append("\nPages:")
@@ -301,7 +377,10 @@ class SiteStructureService:
         try:
             if not path.exists() or time.time() - path.stat().st_mtime > self.cache_ttl_seconds:
                 return None
-            return json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("version") != CACHE_VERSION:
+                return None
+            return data
         except Exception:
             return None
 
