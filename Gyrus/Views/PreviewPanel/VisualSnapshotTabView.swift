@@ -4,8 +4,25 @@ import WebKit
 import UniformTypeIdentifiers
 
 private let designMetricColumns = [GridItem(.adaptive(minimum: 96), spacing: 8)]
-private let designSectionColumns = [GridItem(.adaptive(minimum: 116), spacing: 8)]
+private let designSectionColumns = [GridItem(.adaptive(minimum: 92), spacing: 6)]
 private let designViewportColumns = [GridItem(.adaptive(minimum: 148), spacing: 8)]
+private let primaryDesignSections: [DesignInspectorSection] = [
+    .review,
+    .overview,
+    .visual,
+    .colors,
+    .typography,
+    .components,
+    .layout,
+]
+private let advancedDesignSections: [DesignInspectorSection] = [
+    .assets,
+    .seo,
+    .accessibility,
+    .network,
+    .console,
+    .raw,
+]
 
 private enum DesignInspectorSection: String, CaseIterable, Identifiable {
     case review
@@ -262,26 +279,41 @@ struct VisualSnapshotTabView: View {
     }
 
     private var sectionPicker: some View {
-        LazyVGrid(columns: designSectionColumns, alignment: .leading, spacing: 8) {
-            ForEach(DesignInspectorSection.allCases) { section in
-                Button {
+        let advancedActive = advancedDesignSections.contains(selectedSection)
+
+        return LazyVGrid(columns: designSectionColumns, alignment: .leading, spacing: 6) {
+            ForEach(primaryDesignSections) { section in
+                DesignSectionButton(
+                    section: section,
+                    isSelected: selectedSection == section
+                ) {
                     selectedSection = section
-                } label: {
-                    Label(section.title, systemImage: section.icon)
-                        .labelStyle(.titleAndIcon)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(selectedSection == section ? .white : .primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-                        .frame(maxWidth: .infinity, minHeight: 34, alignment: .center)
-                        .background(
-                            selectedSection == section ? Color.accentColor : Color.secondary.opacity(0.14),
-                            in: RoundedRectangle(cornerRadius: 7)
-                        )
                 }
-                .buttonStyle(.plain)
-                .help(section.title)
             }
+
+            Menu {
+                ForEach(advancedDesignSections) { section in
+                    Button {
+                        selectedSection = section
+                    } label: {
+                        Label(section.title, systemImage: section.icon)
+                    }
+                }
+            } label: {
+                Label(advancedActive ? selectedSection.title : "More", systemImage: advancedActive ? selectedSection.icon : "ellipsis.circle")
+                    .labelStyle(.titleAndIcon)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(advancedActive ? .white : .primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: .infinity, minHeight: 32)
+                    .background(
+                        advancedActive ? Color.accentColor : Color.secondary.opacity(0.14),
+                        in: RoundedRectangle(cornerRadius: 7)
+                    )
+            }
+            .buttonStyle(.plain)
+            .menuStyle(.button)
         }
     }
 
@@ -328,9 +360,7 @@ struct VisualSnapshotTabView: View {
     }
 
     private var reviewSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            reviewViewportPicker
-
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Picker("Mode", selection: $reviewMode) {
                     ForEach(DesignReviewMode.allCases) { mode in
@@ -358,6 +388,8 @@ struct VisualSnapshotTabView: View {
                 .disabled(snapshot?.viewports.isEmpty ?? true || isExportingPDF)
             }
 
+            reviewViewportPicker
+
             if let snapshot, snapshot.viewports.isEmpty {
                 Text("No viewports captured yet.")
                     .font(.caption)
@@ -376,19 +408,22 @@ struct VisualSnapshotTabView: View {
     @ViewBuilder
     private var reviewViewportPicker: some View {
         if let snapshot, snapshot.viewports.count > 1 {
-            HStack(spacing: 6) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 6)], alignment: .leading, spacing: 6) {
                 ForEach(snapshot.viewports, id: \.name) { viewport in
                     Button {
                         selectedViewportName = viewport.name
                     } label: {
-                        HStack(spacing: 6) {
+                        VStack(spacing: 2) {
                             Image(systemName: viewportIcon(viewport.name))
                                 .font(.caption2.weight(.semibold))
                             Text(viewport.name.capitalized)
                                 .font(.caption.weight(.semibold))
+                            Text("\(viewport.width)x\(viewport.height)")
+                                .font(.caption2)
+                                .foregroundStyle((selectedViewport?.name == viewport.name) ? .white.opacity(0.78) : .secondary)
                         }
                         .foregroundStyle((selectedViewport?.name == viewport.name) ? .white : .primary)
-                        .frame(minWidth: 82, minHeight: 28)
+                        .frame(maxWidth: .infinity, minHeight: 42)
                         .background(
                             (selectedViewport?.name == viewport.name ? Color.accentColor : Color.secondary.opacity(0.16)),
                             in: RoundedRectangle(cornerRadius: 7)
@@ -396,7 +431,6 @@ struct VisualSnapshotTabView: View {
                     }
                     .buttonStyle(.plain)
                 }
-                Spacer(minLength: 0)
             }
         }
     }
@@ -746,6 +780,30 @@ struct VisualSnapshotTabView: View {
     }
 }
 
+private struct DesignSectionButton: View {
+    let section: DesignInspectorSection
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label(section.title, systemImage: section.icon)
+                .labelStyle(.titleAndIcon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(isSelected ? .white : .primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 32, alignment: .center)
+                .background(
+                    isSelected ? Color.accentColor : Color.secondary.opacity(0.14),
+                    in: RoundedRectangle(cornerRadius: 7)
+                )
+        }
+        .buttonStyle(.plain)
+        .help(section.title)
+    }
+}
+
 private struct SnapshotSection<Content: View>: View {
     let title: String
     let icon: String
@@ -764,33 +822,23 @@ private struct SnapshotSection<Content: View>: View {
 private struct SnapshotViewportFrame: View {
     let viewport: APIClient.VisualViewportDTO
 
+    private var previewSize: CGSize {
+        reviewPreviewSize(for: viewport)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ViewportFrameHeader(viewport: viewport, trailing: "Snapshot")
 
-            AsyncImage(url: APIClient.shared.visualSnapshotFileURL(path: viewport.screenshotURL)) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFit()
-                default:
-                    Rectangle()
-                        .fill(.quaternary)
-                        .frame(height: 260)
-                        .overlay {
-                            Image(systemName: "photo")
-                                .foregroundStyle(.secondary)
-                        }
-                }
-            }
-            .background(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(.secondary.opacity(0.2), lineWidth: 1)
-            )
-            .frame(maxWidth: reviewFrameMaxWidth(for: viewport), alignment: .topLeading)
+            ViewportScreenshotImage(viewport: viewport)
+                .frame(width: previewSize.width, height: previewSize.height)
+                .background(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.secondary.opacity(0.25), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
@@ -800,30 +848,26 @@ private struct LiveViewportFrame: View {
     let url: URL?
     let viewport: APIClient.VisualViewportDTO
 
+    private var previewSize: CGSize {
+        reviewPreviewSize(for: viewport)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ViewportFrameHeader(viewport: viewport, trailing: "Live")
 
             if let url {
-                GeometryReader { proxy in
-                    let viewportWidth = CGFloat(viewport.width)
-                    let visibleHeight = min(CGFloat(viewport.height), reviewLiveHeight(for: viewport))
-                    let frameMaxWidth = reviewFrameMaxWidth(for: viewport)
-                    let availableWidth = min(proxy.size.width, frameMaxWidth)
-                    let scale = min(1, max(0.22, availableWidth / max(viewportWidth, 1)))
-
-                    LiveViewportWebView(url: url, viewport: viewport)
-                        .frame(width: viewportWidth, height: visibleHeight)
-                        .scaleEffect(scale, anchor: .topLeading)
-                        .frame(width: viewportWidth * scale, height: visibleHeight * scale, alignment: .topLeading)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(.secondary.opacity(0.2), lineWidth: 1)
-                        )
-                }
-                .frame(height: reviewScaledLiveHeight(for: viewport))
-                .frame(minHeight: 180)
+                let scale = reviewPreviewScale(for: viewport)
+                LiveViewportWebView(url: url, viewport: viewport)
+                    .frame(width: CGFloat(viewport.width), height: CGFloat(viewport.height))
+                    .scaleEffect(scale, anchor: .topLeading)
+                    .frame(width: previewSize.width, height: previewSize.height, alignment: .topLeading)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(.secondary.opacity(0.25), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
             } else {
                 Text("Invalid URL.")
                     .font(.caption)
@@ -831,6 +875,66 @@ private struct LiveViewportFrame: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+private struct ViewportScreenshotImage: View {
+    let viewport: APIClient.VisualViewportDTO
+
+    @State private var image: NSImage?
+    @State private var isLoading = false
+
+    var body: some View {
+        ZStack {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Rectangle()
+                    .fill(.quaternary)
+                    .overlay {
+                        if isLoading {
+                            ProgressView().scaleEffect(0.6)
+                        } else {
+                            Image(systemName: "photo")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+            }
+        }
+        .clipped()
+        .task(id: viewport.screenshotURL) {
+            await loadImage()
+        }
+    }
+
+    private func loadImage() async {
+        guard !isLoading else { return }
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            let url = APIClient.shared.visualSnapshotFileURL(path: viewport.screenshotURL)
+            let (data, _) = try await URLSession.shared.data(from: url)
+            guard let source = NSImage(data: data) else { return }
+            image = cropViewport(from: source, viewport: viewport) ?? source
+        } catch {
+            image = nil
+        }
+    }
+
+    private func cropViewport(from source: NSImage, viewport: APIClient.VisualViewportDTO) -> NSImage? {
+        guard let cgImage = source.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+        let scale = CGFloat(cgImage.width) / CGFloat(max(viewport.width, 1))
+        let cropHeight = min(cgImage.height, Int((CGFloat(viewport.height) * scale).rounded()))
+        guard cropHeight > 0 else { return nil }
+        let cropRect = CGRect(x: 0, y: 0, width: cgImage.width, height: cropHeight)
+        guard let cropped = cgImage.cropping(to: cropRect) else { return nil }
+        return NSImage(
+            cgImage: cropped,
+            size: NSSize(width: CGFloat(viewport.width), height: CGFloat(viewport.height))
+        )
     }
 }
 
@@ -1420,36 +1524,48 @@ private func safeFilename(_ value: String) -> String {
     return cleaned.isEmpty ? "gyrus" : String(cleaned.prefix(80))
 }
 
+private func reviewPreviewSize(for viewport: APIClient.VisualViewportDTO) -> CGSize {
+    let scale = reviewPreviewScale(for: viewport)
+    return CGSize(
+        width: CGFloat(viewport.width) * scale,
+        height: CGFloat(viewport.height) * scale
+    )
+}
+
+private func reviewPreviewScale(for viewport: APIClient.VisualViewportDTO) -> CGFloat {
+    let viewportWidth = CGFloat(max(viewport.width, 1))
+    let viewportHeight = CGFloat(max(viewport.height, 1))
+    return min(
+        1,
+        max(0.18, reviewFrameMaxWidth(for: viewport) / viewportWidth),
+        max(0.18, reviewFrameMaxHeight(for: viewport) / viewportHeight)
+    )
+}
+
 private func reviewFrameMaxWidth(for viewport: APIClient.VisualViewportDTO) -> CGFloat {
     switch viewport.name {
     case "desktop":
         760
     case "tablet":
-        520
+        500
     case "mobile":
-        320
+        285
     default:
         min(CGFloat(viewport.width), 620)
     }
 }
 
-private func reviewLiveHeight(for viewport: APIClient.VisualViewportDTO) -> CGFloat {
+private func reviewFrameMaxHeight(for viewport: APIClient.VisualViewportDTO) -> CGFloat {
     switch viewport.name {
     case "desktop":
-        620
+        480
     case "tablet":
-        640
+        560
     case "mobile":
-        600
+        560
     default:
-        min(CGFloat(viewport.height), 620)
+        min(CGFloat(viewport.height), 560)
     }
-}
-
-private func reviewScaledLiveHeight(for viewport: APIClient.VisualViewportDTO) -> CGFloat {
-    let viewportWidth = CGFloat(max(viewport.width, 1))
-    let scale = min(1, max(0.22, reviewFrameMaxWidth(for: viewport) / viewportWidth))
-    return reviewLiveHeight(for: viewport) * scale
 }
 
 private func frequency(_ values: [String], limit: Int = 8) -> [String] {
