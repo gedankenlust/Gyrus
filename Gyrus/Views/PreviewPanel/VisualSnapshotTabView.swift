@@ -9,13 +9,13 @@ private let designViewportColumns = [GridItem(.adaptive(minimum: 148), spacing: 
 private let primaryDesignSections: [DesignInspectorSection] = [
     .review,
     .overview,
-    .visual,
     .colors,
-    .typography,
     .components,
-    .layout,
 ]
 private let advancedDesignSections: [DesignInspectorSection] = [
+    .visual,
+    .typography,
+    .layout,
     .assets,
     .seo,
     .accessibility,
@@ -46,7 +46,7 @@ private enum DesignInspectorSection: String, CaseIterable, Identifiable {
         case .review: "Review"
         case .overview: "Overview"
         case .visual: "Visual"
-        case .colors: "Colors"
+        case .colors: "Style"
         case .typography: "Type"
         case .components: "Components"
         case .layout: "Layout"
@@ -64,7 +64,7 @@ private enum DesignInspectorSection: String, CaseIterable, Identifiable {
         case .review: "macwindow.on.rectangle"
         case .overview: "rectangle.grid.2x2"
         case .visual: "photo"
-        case .colors: "eyedropper"
+        case .colors: "paintpalette"
         case .typography: "textformat"
         case .components: "square.stack.3d.up"
         case .layout: "rectangle.3.group"
@@ -215,7 +215,7 @@ struct VisualSnapshotTabView: View {
                         screenshotSection(selectedViewport)
                     case .colors:
                         viewportPicker
-                        colorsSection
+                        styleSection(selectedViewport)
                     case .typography:
                         viewportPicker
                         typographySection(selectedViewport)
@@ -490,10 +490,15 @@ struct VisualSnapshotTabView: View {
                 }
             }
 
-            screenshotSection(viewport)
+            structureSection(viewport)
+        }
+    }
+
+    private func styleSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
             colorsSection
             typographySection(viewport)
-            structureSection(viewport)
+            layoutSection(viewport)
         }
     }
 
