@@ -11,6 +11,8 @@ private enum DesignInspectorSection: String, CaseIterable, Identifiable {
     case assets
     case seo
     case accessibility
+    case network
+    case console
     case raw
 
     var id: String { rawValue }
@@ -26,6 +28,8 @@ private enum DesignInspectorSection: String, CaseIterable, Identifiable {
         case .assets: "Assets"
         case .seo: "SEO"
         case .accessibility: "A11y"
+        case .network: "Network"
+        case .console: "Console"
         case .raw: "Raw"
         }
     }
@@ -41,6 +45,8 @@ private enum DesignInspectorSection: String, CaseIterable, Identifiable {
         case .assets: "photo.on.rectangle.angled"
         case .seo: "magnifyingglass"
         case .accessibility: "accessibility"
+        case .network: "point.3.connected.trianglepath.dotted"
+        case .console: "terminal"
         case .raw: "curlybraces.square"
         }
     }
@@ -176,6 +182,10 @@ struct VisualSnapshotTabView: View {
                         seoSection(selectedViewport)
                     case .accessibility:
                         accessibilitySection(selectedViewport)
+                    case .network:
+                        networkSection(selectedViewport)
+                    case .console:
+                        consoleSection(selectedViewport)
                     case .raw:
                         elementSamplesSection(selectedViewport)
                     }
@@ -273,6 +283,8 @@ struct VisualSnapshotTabView: View {
                     MetricPill(label: "Colors", value: colors.count)
                     MetricPill(label: "Fonts", value: viewport.observedFonts.count)
                     MetricPill(label: "Elements", value: viewport.elementSamples?.count ?? 0)
+                    MetricPill(label: "CSS Vars", value: viewport.cssVariables?.count ?? 0)
+                    MetricPill(label: "Requests", value: viewport.network?.requestCount ?? 0)
                     MetricPill(label: "Buttons", value: viewport.structure.buttons)
                     MetricPill(label: "Images", value: viewport.structure.images)
                     MetricPill(label: "SVG", value: viewport.structure.svgs)
@@ -296,15 +308,21 @@ struct VisualSnapshotTabView: View {
 
     private var colorsSection: some View {
         SnapshotSection(title: "Colors", icon: "eyedropper") {
-            if colors.isEmpty {
-                Text("No colors captured.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 8)], spacing: 8) {
-                    ForEach(colors) { color in
-                        SnapshotColorChip(color: color)
+            VStack(alignment: .leading, spacing: 12) {
+                if colors.isEmpty {
+                    Text("No colors captured.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 8)], spacing: 8) {
+                        ForEach(colors) { color in
+                            SnapshotColorChip(color: color)
+                        }
                     }
+                }
+
+                if let variables = selectedViewport?.cssVariables, !variables.isEmpty {
+                    InspectorList(title: "CSS Variables", values: variables.prefix(80).map { "\($0.name): \($0.value)" })
                 }
             }
         }
@@ -403,12 +421,16 @@ struct VisualSnapshotTabView: View {
         SnapshotSection(title: "Assets", icon: "photo.on.rectangle.angled") {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
-                    MetricPill(label: "Images", value: viewport.structure.images)
-                    MetricPill(label: "SVG", value: viewport.structure.svgs)
+                    MetricPill(label: "Images", value: viewport.assets?.images?.count ?? viewport.structure.images)
+                    MetricPill(label: "Icons", value: viewport.assets?.icons?.count ?? 0)
+                    MetricPill(label: "CSS", value: viewport.assets?.stylesheets?.count ?? 0)
+                    MetricPill(label: "Scripts", value: viewport.assets?.scripts?.count ?? 0)
                 }
-                Text("Next phase: extract image URLs, logo candidates, SVG/icon usage, OG images, dimensions and asset file sizes from the DevTools capture.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+                AssetList(title: "Images", assets: viewport.assets?.images ?? [])
+                AssetList(title: "Icons", assets: viewport.assets?.icons ?? [])
+                AssetList(title: "Stylesheets", assets: viewport.assets?.stylesheets ?? [])
+                AssetList(title: "Scripts", assets: viewport.assets?.scripts ?? [])
             }
         }
     }
@@ -416,16 +438,33 @@ struct VisualSnapshotTabView: View {
     private func seoSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
         SnapshotSection(title: "SEO / Content", icon: "magnifyingglass") {
             VStack(alignment: .leading, spacing: 8) {
-                if let pageTitle = viewport.pageTitle, !pageTitle.isEmpty {
-                    CopyRow(value: "Title: \(pageTitle)", systemImage: "textformat.size")
+                if let title = viewport.seo?.title ?? viewport.pageTitle, !title.isEmpty {
+                    CopyRow(value: "Title: \(title)", systemImage: "textformat.size")
                 }
-                if let metaDescription = viewport.metaDescription, !metaDescription.isEmpty {
+                if let metaDescription = viewport.seo?.metaDescription ?? viewport.metaDescription, !metaDescription.isEmpty {
                     CopyRow(value: "Description: \(metaDescription)", systemImage: "text.quote")
                 }
+                if let canonical = viewport.seo?.canonical, !canonical.isEmpty {
+                    CopyRow(value: "Canonical: \(canonical)", systemImage: "link")
+                }
+                if let language = viewport.seo?.language, !language.isEmpty {
+                    CopyRow(value: "Language: \(language)", systemImage: "globe")
+                }
+                if let robots = viewport.seo?.robots, !robots.isEmpty {
+                    CopyRow(value: "Robots: \(robots)", systemImage: "gearshape")
+                }
+                HStack(spacing: 8) {
+                    MetricPill(label: "Internal", value: viewport.seo?.internalLinks ?? 0)
+                    MetricPill(label: "External", value: viewport.seo?.externalLinks ?? 0)
+                    MetricPill(label: "JSON-LD", value: viewport.seo?.jsonLd?.count ?? 0)
+                    MetricPill(label: "OG", value: viewport.seo?.openGraph?.count ?? 0)
+                    MetricPill(label: "Twitter", value: viewport.seo?.twitter?.count ?? 0)
+                }
+
                 structureSection(viewport)
-                Text("Next phase: add canonical, OG/Twitter tags, JSON-LD, language, robots hints and internal/external link breakdown.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                MetaList(title: "Open Graph", items: viewport.seo?.openGraph ?? [])
+                MetaList(title: "Twitter Cards", items: viewport.seo?.twitter ?? [])
+                InspectorList(title: "JSON-LD", values: (viewport.seo?.jsonLd ?? []).prefix(8).map { $0 })
             }
         }
     }
@@ -434,13 +473,50 @@ struct VisualSnapshotTabView: View {
         SnapshotSection(title: "Accessibility", icon: "accessibility") {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
-                    MetricPill(label: "Buttons", value: viewport.structure.buttons)
-                    MetricPill(label: "Images", value: viewport.structure.images)
-                    MetricPill(label: "Forms", value: viewport.structure.forms)
+                    MetricPill(label: "Missing Alt", value: viewport.accessibility?.missingAltImages?.count ?? 0)
+                    MetricPill(label: "Empty Buttons", value: viewport.accessibility?.emptyButtons?.count ?? 0)
+                    MetricPill(label: "Unlabeled Inputs", value: viewport.accessibility?.unlabeledInputs?.count ?? 0)
+                    MetricPill(label: "Heading Skips", value: viewport.accessibility?.headingSkips?.count ?? 0)
                 }
-                Text("Next phase: run contrast checks, alt text detection, button/link names, form labels, heading order and tap target checks.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+
+                AssetList(title: "Images Missing Alt", assets: viewport.accessibility?.missingAltImages ?? [])
+                A11yItemList(title: "Buttons Without Accessible Text", items: viewport.accessibility?.emptyButtons ?? [])
+                A11yItemList(title: "Inputs Without Labels", items: viewport.accessibility?.unlabeledInputs ?? [])
+                HeadingSkipList(skips: viewport.accessibility?.headingSkips ?? [])
+            }
+        }
+    }
+
+    private func networkSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        SnapshotSection(title: "Network", icon: "point.3.connected.trianglepath.dotted") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    MetricPill(label: "Requests", value: viewport.network?.requestCount ?? 0)
+                    MetricPill(label: "Failed", value: viewport.network?.failedRequests?.count ?? 0)
+                    MetricPill(label: "Large", value: viewport.network?.largeRequests?.count ?? 0)
+                }
+                if let counts = viewport.network?.resourceCounts, !counts.isEmpty {
+                    InspectorList(title: "Resource Types", values: counts.map { "\($0.type): \($0.count)" })
+                }
+                NetworkRequestList(title: "Failed Requests", requests: viewport.network?.failedRequests ?? [])
+                NetworkRequestList(title: "Large Requests", requests: viewport.network?.largeRequests ?? [])
+            }
+        }
+    }
+
+    private func consoleSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        SnapshotSection(title: "Console", icon: "terminal") {
+            let messages = viewport.consoleMessages ?? []
+            VStack(alignment: .leading, spacing: 8) {
+                if messages.isEmpty {
+                    Text("No console messages captured.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(messages.prefix(80)) { message in
+                        CopyRow(value: "[\(message.type ?? "log")] \(message.text ?? "")", systemImage: "terminal")
+                    }
+                }
             }
         }
     }
@@ -623,6 +699,177 @@ private struct CopyRow: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
         }
+    }
+}
+
+private struct AssetList: View {
+    let title: String
+    let assets: [APIClient.VisualAssetDTO]
+
+    var body: some View {
+        if !assets.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+
+                ForEach(assets.prefix(60)) { asset in
+                    VStack(alignment: .leading, spacing: 4) {
+                        CopyRow(value: asset.url ?? asset.selectorHint ?? title, systemImage: icon)
+
+                        let details = assetDetails(asset)
+                        if !details.isEmpty {
+                            Text(details.joined(separator: "  |  "))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                                .textSelection(.enabled)
+                        }
+                    }
+                    .padding(7)
+                    .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 7))
+                }
+            }
+        }
+    }
+
+    private var icon: String {
+        switch title.lowercased() {
+        case let value where value.contains("image"):
+            "photo"
+        case let value where value.contains("script"):
+            "chevron.left.forwardslash.chevron.right"
+        case let value where value.contains("style"):
+            "curlybraces"
+        default:
+            "link"
+        }
+    }
+
+    private func assetDetails(_ asset: APIClient.VisualAssetDTO) -> [String] {
+        var details: [String] = []
+        if let alt = asset.alt, !alt.isEmpty { details.append("alt: \(alt)") }
+        if let width = asset.width, let height = asset.height, width > 0 || height > 0 {
+            details.append("\(width)x\(height)")
+        }
+        if let loading = asset.loading, !loading.isEmpty { details.append("loading: \(loading)") }
+        if let rel = asset.rel, !rel.isEmpty { details.append("rel: \(rel)") }
+        if let sizes = asset.sizes, !sizes.isEmpty { details.append("sizes: \(sizes)") }
+        if let type = asset.type, !type.isEmpty { details.append("type: \(type)") }
+        if let media = asset.media, !media.isEmpty { details.append("media: \(media)") }
+        if asset.isAsync == true { details.append("async") }
+        if asset.isDeferred == true { details.append("defer") }
+        if let selector = asset.selectorHint, !selector.isEmpty { details.append(selector) }
+        return details
+    }
+}
+
+private struct MetaList: View {
+    let title: String
+    let items: [APIClient.VisualMetaDTO]
+
+    var body: some View {
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+
+                ForEach(items.prefix(80)) { item in
+                    CopyRow(value: "\(item.name ?? "meta"): \(item.content ?? "")", systemImage: "tag")
+                }
+            }
+        }
+    }
+}
+
+private struct A11yItemList: View {
+    let title: String
+    let items: [APIClient.VisualAccessibilityItemDTO]
+
+    var body: some View {
+        if !items.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+
+                ForEach(items.prefix(80)) { item in
+                    let detail = [
+                        item.selectorHint,
+                        item.type.map { "type: \($0)" },
+                        item.name.map { "name: \($0)" },
+                        item.placeholder.map { "placeholder: \($0)" },
+                        item.text.map { "text: \($0)" },
+                    ]
+                    .compactMap { $0 }
+                    .filter { !$0.isEmpty }
+                    .joined(separator: "  |  ")
+
+                    CopyRow(value: detail.isEmpty ? title : detail, systemImage: "exclamationmark.triangle")
+                }
+            }
+        }
+    }
+}
+
+private struct HeadingSkipList: View {
+    let skips: [APIClient.VisualHeadingSkipDTO]
+
+    var body: some View {
+        if !skips.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Heading Level Skips")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+
+                ForEach(skips.prefix(40)) { skip in
+                    let from = skip.from.map { "H\($0.level): \($0.text)" } ?? "Unknown"
+                    let to = skip.to.map { "H\($0.level): \($0.text)" } ?? "Unknown"
+                    CopyRow(value: "\(from) -> \(to)", systemImage: "textformat.123")
+                }
+            }
+        }
+    }
+}
+
+private struct NetworkRequestList: View {
+    let title: String
+    let requests: [APIClient.VisualNetworkRequestDTO]
+
+    var body: some View {
+        if !requests.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+
+                ForEach(requests.prefix(60)) { request in
+                    VStack(alignment: .leading, spacing: 4) {
+                        CopyRow(value: request.url ?? title, systemImage: "network")
+
+                        Text(details(request).joined(separator: "  |  "))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .textSelection(.enabled)
+                    }
+                    .padding(7)
+                    .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 7))
+                }
+            }
+        }
+    }
+
+    private func details(_ request: APIClient.VisualNetworkRequestDTO) -> [String] {
+        var details: [String] = []
+        if let method = request.method, !method.isEmpty { details.append(method) }
+        if let status = request.status { details.append("status: \(status)") }
+        if let type = request.resourceType, !type.isEmpty { details.append(type) }
+        if let contentType = request.contentType, !contentType.isEmpty { details.append(contentType) }
+        if let length = request.contentLength { details.append("\(length / 1024) KB") }
+        if let failure = request.failure, !failure.isEmpty { details.append(failure) }
+        return details
     }
 }
 
