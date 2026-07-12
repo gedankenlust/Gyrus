@@ -44,8 +44,8 @@ async def capture_snapshot(bookmark_id: str, url: str, title: str = "") -> dict[
         from playwright.async_api import async_playwright
     except Exception as e:
         raise VisualSnapshotUnavailable(
-            "Visual snapshots need Playwright. Install it in the bundled backend "
-            "runtime before using Design Brain capture."
+            "The design engine is unavailable in this build. Reinstall or update "
+            "Gyrus and try again."
         ) from e
 
     out_dir = _bookmark_dir(bookmark_id)
@@ -184,11 +184,20 @@ def _dominant_colors(path: Path, max_colors: int = 8) -> list[str]:
 
     counts = Counter(bucket(pixel) for pixel in pixels)
     colors: list[str] = []
+    neutral_fallbacks: list[str] = []
     for (r, g, b), _ in counts.most_common(30):
-        # Skip near-white/near-black page chrome dominance unless the palette
-        # would otherwise be empty.
-        if len(colors) < max_colors:
-            colors.append(f"#{max(0, min(r, 255)):02x}{max(0, min(g, 255)):02x}{max(0, min(b, 255)):02x}")
+        value = f"#{max(0, min(r, 255)):02x}{max(0, min(g, 255)):02x}{max(0, min(b, 255)):02x}"
+        is_neutral = max(r, g, b) - min(r, g, b) <= 10
+        is_page_chrome = is_neutral and (max(r, g, b) >= 240 or max(r, g, b) <= 24)
+        if is_page_chrome:
+            neutral_fallbacks.append(value)
+        elif len(colors) < max_colors:
+            colors.append(value)
+
+    # Keep one surface neutral when a page is monochrome, without letting
+    # white or black backgrounds drown out the useful palette.
+    if len(colors) < max_colors and neutral_fallbacks:
+        colors.append(neutral_fallbacks[0])
     return colors[:max_colors]
 
 

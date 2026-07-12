@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
-"""Generates Gyrus.xcodeproj/project.pbxproj with robust recursive group handling"""
-import uuid, os
+"""Generates Gyrus.xcodeproj/project.pbxproj with robust recursive group handling."""
+import hashlib
+import os
 
-def uid(): return uuid.uuid4().hex[:24].upper()
+_uid_counter = 0
+
+
+def uid():
+    """Return reproducible Xcode IDs so regenerating does not churn the project."""
+    global _uid_counter
+    _uid_counter += 1
+    seed = f"gyrus-xcode-project-{_uid_counter}".encode()
+    return hashlib.sha1(seed).hexdigest()[:24].upper()
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(ROOT, "Gyrus")
@@ -17,7 +26,8 @@ MACOS_MIN = "26.0"
 # 1. Collect all Swift files and their directories
 swift_files = []
 dirs = set()
-for dirpath, _, filenames in os.walk(APP_DIR):
+for dirpath, dirnames, filenames in os.walk(APP_DIR):
+    dirnames.sort()
     rel_dir = os.path.relpath(dirpath, ROOT)
     dirs.add(rel_dir)
     for fn in sorted(filenames):

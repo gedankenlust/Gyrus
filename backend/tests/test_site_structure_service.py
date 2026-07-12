@@ -70,6 +70,14 @@ def test_site_structure_prompt_detection():
     assert service.should_include_for_prompt("how many pages are on this site?")
     assert not service.should_include_for_prompt("Fasse diese Seite zusammen")
 
+    assert service.is_page_count_prompt("Wie viele Seiten hat die Webseite?")
+    assert service.is_page_count_prompt("How many pages are on this site?")
+    assert not service.is_page_count_prompt("Wie viele Seiten hat das PDF?")
+    assert not service.is_page_count_prompt("Welche Unterseiten haben die beste UX?")
+    assert not service.is_page_count_prompt(
+        "Wie viele Seiten gibt es und welche haben die beste UX?"
+    )
+
 
 @pytest.mark.asyncio
 async def test_site_structure_reads_sitemap_indexes(monkeypatch, tmp_path):

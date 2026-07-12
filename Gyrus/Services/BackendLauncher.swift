@@ -15,27 +15,26 @@ final class BackendLauncher {
     private var logHandle: FileHandle?
 
     private var backendDir: URL {
-        // 1. Prefer the repo source in development. #filePath resolves to the
-        //    build machine's source path; if it exists we're a dev build, so
-        //    reuse the existing backend/venv (fast — no re-bootstrap).
-        // #filePath = .../Gyrus/Gyrus/Services/BackendLauncher.swift
-        // go up 3 dirs: Services → Gyrus (app folder) → Gyrus (root) → backend
+        let bundled = Bundle.main.resourceURL?.appendingPathComponent("backend")
         let repo = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("backend")
-        if FileManager.default.fileExists(atPath: repo.appendingPathComponent("main.py").path) {
+
+        // Built and installed apps must exercise the exact backend they ship.
+        // Xcode users can explicitly opt into the faster repo venv when needed.
+        if ProcessInfo.processInfo.environment["GYRUS_USE_REPO_BACKEND"] == "1",
+           FileManager.default.fileExists(atPath: repo.appendingPathComponent("main.py").path) {
             return repo
         }
 
-        // 2. Distributed app: use the backend bundled into Resources.
-        if let bundlePath = Bundle.main.resourceURL?.appendingPathComponent("backend"),
+        if let bundlePath = bundled,
            FileManager.default.fileExists(atPath: bundlePath.appendingPathComponent("main.py").path) {
             return bundlePath
         }
 
-        // 3. Last resort (repo path, for a clear "not found" error).
+        // Source-tree fallback for unusual command-line development builds.
         return repo
     }
 
@@ -63,9 +62,8 @@ final class BackendLauncher {
         return FileManager.default.fileExists(atPath: py.path) ? py : nil
     }
 
-    /// The interpreter to run the backend with. Dev builds use the repo venv so
-    /// optional tools installed there (e.g. Playwright) are available; bundled
-    /// apps use the self-contained runtime when present.
+    /// The interpreter to run the backend with. Bundled apps use their exact
+    /// self-contained runtime; repo development can opt in via the environment.
     private var usesBundledRuntime: Bool { isBundledBackend && bundledRuntimePython != nil }
     private var pythonExecutable: URL {
         if usesBundledRuntime, let runtime = bundledRuntimePython {
@@ -138,7 +136,12 @@ final class BackendLauncher {
             "--log-level", "warning"
         ]
         proc.currentDirectoryURL = backendDir
-        proc.environment = ProcessInfo.processInfo.environment
+        var environment = ProcessInfo.processInfo.environment
+        if usesBundledRuntime {
+            environment["PLAYWRIGHT_BROWSERS_PATH"] = backendDir
+                .appendingPathComponent("python-runtime/playwright-browsers").path
+        }
+        proc.environment = environment
         let logURL = dataDir.appendingPathComponent("backend.log")
         FileManager.default.createFile(atPath: logURL.path, contents: nil)
         if let handle = try? FileHandle(forWritingTo: logURL) {

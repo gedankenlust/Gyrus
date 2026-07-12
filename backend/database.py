@@ -3,7 +3,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-DATA_DIR = Path.home() / ".gyrus"
+DATA_DIR = Path(os.environ.get("GYRUS_DATA_DIR", Path.home() / ".gyrus")).expanduser()
 DATA_DIR.mkdir(exist_ok=True)
 (DATA_DIR / "favicons").mkdir(exist_ok=True)
 (DATA_DIR / "og_images").mkdir(exist_ok=True)

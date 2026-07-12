@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var showBrainOnboarding = false
     @State private var newTagName = ""
     @State private var newTagColor: Color = .blue
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     private var confirmTitle: String {
         let n = uiStateStore.pendingBatchOpen?.count ?? 0
@@ -29,14 +30,18 @@ struct ContentView: View {
         @Bindable var bookmarkStore = bookmarkStore
         @Bindable var uiStateStore = uiStateStore
 
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(showImport: $showImport)
                 .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
         } content: {
             BookmarkListView(showAddBookmark: $showAddBookmark)
                 .navigationSplitViewColumnWidth(min: 300, ideal: 420)
         } detail: {
-            PreviewPanelView()
+            PreviewPanelView(isFocused: Binding(
+                get: { columnVisibility == .detailOnly },
+                set: { columnVisibility = $0 ? .detailOnly : .all }
+            ))
+            .navigationSplitViewColumnWidth(min: 520, ideal: 720)
         }
         .sheet(isPresented: $showImport) {
             ImportWizardView(isPresented: $showImport)

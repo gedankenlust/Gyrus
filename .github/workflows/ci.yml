@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+
+  macos-tests:
+    name: macOS build and tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 generate_xcodeproj.py
+      - run: >-
+          xcodebuild test
+          -project Gyrus.xcodeproj
+          -scheme Gyrus
+          -destination 'platform=macOS'
+          CODE_SIGNING_ALLOWED=NO

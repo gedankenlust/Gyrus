@@ -36,17 +36,32 @@ struct MarkdownTextEditor: NSViewRepresentable {
 }
 
 enum PreviewTab: String, CaseIterable, Identifiable {
-    case info = "Info"
-    case reader = "Reader"
+    case page = "Page"
     case design = "Design"
     case brain = "AI Brain"
     case notes = "Notes"
-    case web = "Web"
     var id: String { rawValue }
 
     static func fromPreference(_ value: String) -> PreviewTab? {
+        if ["Info", "Reader", "Web"].contains(value) { return .page }
         if value == "Snapshot" { return .design }
         return PreviewTab(rawValue: value)
+    }
+}
+
+private enum PageMode: String, CaseIterable, Identifiable {
+    case overview = "Overview"
+    case reader = "Reader"
+    case live = "Live"
+
+    var id: String { rawValue }
+
+    static func fromPreference(_ value: String) -> PageMode {
+        switch value {
+        case "Reader": .reader
+        case "Web": .live
+        default: .overview
+        }
     }
 }
 
@@ -54,10 +69,11 @@ enum PreviewTab: String, CaseIterable, Identifiable {
 
 struct PreviewPanelView: View {
     @Environment(BookmarkStore.self) private var bookmarkStore
+    @Binding var isFocused: Bool
 
     var body: some View {
         if let bookmark = bookmarkStore.selectedBookmark {
-            BookmarkDetailView(bookmark: bookmark)
+            BookmarkDetailView(bookmark: bookmark, isFocused: $isFocused)
         } else {
             EmptyPreviewView()
         }
@@ -113,12 +129,14 @@ struct HintRow: View {
 
 struct BookmarkDetailView: View {
     let bookmark: Bookmark
+    @Binding var isFocused: Bool
     @Environment(BookmarkStore.self) private var bookmarkStore
     @Environment(CollectionStore.self) private var collectionStore
     @Environment(TagStore.self) private var tagStore
     
     @State private var controller   = WebController()
-    @State private var selectedTab: PreviewTab = PreviewTab.fromPreference(AppSettings.shared.defaultPreviewTab) ?? .info
+    @State private var selectedTab: PreviewTab = PreviewTab.fromPreference(AppSettings.shared.defaultPreviewTab) ?? .page
+    @State private var pageMode = PageMode.fromPreference(AppSettings.shared.defaultPreviewTab)
     @State private var isEditing    = false
     @State private var newNoteText  = ""
     @State private var readerContent: String = "Loading..."
@@ -141,11 +159,11 @@ struct BookmarkDetailView: View {
         }
     }
 
-    /// The user's preferred starting tab, falling back to Info if that tab
+    /// The user's preferred starting tab, falling back to Page if that tab
     /// isn't available (e.g. AI Brain while the brain is disabled).
     private var preferredTab: PreviewTab {
-        let pref = PreviewTab.fromPreference(AppSettings.shared.defaultPreviewTab) ?? .info
-        return availableTabs.contains(pref) ? pref : .info
+        let pref = PreviewTab.fromPreference(AppSettings.shared.defaultPreviewTab) ?? .page
+        return availableTabs.contains(pref) ? pref : .page
     }
 
     var body: some View {
@@ -153,27 +171,82 @@ struct BookmarkDetailView: View {
             if isEditing {
                 editMode
             } else {
+                detailHeader
                 tabPicker
                 Divider()
                 
                 switch selectedTab {
-                case .info: infoMode
-                case .reader: readerMode
+                case .page: pageView
                 case .design: VisualSnapshotTabView(bookmark: bookmark)
                 case .brain: AIBrainTabView(bookmark: bookmark)
                 case .notes: notesMode
-                case .web: webMode
                 }
             }
         }
         .onAppear {
             selectedTab = preferredTab
+            pageMode = PageMode.fromPreference(AppSettings.shared.defaultPreviewTab)
             Task { try? await bookmarkStore.fetchMeta(bookmark) }
         }
         .onChange(of: bookmark.id) {
             selectedTab = preferredTab
+            pageMode = PageMode.fromPreference(AppSettings.shared.defaultPreviewTab)
             isEditing   = false
             Task { try? await bookmarkStore.fetchMeta(bookmark) }
+        }
+    }
+
+    private var detailHeader: some View {
+        HStack(spacing: 10) {
+            FaviconView(faviconPath: bookmark.faviconPath, bookmarkURL: bookmark.url, size: 22)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(bookmark.title)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
+                Text(URL(string: bookmark.url)?.host ?? bookmark.url)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Button {
+                isFocused.toggle()
+            } label: {
+                Image(systemName: isFocused ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+            }
+            .buttonStyle(.plain)
+            .help(isFocused ? "Exit Focus Mode" : "Focus Detail")
+            Button {
+                bookmarkStore.safeBrowserOpen(bookmark.url)
+            } label: {
+                Image(systemName: "safari")
+            }
+            .buttonStyle(.plain)
+            .help("Open in Browser")
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(.bar)
+    }
+
+    private var pageView: some View {
+        VStack(spacing: 0) {
+            Picker("Page View", selection: $pageMode) {
+                ForEach(PageMode.allCases) { mode in
+                    Text(LocalizedStringKey(mode.rawValue)).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            Divider()
+
+            switch pageMode {
+            case .overview: infoMode
+            case .reader: readerMode
+            case .live: webMode
+            }
         }
     }
 
@@ -183,7 +256,7 @@ struct BookmarkDetailView: View {
                 Button {
                     selectedTab = tab
                 } label: {
-                    Text(tab.rawValue)
+                    Text(LocalizedStringKey(tab.rawValue))
                         .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .medium))
                         .foregroundStyle(selectedTab == tab ? .white : .primary)
                         .frame(maxWidth: .infinity)
@@ -249,7 +322,6 @@ struct BookmarkDetailView: View {
             // Optional, opt-in AI tidy-up. The local model reformats the text;
             // it never silently replaces the extracted original on disk.
             HStack {
-                Text("Reader").font(.headline)
                 Spacer()
                 if aiConfig.aiEnabled {
                     Button {
@@ -324,9 +396,6 @@ struct BookmarkDetailView: View {
     private var notesMode: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Notes")
-                    .font(.headline)
-                    .foregroundStyle(.primary)
                 Spacer()
             }
             .padding(.horizontal, 16)

@@ -6,6 +6,7 @@ struct AIBrainTabView: View {
     private let chat = BrainChatStore.shared
     @State private var currentPrompt: String = ""
     @State private var scrollProxy: ScrollViewProxy? = nil
+    @State private var hasDesignSnapshot = false
 
     // Conversation state lives in the shared store, keyed by bookmark — so it
     // survives switching bookmarks and runs in the background.
@@ -26,14 +27,14 @@ struct AIBrainTabView: View {
          "Summarize the main content of this page.",
          "Fasse den Hauptinhalt dieser Seite zusammen."),
         ("Analyze UI/UX Structure",
-         "Analyze the content structure and likely user intent of this page. Use only evidence from the saved title, URL, description, and extracted text. Do not infer visual layout, colors, or typography unless they are explicitly mentioned.",
-         "Analysiere die Inhaltsstruktur und wahrscheinliche Nutzerintention dieser Seite. Nutze nur Hinweise aus gespeichertem Titel, URL, Beschreibung und extrahiertem Text. Leite kein visuelles Layout, keine Farben und keine Typografie ab, sofern sie nicht ausdrücklich erwähnt werden."),
-        ("Show Core Web Vitals",
-         "Create a practical Core Web Vitals and UX checklist for this page type. Make clear that these are checks to run, not measured results.",
-         "Erstelle eine praktische Core-Web-Vitals- und UX-Checkliste für diesen Seitentyp. Mache klar, dass es Prüfpunkte sind und keine gemessenen Ergebnisse."),
+         "Analyze the UI/UX structure and user intent. Use captured design evidence when available, distinguish evidence from recommendations, and do not guess missing details.",
+         "Analysiere UI/UX-Struktur und Nutzerintention. Nutze vorhandene Design-Messdaten, trenne Belege von Empfehlungen und erfinde keine fehlenden Details."),
+        ("Compare Viewports",
+         "Compare the captured desktop, tablet, and mobile viewports. Identify meaningful responsive differences, inconsistencies, and concrete improvements. State clearly when a viewport has not been captured.",
+         "Vergleiche die erfassten Desktop-, Tablet- und Mobile-Viewports. Nenne relevante responsive Unterschiede, Inkonsistenzen und konkrete Verbesserungen. Sage klar, wenn ein Viewport nicht erfasst wurde."),
         ("Extract Design Details",
-         "List only design, brand, color, typography, or layout clues that are explicitly present in the saved metadata or extracted page text. If none are present, say that the Brain cannot inspect the rendered page and should not guess.",
-         "Liste nur Design-, Marken-, Farb-, Typografie- oder Layout-Hinweise auf, die ausdrücklich in den gespeicherten Metadaten oder im extrahierten Seitentext vorkommen. Wenn keine vorhanden sind, sage, dass der Brain die gerenderte Seite nicht sehen kann und nicht raten sollte."),
+         "Extract a concise design system from the captured rendered page: colors, typography, spacing, radii, shadows, layout patterns, and reusable components. Separate measured evidence from interpretation and say what is missing.",
+         "Extrahiere aus der erfassten gerenderten Seite ein kompaktes Designsystem: Farben, Typografie, Abstände, Radien, Schatten, Layoutmuster und wiederverwendbare Komponenten. Trenne gemessene Belege von Interpretation und nenne fehlende Daten."),
         ("Generate MD Briefing",
          "Generate a comprehensive Markdown briefing for this bookmark.",
          "Erstelle ein umfassendes Markdown-Briefing für dieses Lesezeichen."),
@@ -53,14 +54,13 @@ struct AIBrainTabView: View {
         }
         .task(id: bookmark.id) {
             await chat.load(bookmarkId: bookmark.id)
+            hasDesignSnapshot = (try? await APIClient.shared.visualSnapshot(bookmarkId: bookmark.id)) != nil
         }
     }
     
     private var header: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("AI Brain")
-                    .font(.headline)
                 Spacer()
                 if isSending {
                     ProgressView().scaleEffect(0.5)
@@ -98,6 +98,17 @@ struct AIBrainTabView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(.bar)
+            Divider()
+            HStack(spacing: 6) {
+                BrainContextBadge(title: "Page text", icon: "doc.text")
+                BrainContextBadge(title: "Chat history", icon: "bubble.left.and.bubble.right")
+                if hasDesignSnapshot {
+                    BrainContextBadge(title: "3 viewports", icon: "rectangle.3.group")
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
             Divider()
         }
     }
@@ -212,6 +223,20 @@ struct AIBrainTabView: View {
                 scrollProxy?.scrollTo(last.id, anchor: .bottom)
             }
         }
+    }
+}
+
+private struct BrainContextBadge: View {
+    let title: LocalizedStringKey
+    let icon: String
+
+    var body: some View {
+        Label(title, systemImage: icon)
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 6))
     }
 }
 

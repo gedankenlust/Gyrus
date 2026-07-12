@@ -77,17 +77,33 @@ class SiteStructureService:
 
     def is_page_count_prompt(self, prompt: str | None) -> bool:
         text = " ".join((prompt or "").lower().split())
-        count_needles = (
-            "wie viele seiten",
-            "wieviele seiten",
-            "wie viel seiten",
-            "anzahl der seiten",
-            "seiten hat",
-            "seiten gibt",
-            "how many pages",
-            "number of pages",
+        if not text:
+            return False
+
+        document_terms = (
+            "pdf", "dokument", "datei", "buch", "ebook", "bericht",
+            "präsentation", "presentation", "document", "file", "book",
         )
-        return any(needle in text for needle in count_needles)
+        if any(term in text for term in document_terms):
+            return False
+
+        count_patterns = (
+            r"\bwie\s*viele?\s+(?:interne\s+)?seiten\b",
+            r"\bwieviele\s+(?:interne\s+)?seiten\b",
+            r"\banzahl\s+der\s+(?:internen\s+)?seiten\b",
+            r"\bhow\s+many\s+(?:internal\s+)?pages\b",
+            r"\bnumber\s+of\s+(?:internal\s+)?pages\b",
+        )
+        if not any(re.search(pattern, text) for pattern in count_patterns):
+            return False
+
+        analysis_terms = (
+            " und ", " welche ", " warum ", " analys", " vergleich",
+            " beste", " schlech", " ux", " design", " bewert", " optimier",
+            " and ", " which ", " why ", " analy", " compare", " best ",
+            "worst", "evaluate", "improve",
+        )
+        return not any(term in f" {text} " for term in analysis_terms)
 
     async def context_for_url(
         self,
@@ -307,17 +323,6 @@ class SiteStructureService:
 
     def _extract_sitemap_locations(self, xml_text: str) -> list[str]:
         return re.findall(r"<loc>\s*([^<]+?)\s*</loc>", xml_text, flags=re.I)
-
-    def _extract_sitemap_urls(self, xml_text: str, origin: str) -> list[str]:
-        locs = re.findall(r"<loc>\s*([^<]+?)\s*</loc>", xml_text, flags=re.I)
-        out: list[str] = []
-        seen: set[str] = set()
-        for raw in locs:
-            url = self._normalize_internal_url(html_lib.unescape(raw.strip()), origin, origin)
-            if url and url not in seen:
-                seen.add(url)
-                out.append(url)
-        return out
 
     def _looks_like_sitemap(self, value: str, origin: str) -> bool:
         parsed = urlparse(urljoin(origin, value))

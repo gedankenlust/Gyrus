@@ -66,10 +66,14 @@ cd backend
 ./build_python_runtime.sh        # downloads a relocatable Python + prod deps
 ```
 
-This creates `backend/python-runtime/` (gitignored, ~140 MB). The Xcode build
-phase bundles it into the `.app`, and `BackendLauncher` runs from it directly —
-no venv, no pip, no first-launch bootstrap. Without it, the app falls back to
-creating a venv from the system Python (fine for development).
+This creates `backend/python-runtime/` (gitignored, currently ~480 MB including
+Playwright's Chromium headless browser). The Xcode build phase bundles it into
+the `.app`, and `BackendLauncher` runs from it directly — no venv, no pip, no
+first-launch bootstrap. Without it, the app falls back to creating a venv from
+the system Python (fine for development).
+
+The script launches the bundled browser as a smoke test. A release is not ready
+if this step fails or if the built app does not contain `playwright-browsers/`.
 
 > Not yet wired up: for notarization, the bundled runtime's native libraries
 > must be code-signed. Track that with the distribution/signing work.

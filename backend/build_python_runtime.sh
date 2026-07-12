@@ -55,13 +55,20 @@ echo "→ Installing production dependencies into the runtime…"
 grep -ivE '^(pytest|pytest-asyncio)' requirements.txt > "$RUNTIME_DIR/.prod-requirements.txt"
 "$PY" -m pip install -r "$RUNTIME_DIR/.prod-requirements.txt"
 
+echo "→ Installing the bundled Chromium browser…"
+PLAYWRIGHT_BROWSERS_PATH="$RUNTIME_DIR/playwright-browsers" \
+  "$PY" -m playwright install --only-shell chromium
+
 echo "→ Slimming…"
 # Drop caches and test dirs to keep the bundle smaller.
 find "$RUNTIME_DIR" -type d -name "__pycache__" -prune -exec rm -rf {} + 2>/dev/null || true
 find "$RUNTIME_DIR" -type d -name "tests" -path "*/site-packages/*" -prune -exec rm -rf {} + 2>/dev/null || true
 
-echo "→ Verifying uvicorn imports from the bundled runtime…"
-"$PY" -c "import uvicorn, fastapi, sqlalchemy, PIL, lxml; print('OK', uvicorn.__version__)"
+echo "→ Verifying backend and browser imports from the bundled runtime…"
+PLAYWRIGHT_BROWSERS_PATH="$RUNTIME_DIR/playwright-browsers" \
+  "$PY" -c "import uvicorn, fastapi, sqlalchemy, PIL, lxml, playwright; print('OK', uvicorn.__version__)"
+PLAYWRIGHT_BROWSERS_PATH="$RUNTIME_DIR/playwright-browsers" \
+  "$PY" -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); b=p.chromium.launch(headless=True); print('Chromium OK', b.version); b.close(); p.stop()"
 
 SIZE="$(du -sh "$RUNTIME_DIR" | cut -f1)"
 echo "✅ Done. Runtime at backend/$RUNTIME_DIR ($SIZE). Re-run generate_xcodeproj.py is not needed; just rebuild the app."

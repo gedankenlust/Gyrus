@@ -132,6 +132,36 @@ def test_chat_includes_visual_snapshot_context(client, brain_enabled, monkeypatc
     assert "radius=8px" in captured["context"]
 
 
+def test_chat_omits_visual_snapshot_for_content_summary(client, brain_enabled, monkeypatch):
+    captured = {}
+
+    async def fake_scrape(url):
+        return {"content": "Page text long enough to become context. " * 8, "title": "Article"}
+
+    async def fake_ask_llm(prompt, context, provider_config, title="", url="", history=None, language=None):
+        captured["context"] = context
+        return "Summary."
+
+    monkeypatch.setattr(scraper_module.scraper_service, "extract_content", fake_scrape)
+    monkeypatch.setattr(llm_module.LLMService, "ask_llm", fake_ask_llm)
+    monkeypatch.setattr(
+        "routers.brain.visual_snapshot_service.read_snapshot",
+        lambda _bookmark_id: {"captured_at": "now", "viewports": [{"name": "desktop"}]},
+    )
+
+    bm = client.post("/api/bookmarks", json={
+        "title": "Article", "url": "https://example.com/article", "source": "manual",
+    }).json()
+    resp = client.post("/api/brain/chat", json={
+        "bookmark_id": bm["id"],
+        "prompt": "Fasse den Hauptinhalt zusammen.",
+        "provider_config": {"provider": "ollama", "model": "llama3"},
+    })
+
+    assert resp.status_code == 200
+    assert "Visual Snapshot" not in captured["context"]
+
+
 def test_chat_includes_site_structure_context_for_structure_questions(client, brain_enabled, monkeypatch):
     captured = {}
 

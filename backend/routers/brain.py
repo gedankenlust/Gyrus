@@ -79,6 +79,18 @@ def _provider_model(provider_config: Optional[Dict[str, Any]]) -> str | None:
     return model if isinstance(model, str) and model else None
 
 
+def _should_include_visual_context(prompt: str | None) -> bool:
+    text = (prompt or "").lower()
+    terms = (
+        "design", "layout", "farbe", "farben", "color", "colour", "font",
+        "typografie", "typography", "ui", "ux", "viewport", "responsive",
+        "desktop", "tablet", "mobile", "komponent", "component", "button",
+        "navigation", "spacing", "abstand", "css", "style", "visuell",
+        "visual", "accessibility", "barriere", "a11y", "seo", "asset",
+    )
+    return any(term in text for term in terms)
+
+
 def _visual_snapshot_context(bookmark_id: str) -> str:
     snapshot = visual_snapshot_service.read_snapshot(bookmark_id)
     if not snapshot:
@@ -91,7 +103,7 @@ def _visual_snapshot_context(bookmark_id: str) -> str:
     if snapshot.get("captured_at"):
         lines.append(f"Captured at: {snapshot.get('captured_at')}")
 
-    for viewport in snapshot.get("viewports", [])[:2]:
+    for viewport in snapshot.get("viewports", [])[:3]:
         name = viewport.get("name", "viewport")
         width = viewport.get("width", "")
         height = viewport.get("height", "")
@@ -125,13 +137,13 @@ def _visual_snapshot_context(bookmark_id: str) -> str:
                 f"svgs={structure.get('svgs', 0)}, "
                 f"forms={structure.get('forms', 0)}"
             )
-            for heading in (structure.get("h1") or [])[:4]:
+            for heading in (structure.get("h1") or [])[:2]:
                 lines.append(f"H1: {heading}")
-            for heading in (structure.get("h2") or [])[:8]:
+            for heading in (structure.get("h2") or [])[:3]:
                 lines.append(f"H2: {heading}")
 
         lines.append("Computed element samples:")
-        for sample in (viewport.get("element_samples") or [])[:28]:
+        for sample in (viewport.get("element_samples") or [])[:4]:
             selector = sample.get("selector_hint") or sample.get("tag") or "element"
             text = (sample.get("text") or "").replace("\n", " ")[:120]
             lines.append(
@@ -154,7 +166,7 @@ def _visual_snapshot_context(bookmark_id: str) -> str:
             )
 
     text = "\n".join(lines)
-    MAX_SNAPSHOT_CONTEXT_CHARS = 7000
+    MAX_SNAPSHOT_CONTEXT_CHARS = 5200
     if len(text) > MAX_SNAPSHOT_CONTEXT_CHARS:
         text = text[:MAX_SNAPSHOT_CONTEXT_CHARS] + "... [Visual Snapshot Truncated]"
     return text
@@ -283,9 +295,10 @@ async def _prepare_context(db: Session, bookmark, prompt: str | None = None) -> 
         site_context = await site_structure_service.context_for_url(bookmark.id, bookmark.url)
         if site_context:
             context = f"{context}\n\n{site_context}" if context else site_context
-    visual_context = _visual_snapshot_context(bookmark.id)
-    if visual_context:
-        context = f"{context}\n\n{visual_context}" if context else visual_context
+    if _should_include_visual_context(prompt):
+        visual_context = _visual_snapshot_context(bookmark.id)
+        if visual_context:
+            context = f"{context}\n\n{visual_context}" if context else visual_context
     return context
 
 
