@@ -61,12 +61,14 @@ struct EmptyBody: Encodable {}
 struct ProviderPayload: Encodable {
     let provider: String
     let model: String
+    let embedding_model: String
     let ollama_url: String
     let api_key: String
 
     init(_ config: AIBrainConfig) {
         provider = config.llmProvider.rawValue
         model = config.ollamaModel
+        embedding_model = config.embeddingModel
         ollama_url = config.ollamaURL
         api_key = ""
     }

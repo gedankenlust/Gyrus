@@ -333,7 +333,8 @@ final class AppStore {
                     self.uiStateStore.batchAutoTagStatus = nil
                     if let draft = status.draft {
                         self.uiStateStore.batchTagReview = TagReviewPayload(draft: draft)
-                    } else if let error = status.error {
+                    } else if let error = status.error?.trimmingCharacters(in: .whitespacesAndNewlines),
+                              !error.isEmpty {
                         self.uiStateStore.showError(error)
                     } else if status.phase != "cancelled" {
                         self.uiStateStore.showError(AppSettings.shared.localized("No tag system could be created."))

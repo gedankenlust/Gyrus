@@ -51,7 +51,12 @@ def _draft(ids: list[str]) -> dict:
 @pytest.mark.asyncio
 async def test_batch_builds_one_review_draft_without_writing_tags():
     ids = _bookmarks(3)
-    generator = AsyncMock(return_value=_draft(ids))
+    async def generate(db, bookmarks, config, language, progress=None):
+        assert progress is not None
+        progress("organizing", 42)
+        return _draft(ids)
+
+    generator = AsyncMock(side_effect=generate)
     with patch("services.taxonomy_service.generate_draft", new=generator):
         await auto_tag_batch_service.start(ids, None)
         await _wait_until_done()
@@ -62,6 +67,7 @@ async def test_batch_builds_one_review_draft_without_writing_tags():
     assert status["assigned"] == 3
     assert status["failed"] == 0
     assert status["phase"] == "review"
+    assert status["generated_tokens"] == 42
     assert status["draft"]["tags"][0]["name"] == "testing"
     generator.assert_awaited_once()
 

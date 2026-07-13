@@ -20,6 +20,8 @@ job = BackgroundJob(
     failed=0,
     phase="idle",
     draft=None,
+    generated_tokens=0,
+    model=None,
 )
 
 get_status = job.get_status
@@ -78,6 +80,12 @@ async def _run(ids: list[str], provider_config: dict | None, language: str | Non
         raise ValueError("No selected bookmarks are available for taxonomy generation.")
 
     job.state["phase"] = "organizing"
+    job.state["generated_tokens"] = 0
+
+    def report_progress(stage: str, generated_tokens: int) -> None:
+        job.state["phase"] = stage
+        job.state["generated_tokens"] = generated_tokens
+
     db = SessionLocal()
     try:
         bookmarks_by_id = {
@@ -87,7 +95,7 @@ async def _run(ids: list[str], provider_config: dict | None, language: str | Non
         bookmarks = [bookmarks_by_id[bookmark_id] for bookmark_id in valid_ids
                      if bookmark_id in bookmarks_by_id]
         draft = await taxonomy_service.generate_draft(
-            db, bookmarks, provider_config, language
+            db, bookmarks, provider_config, language, progress=report_progress
         )
     finally:
         db.close()
@@ -110,5 +118,9 @@ async def start(ids: list[str], provider_config: dict | None = None,
 
     return await job.start(
         runner,
-        reset={"total": len(unique_ids), "phase": "preparing"},
+        reset={
+            "total": len(unique_ids),
+            "phase": "preparing",
+            "model": (provider_config or {}).get("model", "llama3"),
+        },
     )

@@ -286,9 +286,7 @@ struct SelectionStatusBar: View {
             if let status = uiStateStore.batchAutoTagStatus, status.running {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text(status.phase == "organizing"
-                         ? "Building tag system…"
-                         : "Analyzing \(status.processed)/\(status.total)…")
+                    Text(progressLabel(status))
                         .font(.caption).foregroundStyle(.secondary)
                     Button {
                         Task { await appStore.cancelBatchAutoTag() }
@@ -367,6 +365,45 @@ struct SelectionStatusBar: View {
         .padding(.vertical, 8)
         .background(.bar)
         .overlay(Divider(), alignment: .top)
+    }
+
+    private func progressLabel(_ status: BatchAutoTagStatus) -> String {
+        if status.phase == "embedding" {
+            return AppSettings.shared.localized("Analyzing the meaning of \(status.total) bookmarks…")
+        }
+        if status.phase == "clustering" {
+            return AppSettings.shared.localized("Grouping \(status.total) related bookmarks…")
+        }
+        if status.phase == "labeling" {
+            let model = status.model ?? "AI"
+            return status.generatedTokens > 0
+                ? AppSettings.shared.localized("\(model) names groups · \(status.generatedTokens) tokens…")
+                : AppSettings.shared.localized("\(model) names the topic groups…")
+        }
+        if status.phase == "assigning" {
+            let model = status.model ?? "AI"
+            return status.generatedTokens > 0
+                ? AppSettings.shared.localized("\(model) sorts · \(status.generatedTokens) tokens…")
+                : AppSettings.shared.localized("\(model) sorts the bookmarks…")
+        }
+        if status.phase == "validating" {
+            let model = status.model ?? "AI"
+            return status.generatedTokens > 0
+                ? AppSettings.shared.localized("\(model) checks · \(status.generatedTokens) tokens…")
+                : AppSettings.shared.localized("\(model) checks every assignment…")
+        }
+        if status.phase == "repairing" {
+            return status.generatedTokens > 0
+                ? AppSettings.shared.localized("Refining suggestions · \(status.generatedTokens) tokens…")
+                : AppSettings.shared.localized("Checking and refining suggestions…")
+        }
+        if status.phase == "organizing" {
+            let model = status.model ?? "AI"
+            return status.generatedTokens > 0
+                ? AppSettings.shared.localized("\(model) generates · \(status.generatedTokens) tokens…")
+                : AppSettings.shared.localized("\(model) reads \(status.total) bookmarks…")
+        }
+        return AppSettings.shared.localized("Analyzing \(status.processed)/\(status.total)…")
     }
 }
 

@@ -8558,6 +8558,84 @@
         "de": { "stringUnit": { "state": "translated", "value": "Ohne Tag" } },
         "en": { "stringUnit": { "state": "translated", "value": "Without a tag" } }
       }
+    },
+    "Analyzing the meaning of %lld bookmarks…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Bedeutung von %lld Lesezeichen wird analysiert…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Analyzing the meaning of %lld bookmarks…" } }
+      }
+    },
+    "Grouping %lld related bookmarks…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%lld verwandte Lesezeichen werden gruppiert…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Grouping %lld related bookmarks…" } }
+      }
+    },
+    "%@ names groups · %lld tokens…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%1$@ benennt Gruppen · %2$lld Tokens…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%1$@ names groups · %2$lld tokens…" } }
+      }
+    },
+    "%@ names the topic groups…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%@ benennt die Themengruppen…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%@ names the topic groups…" } }
+      }
+    },
+    "%@ sorts · %lld tokens…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%1$@ sortiert · %2$lld Tokens…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%1$@ sorts · %2$lld tokens…" } }
+      }
+    },
+    "%@ sorts the bookmarks…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%@ sortiert die Lesezeichen…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%@ sorts the bookmarks…" } }
+      }
+    },
+    "%@ checks · %lld tokens…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%1$@ prüft · %2$lld Tokens…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%1$@ checks · %2$lld tokens…" } }
+      }
+    },
+    "%@ checks every assignment…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%@ prüft jede Zuordnung…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%@ checks every assignment…" } }
+      }
+    },
+    "Refining suggestions · %lld tokens…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Vorschläge werden verbessert · %lld Tokens…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Refining suggestions · %lld tokens…" } }
+      }
+    },
+    "Checking and refining suggestions…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Vorschläge werden geprüft und verbessert…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Checking and refining suggestions…" } }
+      }
+    },
+    "%@ generates · %lld tokens…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%1$@ erzeugt · %2$lld Tokens…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%1$@ generates · %2$lld tokens…" } }
+      }
+    },
+    "%@ reads %lld bookmarks…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%1$@ liest %2$lld Lesezeichen…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%1$@ reads %2$lld bookmarks…" } }
+      }
+    },
+    "Analyzing %lld/%lld…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Analyse %1$lld/%2$lld…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Analyzing %1$lld/%2$lld…" } }
+      }
     }
   },
   "version": "1.1"

@@ -73,6 +73,36 @@ def _get_client() -> httpx.AsyncClient:
 
 class LLMService:
     @staticmethod
+    async def unload_ollama_models(
+        base_url: str = "http://localhost:11434",
+        keep: Optional[set[str]] = None,
+    ) -> None:
+        """Best-effort release of loaded Ollama models.
+
+        Taxonomy generation switches from an embedding model to a text model.
+        Leaving both resident can exhaust memory on larger collections, so the
+        batch pipeline calls this at phase boundaries. Failure to unload must
+        never hide an otherwise valid taxonomy result.
+        """
+        keep = keep or set()
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.get(f"{base_url}/api/ps")
+                response.raise_for_status()
+                models = response.json().get("models") or []
+                for loaded in models:
+                    model = loaded.get("model") or loaded.get("name")
+                    if not model or model in keep:
+                        continue
+                    release = await client.post(
+                        f"{base_url}/api/generate",
+                        json={"model": model, "keep_alive": 0},
+                    )
+                    release.raise_for_status()
+        except Exception as exc:
+            logger.warning("Could not release Ollama models: %s", exc)
+
+    @staticmethod
     async def ask_llm(
         prompt: str,
         context: str,
@@ -182,6 +212,10 @@ class LLMService:
                 "Couldn't reach Ollama. Make sure it's running "
                 f"(at {base_url}) and the model is installed."
             )
+        except httpx.TimeoutException:
+            raise LLMUnavailableError(
+                "Ollama took too long to answer. The request was stopped before a complete response arrived."
+            )
         except httpx.HTTPStatusError as e:
             if e.response is not None and e.response.status_code == 404:
                 raise LLMUnavailableError(
@@ -199,6 +233,11 @@ class LLMService:
         url: str = "",
         history: Optional[List[Dict[str, str]]] = None,
         language: str | None = None,
+        think: Optional[bool] = None,
+        options: Optional[Dict[str, Any]] = None,
+        context_kind: str = "page",
+        timeout: float = 600.0,
+        response_format: Optional[Any] = None,
     ):
         """Yield the assistant reply token-by-token as it is generated, so the
         UI can render it live instead of waiting for the whole answer."""
@@ -206,38 +245,56 @@ class LLMService:
 
         base_url = LLMService._ollama_base(provider_config)
         model = provider_config.get("model", "llama3")
-        messages = LLMService._build_messages(prompt, context, title, url, history, language)
+        messages = LLMService._build_messages(
+            prompt, context, title, url, history, language, context_kind
+        )
         payload = {"model": model, "messages": messages, "stream": True}
+        if think is not None:
+            payload["think"] = think
+        if options:
+            payload["options"] = options
+        if response_format is not None:
+            payload["format"] = response_format
 
         client = _get_client()
         try:
-            async with client.stream("POST", f"{base_url}/api/chat", json=payload) as resp:
-                if resp.status_code >= 400:
-                    # Map errors to the same friendly messages as the non-stream
-                    # path. Must read the body first in streaming mode.
-                    await resp.aread()
-                    if resp.status_code == 404:
+            for attempt in range(2):
+                async with client.stream(
+                    "POST", f"{base_url}/api/chat", json=payload, timeout=timeout
+                ) as resp:
+                    if resp.status_code == 400 and "think" in payload and attempt == 0:
+                        await resp.aread()
+                        payload.pop("think", None)
+                        continue
+                    if resp.status_code >= 400:
+                        await resp.aread()
+                        if resp.status_code == 404:
+                            raise LLMUnavailableError(
+                                f"Model '{model}' isn't installed in Ollama. "
+                                f"Run: ollama pull {model}"
+                            )
                         raise LLMUnavailableError(
-                            f"Model '{model}' isn't installed in Ollama. "
-                            f"Run: ollama pull {model}"
+                            f"Ollama stopped the request (HTTP {resp.status_code})."
                         )
-                    raise LLMUnavailableError(
-                        f"Ollama returned an error (HTTP {resp.status_code})."
-                    )
-                async for line in resp.aiter_lines():
-                    if not line.strip():
-                        continue
-                    try:
-                        chunk = _json.loads(line)
-                    except Exception:
-                        continue
-                    piece = chunk.get("message", {}).get("content", "")
-                    if piece:
-                        yield piece
-                    if chunk.get("done"):
-                        break
+                    async for line in resp.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            chunk = _json.loads(line)
+                        except Exception:
+                            continue
+                        piece = chunk.get("message", {}).get("content", "")
+                        if piece:
+                            yield piece
+                        if chunk.get("done"):
+                            return
+                    return
         except httpx.ConnectError:
             raise LLMUnavailableError(
                 "Couldn't reach Ollama. Make sure it's running "
                 f"(at {base_url}) and the model is installed."
+            )
+        except httpx.TimeoutException:
+            raise LLMUnavailableError(
+                "Ollama did not send data for too long. The taxonomy request was stopped."
             )

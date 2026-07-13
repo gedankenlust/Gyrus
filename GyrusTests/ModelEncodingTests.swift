@@ -102,6 +102,8 @@ final class ModelEncodingTests: XCTestCase {
           "without_tags": 1,
           "failed": 0,
           "phase": "review",
+          "generated_tokens": 712,
+          "model": "qwen3:8b",
           "draft": {
             "id": "draft-1",
             "language": "de",
@@ -123,6 +125,8 @@ final class ModelEncodingTests: XCTestCase {
         let status = try JSONDecoder().decode(BatchAutoTagStatus.self, from: data)
 
         XCTAssertEqual(status.phase, "review")
+        XCTAssertEqual(status.generatedTokens, 712)
+        XCTAssertEqual(status.model, "qwen3:8b")
         XCTAssertEqual(status.draft?.tags.first?.bookmarkCount, 2)
         XCTAssertEqual(status.draft?.untagged.first?.title, "Three")
     }

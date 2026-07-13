@@ -86,3 +86,48 @@ async def get_embedding(
             "Is the model installed? (ollama pull nomic-embed-text)"
         )
     return vec
+
+
+async def get_embeddings(
+    texts: list[str],
+    model: Optional[str] = None,
+    base_url: Optional[str] = None,
+) -> list[list[float]]:
+    """Embed a collection in one Ollama request for taxonomy clustering."""
+    cleaned = [text[:4_000] for text in texts if text and text.strip()]
+    if len(cleaned) != len(texts) or not cleaned:
+        raise EmbeddingUnavailableError("Every taxonomy item needs text to embed.")
+
+    model = model or _active_model
+    base_url = base_url or _active_base_url
+    # Taxonomy generation immediately switches to a language model. Ask Ollama
+    # to release the embedding model after this response so both do not occupy
+    # memory at once.
+    payload = {
+        "model": model,
+        "input": cleaned,
+        "truncate": True,
+        "keep_alive": 0,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            resp = await client.post(f"{base_url}/api/embed", json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+    except httpx.ConnectError:
+        raise EmbeddingUnavailableError(
+            f"Couldn't reach Ollama at {base_url}. Make sure it's running."
+        )
+    except httpx.TimeoutException:
+        raise EmbeddingUnavailableError(
+            "Ollama took too long to analyze the selected bookmarks."
+        )
+    except Exception as exc:
+        raise EmbeddingUnavailableError(f"Embedding request failed: {exc}")
+
+    vectors = data.get("embeddings")
+    if not isinstance(vectors, list) or len(vectors) != len(texts) or not all(vectors):
+        raise EmbeddingUnavailableError(
+            f"Ollama returned incomplete embeddings for model '{model}'."
+        )
+    return vectors
