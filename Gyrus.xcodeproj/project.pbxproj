@@ -56,6 +56,7 @@
 		5EA7B2990A48BBF6D73DFE87 = {isa = PBXBuildFile; fileRef = B7632934F5E966AB17873D57; };
 		2A9D6E7C56AB45379125792C = {isa = PBXBuildFile; fileRef = 8B859C5612EA1F03F6C7D5A1; };
 		8A9AD4B09AE94DF5742737D4 = {isa = PBXBuildFile; fileRef = 71E8DCE3082FE1A63DB9289F; };
+		B12A7D4E9C8F3016A24E5B70 = {isa = PBXBuildFile; fileRef = A12A7D4E9C8F3016A24E5B70; };
 		EB71D04A5DC0F92A2B7CB606 = {isa = PBXBuildFile; fileRef = 237BB8FAC8262653E88CD0CB; };
 		DF8C9F34F8289B2A2A1C4D8C = {isa = PBXBuildFile; fileRef = BC3977B89A7CBD8FD202CEA4; };
 		E45C2D1F53481901FA857746 = {isa = PBXBuildFile; fileRef = C6C39057899031977ADFEE4A; };
@@ -123,6 +124,7 @@
 		B7632934F5E966AB17873D57 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DesignInspectorUtilities.swift"; sourceTree = "<group>"; };
 		8B859C5612EA1F03F6C7D5A1 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DesignPreviewViews.swift"; sourceTree = "<group>"; };
 		71E8DCE3082FE1A63DB9289F = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PreviewPanelView.swift"; sourceTree = "<group>"; };
+		A12A7D4E9C8F3016A24E5B70 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ReaderContentView.swift"; sourceTree = "<group>"; };
 		237BB8FAC8262653E88CD0CB = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VisualSnapshotSections.swift"; sourceTree = "<group>"; };
 		BC3977B89A7CBD8FD202CEA4 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "VisualSnapshotTabView.swift"; sourceTree = "<group>"; };
 		C6C39057899031977ADFEE4A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WebPreviewView.swift"; sourceTree = "<group>"; };
@@ -223,6 +225,7 @@
 				B7632934F5E966AB17873D57,
 				8B859C5612EA1F03F6C7D5A1,
 				71E8DCE3082FE1A63DB9289F,
+				A12A7D4E9C8F3016A24E5B70,
 				237BB8FAC8262653E88CD0CB,
 				BC3977B89A7CBD8FD202CEA4,
 				C6C39057899031977ADFEE4A,
@@ -541,6 +544,7 @@
 				5EA7B2990A48BBF6D73DFE87,
 				2A9D6E7C56AB45379125792C,
 				8A9AD4B09AE94DF5742737D4,
+				B12A7D4E9C8F3016A24E5B70,
 				EB71D04A5DC0F92A2B7CB606,
 				DF8C9F34F8289B2A2A1C4D8C,
 				E45C2D1F53481901FA857746,

@@ -129,3 +129,49 @@ final class AppStoreLogicTests: XCTestCase {
         Collection(id: id, name: id, children: children)
     }
 }
+
+final class ReaderContentParserTests: XCTestCase {
+    func testParsesArticleIntoDistinctReadableBlocks() {
+        let content = """
+        ## Introduction
+
+        First paragraph with **emphasis**.
+        Still part of the first paragraph.
+
+        Second paragraph.
+
+        - First item
+        - Second item
+
+        > A useful quotation.
+        """
+
+        XCTAssertEqual(
+            ReaderContentParser.parse(content),
+            [
+                .heading(level: 2, text: "Introduction"),
+                .paragraph("First paragraph with **emphasis**. Still part of the first paragraph."),
+                .paragraph("Second paragraph."),
+                .unorderedList(["First item", "Second item"]),
+                .quote("A useful quotation."),
+            ]
+        )
+    }
+
+    func testParsesNumberedListWithoutTreatingProseAsList() {
+        let content = """
+        1. First step
+        2) Second step
+
+        2026. This remains prose.
+        """
+
+        XCTAssertEqual(
+            ReaderContentParser.parse(content),
+            [
+                .orderedList(["First step", "Second step"]),
+                .paragraph("2026. This remains prose."),
+            ]
+        )
+    }
+}

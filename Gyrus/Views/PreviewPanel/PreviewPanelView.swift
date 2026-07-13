@@ -347,17 +347,8 @@ struct BookmarkDetailView: View {
                     Text(bookmark.title)
                         .font(.title.bold())
 
-                    // Using AttributedString for basic markdown parsing without dependencies
-                    if let attrString = try? AttributedString(markdown: readerContent) {
-                        Text(attrString)
-                            .font(.body)
-                            .lineSpacing(4)
-                            .textSelection(.enabled)
-                    } else {
-                        Text(readerContent)
-                            .font(.body)
-                            .textSelection(.enabled)
-                    }
+                    ReaderFormattedContent(content: readerContent)
+                        .textSelection(.enabled)
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
