@@ -5,15 +5,35 @@ import Foundation
 extension APIClient {
     struct VisualSnapshotDTO: Decodable {
         let bookmarkId: String
+        let schemaVersion: Int?
+        let runId: String?
         let url: String
         let title: String
         let capturedAt: String
+        let status: String?
         let viewports: [VisualViewportDTO]
 
         enum CodingKeys: String, CodingKey {
-            case url, title, viewports
+            case url, title, status, viewports
             case bookmarkId = "bookmark_id"
+            case schemaVersion = "schema_version"
+            case runId = "run_id"
             case capturedAt = "captured_at"
+        }
+    }
+
+    struct VisualSnapshotJobStatus: Decodable, JobStatusReporting {
+        let running: Bool
+        let bookmarkId: String?
+        let stage: String?
+        let completed: Int?
+        let total: Int?
+        let error: String?
+        let snapshot: VisualSnapshotDTO?
+
+        enum CodingKeys: String, CodingKey {
+            case running, stage, completed, total, error, snapshot
+            case bookmarkId = "bookmark_id"
         }
     }
 
@@ -36,6 +56,7 @@ extension APIClient {
         let cssVariables: [VisualCSSVariableDTO]?
         let network: VisualNetworkDTO?
         let consoleMessages: [VisualConsoleMessageDTO]?
+        let responsiveIssues: [VisualResponsiveIssueDTO]?
 
         enum CodingKeys: String, CodingKey {
             case name, width, height, screenshot, structure, seo, assets, accessibility, network
@@ -48,6 +69,29 @@ extension APIClient {
             case elementSamples = "element_samples"
             case cssVariables = "css_variables"
             case consoleMessages = "console_messages"
+            case responsiveIssues = "responsive_issues"
+        }
+    }
+
+    struct VisualResponsiveIssueDTO: Decodable, Identifiable {
+        let id: String
+        let kind: String
+        let severity: String
+        let title: String
+        let detail: String
+        let selectorHint: String
+        let text: String
+        let x: Int
+        let y: Int
+        let width: Int
+        let height: Int
+        let metric: String
+        let evidenceURL: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id, kind, severity, title, detail, text, x, y, width, height, metric
+            case selectorHint = "selector_hint"
+            case evidenceURL = "evidence_url"
         }
     }
 
@@ -300,6 +344,25 @@ extension APIClient {
     func createVisualSnapshot(bookmarkId: String) async throws -> VisualSnapshotDTO {
         try await post(base.appending(path: "/api/brain/bookmarks/\(bookmarkId)/visual-snapshot"),
                        body: EmptyBody(), timeout: APIClient.llmTimeout)
+    }
+
+    func startVisualSnapshotJob(bookmarkId: String) async throws -> VisualSnapshotJobStatus {
+        try await post(
+            base.appending(path: "/api/brain/bookmarks/\(bookmarkId)/visual-snapshot/job"),
+            body: EmptyBody()
+        )
+    }
+
+    func visualSnapshotJobStatus(bookmarkId: String) async throws -> VisualSnapshotJobStatus {
+        try await get(base.appending(path: "/api/brain/bookmarks/\(bookmarkId)/visual-snapshot/job"))
+    }
+
+    @discardableResult
+    func cancelVisualSnapshotJob(bookmarkId: String) async throws -> VisualSnapshotJobStatus {
+        try await post(
+            base.appending(path: "/api/brain/bookmarks/\(bookmarkId)/visual-snapshot/job/cancel"),
+            body: EmptyBody()
+        )
     }
 
     func visualSnapshotFileURL(path: String) -> URL {

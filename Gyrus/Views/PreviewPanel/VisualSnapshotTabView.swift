@@ -8,30 +8,30 @@ private let designSections = DesignInspectorSection.allCases
 
 enum DesignInspectorSection: String, CaseIterable, Identifiable {
     case preview
+    case issues
     case system
     case components
-    case assets
-    case audit
+    case website
 
     var id: String { rawValue }
 
     var title: LocalizedStringKey {
         switch self {
         case .preview: "Preview"
+        case .issues: "Issues"
         case .system: "System"
         case .components: "Components"
-        case .assets: "Assets"
-        case .audit: "Audit"
+        case .website: "Website"
         }
     }
 
     var icon: String {
         switch self {
         case .preview: "macwindow.on.rectangle"
+        case .issues: "exclamationmark.triangle"
         case .system: "paintpalette"
         case .components: "square.stack.3d.up"
-        case .assets: "photo.on.rectangle.angled"
-        case .audit: "checkmark.shield"
+        case .website: "globe"
         }
     }
 }
@@ -53,6 +53,7 @@ struct VisualSnapshotTabView: View {
     @State private var reviewMode: DesignReviewMode = .snapshot
     @State private var isLoading = false
     @State private var isCapturing = false
+    @State private var captureStatus: APIClient.VisualSnapshotJobStatus?
     @State private var isExportingPDF = false
     @State private var loadError: String?
 
@@ -92,6 +93,7 @@ struct VisualSnapshotTabView: View {
         }
         .task(id: bookmark.id) {
             await loadSnapshot()
+            await resumeSnapshotJobIfNeeded()
         }
     }
 
@@ -101,6 +103,17 @@ struct VisualSnapshotTabView: View {
                 Spacer()
                 if isCapturing {
                     ProgressView().scaleEffect(0.55)
+                    Text(captureProgressLabel)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Button {
+                        Task { await cancelSnapshotJob() }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Cancel inspection")
                 }
                 Button {
                     Task { await captureSnapshot() }
@@ -183,17 +196,32 @@ struct VisualSnapshotTabView: View {
             switch selectedSection {
             case .preview:
                 EmptyView()
+            case .issues:
+                compactViewportPicker
+                issuesSection(viewport)
             case .system:
                 compactViewportPicker
                 styleSection(viewport)
             case .components:
                 compactViewportPicker
                 componentsSection(viewport)
-            case .assets:
-                assetsSection(viewport)
-            case .audit:
-                auditSection(viewport)
+            case .website:
+                compactViewportPicker
+                websiteSection(viewport)
             }
+        }
+    }
+
+    private var captureProgressLabel: String {
+        guard let status = captureStatus else { return String(localized: "Starting...") }
+        let completed = status.completed ?? 0
+        let total = max(status.total ?? 3, 1)
+        switch status.stage {
+        case "desktop": return String(localized: "Inspecting desktop...") + " \(completed + 1)/\(total)"
+        case "tablet": return String(localized: "Inspecting tablet...") + " \(completed + 1)/\(total)"
+        case "mobile": return String(localized: "Inspecting mobile...") + " \(completed + 1)/\(total)"
+        case "cancelling": return String(localized: "Cancelling...")
+        default: return String(localized: "Starting design inspection...")
         }
     }
 
@@ -444,12 +472,57 @@ struct VisualSnapshotTabView: View {
         isCapturing = true
         defer { isCapturing = false }
         do {
-            let captured = try await APIClient.shared.createVisualSnapshot(bookmarkId: bookmark.id)
-            snapshot = captured
-            loadError = nil
-            selectedViewportName = captured.viewports.first?.name
-            updateBookmarkSnapshotStatus(captured)
-            AppStore.shared.uiStateStore.showInfo("Snapshot captured.")
+            let status = try await APIClient.shared.startVisualSnapshotJob(bookmarkId: bookmark.id)
+            try await pollSnapshotJob(from: status)
+        } catch {
+            AppStore.shared.uiStateStore.showError(error.localizedDescription)
+        }
+    }
+
+    private func resumeSnapshotJobIfNeeded() async {
+        guard !isCapturing else { return }
+        guard let status = try? await APIClient.shared.visualSnapshotJobStatus(bookmarkId: bookmark.id),
+              status.running else { return }
+        isCapturing = true
+        defer { isCapturing = false }
+        do {
+            try await pollSnapshotJob(from: status)
+        } catch {
+            AppStore.shared.uiStateStore.showError(error.localizedDescription)
+        }
+    }
+
+    private func pollSnapshotJob(from initialStatus: APIClient.VisualSnapshotJobStatus) async throws {
+        var status = initialStatus
+        var consecutiveFailures = 0
+        captureStatus = status
+        while status.running && !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 450_000_000)
+            guard !Task.isCancelled else { return }
+            do {
+                status = try await APIClient.shared.visualSnapshotJobStatus(bookmarkId: bookmark.id)
+                captureStatus = status
+                consecutiveFailures = 0
+            } catch {
+                consecutiveFailures += 1
+                if consecutiveFailures >= 20 { throw error }
+            }
+        }
+
+        if let error = status.error, !error.isEmpty {
+            throw APIError.serverMessage(error)
+        }
+        guard let captured = status.snapshot else { return }
+        snapshot = captured
+        loadError = nil
+        selectedViewportName = captured.viewports.first?.name
+        updateBookmarkSnapshotStatus(captured)
+        AppStore.shared.uiStateStore.showInfo("Snapshot captured.")
+    }
+
+    private func cancelSnapshotJob() async {
+        do {
+            captureStatus = try await APIClient.shared.cancelVisualSnapshotJob(bookmarkId: bookmark.id)
         } catch {
             AppStore.shared.uiStateStore.showError(error.localizedDescription)
         }

@@ -1,8 +1,10 @@
 import json
+import shutil
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+from uuid import uuid4
 
 from PIL import Image
 
@@ -10,6 +12,8 @@ from database import DATA_DIR
 
 
 SNAPSHOT_DIR = DATA_DIR / "visual_snapshots"
+SNAPSHOT_SCHEMA_VERSION = 2
+MAX_SNAPSHOT_RUNS = 8
 VIEWPORTS = [
     {"name": "desktop", "width": 1440, "height": 900, "device_scale_factor": 1},
     {"name": "tablet", "width": 834, "height": 1112, "device_scale_factor": 2},
@@ -29,6 +33,19 @@ def snapshot_path(bookmark_id: str) -> Path:
     return _bookmark_dir(bookmark_id) / "visual_snapshot.json"
 
 
+def _runs_dir(bookmark_id: str) -> Path:
+    return _bookmark_dir(bookmark_id) / "runs"
+
+
+def _run_dir(bookmark_id: str, run_id: str) -> Path:
+    return _runs_dir(bookmark_id) / Path(run_id).name
+
+
+def new_snapshot_run_id() -> str:
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    return f"{stamp}-{uuid4().hex[:8]}"
+
+
 def read_snapshot(bookmark_id: str) -> dict[str, Any] | None:
     path = snapshot_path(bookmark_id)
     if not path.exists():
@@ -37,6 +54,42 @@ def read_snapshot(bookmark_id: str) -> dict[str, Any] | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def read_snapshot_run(bookmark_id: str, run_id: str) -> dict[str, Any] | None:
+    path = _run_dir(bookmark_id, run_id) / "snapshot.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def list_snapshot_runs(bookmark_id: str) -> list[dict[str, Any]]:
+    runs: list[dict[str, Any]] = []
+    root = _runs_dir(bookmark_id)
+    if not root.exists():
+        return runs
+    for path in sorted(root.iterdir(), reverse=True):
+        if not path.is_dir():
+            continue
+        snapshot = read_snapshot_run(bookmark_id, path.name)
+        if not snapshot:
+            continue
+        runs.append(
+            {
+                "run_id": snapshot.get("run_id", path.name),
+                "captured_at": snapshot.get("captured_at"),
+                "status": snapshot.get("status", "completed"),
+                "viewport_count": len(snapshot.get("viewports", [])),
+                "issue_count": sum(
+                    len(viewport.get("responsive_issues") or [])
+                    for viewport in snapshot.get("viewports", [])
+                ),
+            }
+        )
+    return runs
 
 
 def snapshot_summary(bookmark_id: str) -> tuple[datetime | None, bool]:
@@ -60,7 +113,14 @@ def snapshot_summary(bookmark_id: str) -> tuple[datetime | None, bool]:
     return captured_at, expected.issubset(actual)
 
 
-async def capture_snapshot(bookmark_id: str, url: str, title: str = "") -> dict[str, Any]:
+async def capture_snapshot(
+    bookmark_id: str,
+    url: str,
+    title: str = "",
+    *,
+    run_id: str | None = None,
+    on_progress: Callable[[str, int, int], None] | None = None,
+) -> dict[str, Any]:
     try:
         from playwright.async_api import async_playwright
     except Exception as e:
@@ -69,29 +129,44 @@ async def capture_snapshot(bookmark_id: str, url: str, title: str = "") -> dict[
             "Gyrus and try again."
         ) from e
 
-    out_dir = _bookmark_dir(bookmark_id)
+    run_id = run_id or new_snapshot_run_id()
+    out_dir = _run_dir(bookmark_id, run_id)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     snapshot: dict[str, Any] = {
         "bookmark_id": bookmark_id,
+        "schema_version": SNAPSHOT_SCHEMA_VERSION,
+        "run_id": run_id,
         "url": url,
         "title": title,
         "captured_at": datetime.now(timezone.utc).isoformat(),
+        "status": "running",
         "viewports": [],
         "errors": [],
     }
 
+    if on_progress:
+        on_progress("launching", 0, len(VIEWPORTS))
+
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         try:
-            for viewport in VIEWPORTS:
+            for index, viewport in enumerate(VIEWPORTS):
+                context = None
                 page = None
                 try:
-                    page = await browser.new_page(
+                    if on_progress:
+                        on_progress(viewport["name"], index, len(VIEWPORTS))
+                    context = await browser.new_context(
                         viewport={"width": viewport["width"], "height": viewport["height"]},
                         device_scale_factor=viewport["device_scale_factor"],
                         is_mobile=viewport["name"] in {"tablet", "mobile"},
+                        has_touch=viewport["name"] in {"tablet", "mobile"},
+                        accept_downloads=False,
+                        service_workers="block",
+                        permissions=[],
                     )
+                    page = await context.new_page()
                     network_entries: dict[str, dict[str, Any]] = {}
                     console_messages: list[dict[str, Any]] = []
 
@@ -143,6 +218,14 @@ async def capture_snapshot(bookmark_id: str, url: str, title: str = "") -> dict[
                     page.on("response", on_response)
                     page.on("requestfailed", on_request_failed)
                     page.on("console", on_console)
+                    async def dismiss_dialog(dialog):
+                        await dialog.dismiss()
+
+                    async def close_popup(popup):
+                        await popup.close()
+
+                    page.on("dialog", dismiss_dialog)
+                    page.on("popup", close_popup)
 
                     await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
                     try:
@@ -154,7 +237,23 @@ async def capture_snapshot(bookmark_id: str, url: str, title: str = "") -> dict[
                     screenshot_path = out_dir / screenshot_name
                     await page.screenshot(path=str(screenshot_path), full_page=True)
 
-                    data = await page.evaluate(_VISUAL_EXTRACTOR_JS)
+                    data = await page.evaluate(
+                        _VISUAL_EXTRACTOR_JS,
+                        {
+                            "is_touch": viewport["name"] in {"tablet", "mobile"},
+                            "expected_width": viewport["width"],
+                        },
+                    )
+                    issues = data.get("responsive_issues") or []
+                    _attach_issue_evidence(
+                        issues,
+                        screenshot_path,
+                        out_dir,
+                        bookmark_id,
+                        run_id,
+                        viewport["name"],
+                        viewport["device_scale_factor"],
+                    )
                     data.update(
                         {
                             "name": viewport["name"],
@@ -162,7 +261,8 @@ async def capture_snapshot(bookmark_id: str, url: str, title: str = "") -> dict[
                             "height": viewport["height"],
                             "screenshot": screenshot_name,
                             "screenshot_url": (
-                                f"/api/files/visual-snapshots/{bookmark_id}/{screenshot_name}"
+                                f"/api/files/visual-snapshots/{bookmark_id}/runs/"
+                                f"{run_id}/{screenshot_name}"
                             ),
                             "dominant_colors": _dominant_colors(screenshot_path),
                             "network": _network_summary(network_entries),
@@ -178,16 +278,84 @@ async def capture_snapshot(bookmark_id: str, url: str, title: str = "") -> dict[
                         }
                     )
                 finally:
-                    if page is not None:
+                    if context is not None:
+                        await context.close()
+                    elif page is not None:
                         await page.close()
         finally:
             await browser.close()
 
+    snapshot["status"] = (
+        "failed" if not snapshot["viewports"] else "partial" if snapshot["errors"] else "completed"
+    )
+    run_snapshot_path = out_dir / "snapshot.json"
+    encoded = json.dumps(snapshot, ensure_ascii=False, indent=2)
+    run_snapshot_path.write_text(encoded, encoding="utf-8")
+    snapshot_path(bookmark_id).parent.mkdir(parents=True, exist_ok=True)
     snapshot_path(bookmark_id).write_text(
-        json.dumps(snapshot, ensure_ascii=False, indent=2),
+        encoded,
         encoding="utf-8",
     )
+    _prune_snapshot_runs(bookmark_id)
+    if on_progress:
+        on_progress("finished", len(VIEWPORTS), len(VIEWPORTS))
     return snapshot
+
+
+def _prune_snapshot_runs(bookmark_id: str, keep: int = MAX_SNAPSHOT_RUNS) -> None:
+    root = _runs_dir(bookmark_id)
+    if not root.exists():
+        return
+    runs = sorted((path for path in root.iterdir() if path.is_dir()), reverse=True)
+    for stale in runs[max(1, keep):]:
+        shutil.rmtree(stale, ignore_errors=True)
+
+
+def discard_snapshot_run(bookmark_id: str, run_id: str) -> None:
+    shutil.rmtree(_run_dir(bookmark_id, run_id), ignore_errors=True)
+
+
+def _attach_issue_evidence(
+    issues: list[dict[str, Any]],
+    screenshot_path: Path,
+    out_dir: Path,
+    bookmark_id: str,
+    run_id: str,
+    viewport_name: str,
+    device_scale_factor: int,
+) -> None:
+    """Create small visual evidence crops for the highest-priority findings."""
+    try:
+        source = Image.open(screenshot_path).convert("RGB")
+    except Exception:
+        return
+
+    evidence_dir = out_dir / "evidence"
+    evidence_dir.mkdir(exist_ok=True)
+    try:
+        for index, issue in enumerate(issues[:16]):
+            width = max(1, int(issue.get("width") or 1))
+            height = max(1, int(issue.get("height") or 1))
+            x = int(issue.get("x") or 0)
+            y = int(issue.get("y") or 0)
+            scale = max(1, device_scale_factor)
+            padding = 24 * scale
+            left = max(0, x * scale - padding)
+            top = max(0, y * scale - padding)
+            right = min(source.width, (x + width) * scale + padding)
+            bottom = min(source.height, (y + height) * scale + padding)
+            if right <= left or bottom <= top:
+                continue
+            crop = source.crop((left, top, right, bottom))
+            crop.thumbnail((720, 420))
+            filename = f"{viewport_name}-{index + 1}.jpg"
+            crop.save(evidence_dir / filename, "JPEG", quality=84, optimize=True)
+            issue["evidence_url"] = (
+                f"/api/files/visual-snapshots/{bookmark_id}/runs/{run_id}/"
+                f"evidence/{filename}"
+            )
+    finally:
+        source.close()
 
 
 def _dominant_colors(path: Path, max_colors: int = 8) -> list[str]:
@@ -267,7 +435,7 @@ def _network_item(item: dict[str, Any]) -> dict[str, Any]:
 
 
 _VISUAL_EXTRACTOR_JS = r"""
-() => {
+(inspection) => {
   const selectors = [
     'body', 'header', 'nav', 'main', 'section', 'article',
     'h1', 'h2', 'h3', 'p', 'a', 'button',
@@ -436,6 +604,166 @@ _VISUAL_EXTRACTOR_JS = r"""
     }
   }
 
+  const responsiveIssues = [];
+  const issueKeys = new Set();
+  const severityOrder = {high: 0, medium: 1, low: 2};
+
+  function addIssue(kind, severity, title, detail, el, metric = '') {
+    const rect = el?.getBoundingClientRect?.() || {left: 0, top: 0, width: innerWidth, height: 1};
+    const selector = el ? selectorHint(el) : 'html';
+    const key = `${kind}:${selector}:${Math.round(rect.left)}:${Math.round(rect.top)}`;
+    if (issueKeys.has(key) || responsiveIssues.length >= 60) return;
+    issueKeys.add(key);
+    responsiveIssues.push({
+      id: key,
+      kind,
+      severity,
+      title,
+      detail,
+      selector_hint: selector,
+      text: el ? textOf(el) : '',
+      x: Math.max(0, Math.round(rect.left + scrollX)),
+      y: Math.max(0, Math.round(rect.top + scrollY)),
+      width: Math.max(1, Math.round(rect.width)),
+      height: Math.max(1, Math.round(rect.height)),
+      metric,
+    });
+  }
+
+  const documentWidth = Math.max(
+    document.documentElement.scrollWidth,
+    document.body?.scrollWidth || 0
+  );
+  const viewportMeta = document.querySelector('meta[name="viewport"]');
+  if (inspection?.is_touch && !viewportMeta) {
+    addIssue(
+      'missing_viewport_meta',
+      'high',
+      'Mobile viewport configuration is missing',
+      'Without a viewport meta tag, mobile browsers may render the page at a desktop-like width.',
+      document.documentElement,
+      'meta[name="viewport"] not found'
+    );
+  }
+  if (documentWidth > innerWidth + 2) {
+    addIssue(
+      'horizontal_overflow',
+      'high',
+      'Page overflows horizontally',
+      `The rendered page is ${documentWidth - innerWidth}px wider than this viewport.`,
+      document.documentElement,
+      `${documentWidth}px document / ${innerWidth}px viewport`
+    );
+  }
+
+  const visibleElements = Array.from(document.body?.querySelectorAll('*') || [])
+    .slice(0, 2500)
+    .filter((el) => {
+      const rect = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      return rect.width > 1 && rect.height > 1 && style.display !== 'none' &&
+        style.visibility !== 'hidden' && Number(style.opacity || 1) > 0;
+    });
+
+  for (const el of visibleElements) {
+    const rect = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    const text = textOf(el);
+
+    if (rect.right > innerWidth + 3 || rect.left < -3) {
+      const outside = Math.max(rect.right - innerWidth, -rect.left);
+      if (outside >= 4 && rect.width < documentWidth * 0.98) {
+        addIssue(
+          'offscreen_element',
+          outside > 40 ? 'high' : 'medium',
+          'Element extends beyond the viewport',
+          `This element is approximately ${Math.round(outside)}px outside the visible width.`,
+          el,
+          `${Math.round(rect.width)}x${Math.round(rect.height)}px`
+        );
+      }
+    }
+
+    const clipsX = el.scrollWidth > el.clientWidth + 3 && ['hidden', 'clip'].includes(style.overflowX);
+    const clipsY = el.scrollHeight > el.clientHeight + 3 && ['hidden', 'clip'].includes(style.overflowY);
+    if (text && (clipsX || clipsY)) {
+      addIssue(
+        'clipped_content',
+        'medium',
+        'Content may be clipped',
+        'The content is larger than its box while overflow is hidden.',
+        el,
+        `${el.scrollWidth}x${el.scrollHeight}px content / ${el.clientWidth}x${el.clientHeight}px box`
+      );
+    }
+
+    const fontSize = parseFloat(style.fontSize || '0');
+    if (text && fontSize > 0 && fontSize < 12 && rect.width >= 12 && rect.height >= 6) {
+      addIssue(
+        'small_text',
+        fontSize < 10 ? 'medium' : 'low',
+        'Very small text',
+        'This text may be difficult to read at the selected viewport.',
+        el,
+        `${fontSize}px`
+      );
+    }
+
+    const isInteractive = el.matches('a[href],button,input,select,textarea,[role="button"],[tabindex]:not([tabindex="-1"])');
+    if (innerWidth <= 900 && isInteractive && (rect.width < 44 || rect.height < 44)) {
+      addIssue(
+        'small_touch_target',
+        rect.width < 28 || rect.height < 28 ? 'medium' : 'low',
+        'Small touch target',
+        'This control is smaller than the recommended 44x44px touch area.',
+        el,
+        `${Math.round(rect.width)}x${Math.round(rect.height)}px`
+      );
+    }
+
+    if (['fixed', 'sticky'].includes(style.position) && rect.height > innerHeight * 0.3) {
+      addIssue(
+        'large_sticky_element',
+        'medium',
+        'Sticky element covers much of the viewport',
+        'This fixed or sticky element occupies more than 30% of the viewport height.',
+        el,
+        `${Math.round((rect.height / innerHeight) * 100)}% of viewport height`
+      );
+    }
+  }
+
+  const interactiveElements = visibleElements
+    .filter((el) => el.matches('a[href],button,input,select,textarea,[role="button"]'))
+    .slice(0, 160);
+  for (let i = 0; i < interactiveElements.length; i += 1) {
+    const first = interactiveElements[i];
+    const a = first.getBoundingClientRect();
+    for (let j = i + 1; j < interactiveElements.length; j += 1) {
+      const second = interactiveElements[j];
+      if (first.contains(second) || second.contains(first)) continue;
+      const b = second.getBoundingClientRect();
+      const overlapWidth = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+      const overlapHeight = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+      const overlapArea = overlapWidth * overlapHeight;
+      const smallerArea = Math.max(1, Math.min(a.width * a.height, b.width * b.height));
+      if (overlapArea / smallerArea >= 0.2) {
+        addIssue(
+          'overlapping_controls',
+          'high',
+          'Interactive controls overlap',
+          `This control overlaps another interactive element (${selectorHint(second)}).`,
+          first,
+          `${Math.round((overlapArea / smallerArea) * 100)}% overlap`
+        );
+      }
+    }
+  }
+
+  responsiveIssues.sort((a, b) =>
+    (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9)
+  );
+
   return {
     page_title: document.title || '',
     meta_description: document.querySelector('meta[name="description"]')?.content || document.querySelector('meta[property="og:description"]')?.content || '',
@@ -477,6 +805,7 @@ _VISUAL_EXTRACTOR_JS = r"""
     observed_colors: Array.from(colorSet).slice(0, 32),
     observed_fonts: Array.from(fontSet).slice(0, 16),
     element_samples: samples,
+    responsive_issues: responsiveIssues.slice(0, 40),
   };
 }
 """

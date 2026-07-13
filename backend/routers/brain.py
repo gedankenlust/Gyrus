@@ -14,6 +14,7 @@ from services.scraper_service import scraper_service, _is_youtube as is_youtube
 from services.brain_sync_service import brain_sync_service
 from services import brain_chat_service
 from services import visual_snapshot_service
+from services import visual_snapshot_job_service
 from services.site_structure_service import site_structure_service
 
 import logging
@@ -142,6 +143,24 @@ def _visual_snapshot_context(bookmark_id: str) -> str:
             for heading in (structure.get("h2") or [])[:3]:
                 lines.append(f"H2: {heading}")
 
+        issues = viewport.get("responsive_issues") or []
+        if issues:
+            counts = {
+                severity: sum(1 for issue in issues if issue.get("severity") == severity)
+                for severity in ("high", "medium", "low")
+            }
+            lines.append(
+                "Responsive findings: "
+                f"high={counts['high']}, medium={counts['medium']}, low={counts['low']}"
+            )
+            for issue in issues[:6]:
+                lines.append(
+                    "- "
+                    f"[{issue.get('severity', 'unknown')}] {issue.get('title', '')}: "
+                    f"{issue.get('detail', '')} "
+                    f"at {issue.get('selector_hint', '')} ({issue.get('metric', '')})"
+                )
+
         lines.append("Computed element samples:")
         for sample in (viewport.get("element_samples") or [])[:4]:
             selector = sample.get("selector_hint") or sample.get("tag") or "element"
@@ -252,6 +271,68 @@ async def create_visual_snapshot(bookmark_id: str, db: Session = Depends(get_db)
         )
     except visual_snapshot_service.VisualSnapshotUnavailable as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.post("/bookmarks/{bookmark_id}/visual-snapshot/job")
+async def start_visual_snapshot_job(bookmark_id: str, db: Session = Depends(get_db)):
+    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    status = visual_snapshot_job_service.get_status()
+    if status.get("running") and status.get("bookmark_id") != bookmark_id:
+        raise HTTPException(status_code=409, detail="Another design inspection is already running")
+    return await visual_snapshot_job_service.start(
+        bookmark.id, bookmark.url, title=bookmark.title or ""
+    )
+
+
+@router.get("/bookmarks/{bookmark_id}/visual-snapshot/job")
+def get_visual_snapshot_job(bookmark_id: str, db: Session = Depends(get_db)):
+    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    status = visual_snapshot_job_service.get_status()
+    if status.get("bookmark_id") not in {None, bookmark_id}:
+        return {
+            "running": False,
+            "bookmark_id": bookmark_id,
+            "stage": "idle",
+            "completed": 0,
+            "total": len(visual_snapshot_service.VIEWPORTS),
+            "snapshot": None,
+            "error": None,
+        }
+    return status
+
+
+@router.post("/bookmarks/{bookmark_id}/visual-snapshot/job/cancel")
+def cancel_visual_snapshot_job(bookmark_id: str, db: Session = Depends(get_db)):
+    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    status = visual_snapshot_job_service.get_status()
+    if status.get("bookmark_id") != bookmark_id:
+        return status
+    return visual_snapshot_job_service.cancel()
+
+
+@router.get("/bookmarks/{bookmark_id}/visual-snapshot/runs")
+def get_visual_snapshot_runs(bookmark_id: str, db: Session = Depends(get_db)):
+    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    return visual_snapshot_service.list_snapshot_runs(bookmark_id)
+
+
+@router.get("/bookmarks/{bookmark_id}/visual-snapshot/runs/{run_id}")
+def get_visual_snapshot_run(bookmark_id: str, run_id: str, db: Session = Depends(get_db)):
+    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    snapshot = visual_snapshot_service.read_snapshot_run(bookmark_id, run_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="Visual snapshot run not found")
+    return snapshot
 
 async def _prepare_context(db: Session, bookmark, prompt: str | None = None) -> str:
     """Build the page context for an LLM chat: read the cached scraped section

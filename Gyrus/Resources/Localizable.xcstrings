@@ -8258,6 +8258,192 @@
         "de": { "stringUnit": { "state": "translated", "value": "Reader-Text in die App-Sprache übersetzen" } },
         "en": { "stringUnit": { "state": "translated", "value": "Translate the Reader text into the app language" } }
       }
+    },
+    "Issues": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Probleme" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Issues" } }
+      }
+    },
+    "Website": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Website" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Website" } }
+      }
+    },
+    "Responsive issues": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Responsive-Probleme" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Responsive issues" } }
+      }
+    },
+    "High": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Hoch" } },
+        "en": { "stringUnit": { "state": "translated", "value": "High" } }
+      }
+    },
+    "Medium": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Mittel" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Medium" } }
+      }
+    },
+    "Low": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Niedrig" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Low" } }
+      }
+    },
+    "No responsive problems detected in this viewport.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "In diesem Viewport wurden keine responsiven Probleme erkannt." } },
+        "en": { "stringUnit": { "state": "translated", "value": "No responsive problems detected in this viewport." } }
+      }
+    },
+    "Cancel inspection": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Untersuchung abbrechen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Cancel inspection" } }
+      }
+    },
+    "Starting...": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Wird gestartet ..." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Starting..." } }
+      }
+    },
+    "Starting design inspection...": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Design-Untersuchung wird gestartet ..." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Starting design inspection..." } }
+      }
+    },
+    "Inspecting desktop...": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Desktop wird untersucht ..." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Inspecting desktop..." } }
+      }
+    },
+    "Inspecting tablet...": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Tablet wird untersucht ..." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Inspecting tablet..." } }
+      }
+    },
+    "Inspecting mobile...": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Mobil wird untersucht ..." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Inspecting mobile..." } }
+      }
+    },
+    "Cancelling...": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Wird abgebrochen ..." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Cancelling..." } }
+      }
+    },
+    "Copy selector": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Selektor kopieren" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Copy selector" } }
+      }
+    },
+    "Page overflows horizontally": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Seite läuft horizontal über" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Page overflows horizontally" } }
+      }
+    },
+    "Element extends beyond the viewport": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Element ragt über den Viewport hinaus" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Element extends beyond the viewport" } }
+      }
+    },
+    "Content may be clipped": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Inhalt könnte abgeschnitten sein" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Content may be clipped" } }
+      }
+    },
+    "Very small text": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Sehr kleiner Text" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Very small text" } }
+      }
+    },
+    "Small touch target": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Kleine Touch-Fläche" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Small touch target" } }
+      }
+    },
+    "Sticky element covers much of the viewport": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Fixiertes Element verdeckt einen großen Teil des Viewports" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Sticky element covers much of the viewport" } }
+      }
+    },
+    "Interactive controls overlap": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Interaktive Elemente überlappen sich" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Interactive controls overlap" } }
+      }
+    },
+    "The page is wider than the selected viewport and may require horizontal scrolling.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Die Seite ist breiter als der gewählte Viewport und könnte horizontales Scrollen erfordern." } },
+        "en": { "stringUnit": { "state": "translated", "value": "The page is wider than the selected viewport and may require horizontal scrolling." } }
+      }
+    },
+    "Part of this element lies outside the visible page width.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Ein Teil dieses Elements liegt außerhalb der sichtbaren Seitenbreite." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Part of this element lies outside the visible page width." } }
+      }
+    },
+    "The content is larger than its box while overflow is hidden.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Der Inhalt ist größer als sein Rahmen, während Überlauf ausgeblendet wird." } },
+        "en": { "stringUnit": { "state": "translated", "value": "The content is larger than its box while overflow is hidden." } }
+      }
+    },
+    "This text may be difficult to read at the selected viewport.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Dieser Text könnte im gewählten Viewport schwer lesbar sein." } },
+        "en": { "stringUnit": { "state": "translated", "value": "This text may be difficult to read at the selected viewport." } }
+      }
+    },
+    "This control is smaller than the recommended 44x44 px touch area.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Dieses Bedienelement ist kleiner als die empfohlene Touch-Fläche von 44 x 44 px." } },
+        "en": { "stringUnit": { "state": "translated", "value": "This control is smaller than the recommended 44x44 px touch area." } }
+      }
+    },
+    "This fixed or sticky element occupies more than 30% of the viewport height.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Dieses fixierte Element belegt mehr als 30 % der Viewport-Höhe." } },
+        "en": { "stringUnit": { "state": "translated", "value": "This fixed or sticky element occupies more than 30% of the viewport height." } }
+      }
+    },
+    "Two interactive elements cover each other and may be difficult to use.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Zwei interaktive Elemente verdecken sich und könnten schwer bedienbar sein." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Two interactive elements cover each other and may be difficult to use." } }
+      }
+    },
+    "Mobile viewport configuration is missing": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Mobile Viewport-Konfiguration fehlt" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Mobile viewport configuration is missing" } }
+      }
+    },
+    "Without a viewport meta tag, mobile browsers may render the page at a desktop-like width.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Ohne Viewport-Meta-Tag können mobile Browser die Seite in einer desktopähnlichen Breite darstellen." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Without a viewport meta tag, mobile browsers may render the page at a desktop-like width." } }
+      }
     }
   },
   "version": "1.1"

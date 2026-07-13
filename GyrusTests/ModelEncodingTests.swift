@@ -90,6 +90,62 @@ final class ModelEncodingTests: XCTestCase {
         XCTAssertEqual(col.children[0].id, "child")
     }
 
+    // MARK: - Design inspection decoding
+
+    func testVisualSnapshotJobDecodesResponsiveIssue() throws {
+        let data = """
+        {
+          "running": false,
+          "bookmark_id": "bookmark-1",
+          "stage": "finished",
+          "completed": 3,
+          "total": 3,
+          "error": null,
+          "snapshot": {
+            "bookmark_id": "bookmark-1",
+            "schema_version": 2,
+            "run_id": "run-1",
+            "url": "https://example.com",
+            "title": "Example",
+            "captured_at": "2026-07-13T12:00:00Z",
+            "status": "completed",
+            "viewports": [{
+              "name": "mobile",
+              "width": 390,
+              "height": 844,
+              "screenshot": "mobile.png",
+              "screenshot_url": "/mobile.png",
+              "dominant_colors": [],
+              "observed_colors": [],
+              "observed_fonts": [],
+              "structure": {"h1": [], "h2": [], "links": 0, "buttons": 0, "images": 0, "svgs": 0, "forms": 0},
+              "responsive_issues": [{
+                "id": "overflow:html",
+                "kind": "horizontal_overflow",
+                "severity": "high",
+                "title": "Page overflows horizontally",
+                "detail": "Wider than viewport",
+                "selector_hint": "html",
+                "text": "",
+                "x": 0,
+                "y": 0,
+                "width": 450,
+                "height": 1,
+                "metric": "450px / 390px",
+                "evidence_url": "/evidence/mobile-1.jpg"
+              }]
+            }]
+          }
+        }
+        """.data(using: .utf8)!
+
+        let status = try JSONDecoder().decode(APIClient.VisualSnapshotJobStatus.self, from: data)
+
+        XCTAssertFalse(status.running)
+        XCTAssertEqual(status.snapshot?.runId, "run-1")
+        XCTAssertEqual(status.snapshot?.viewports.first?.responsiveIssues?.first?.kind, "horizontal_overflow")
+    }
+
     // MARK: - Helpers
 
     private func decode<T: Encodable>(_ value: T) throws -> [String: Any] {

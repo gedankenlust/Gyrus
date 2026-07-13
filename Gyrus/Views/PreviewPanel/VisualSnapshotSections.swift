@@ -182,12 +182,46 @@ extension VisualSnapshotTabView {
         }
     }
 
-    func auditSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+    func issuesSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            seoSection(viewport)
+            responsiveIssuesSection(viewport)
             accessibilitySection(viewport)
             networkSection(viewport)
             consoleSection(viewport)
+        }
+    }
+
+    func websiteSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            seoSection(viewport)
+            assetsSection(viewport)
+        }
+    }
+
+    func responsiveIssuesSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        let issues = viewport.responsiveIssues ?? []
+        let high = issues.filter { $0.severity == "high" }.count
+        let medium = issues.filter { $0.severity == "medium" }.count
+        let low = issues.filter { $0.severity == "low" }.count
+
+        return SnapshotSection(title: "Responsive issues", icon: "rectangle.3.group.bubble.left") {
+            VStack(alignment: .leading, spacing: 10) {
+                LazyVGrid(columns: designMetricColumns, spacing: 8) {
+                    IssueMetricPill(label: "High", value: high, color: .red)
+                    IssueMetricPill(label: "Medium", value: medium, color: .orange)
+                    IssueMetricPill(label: "Low", value: low, color: .secondary)
+                }
+
+                if issues.isEmpty {
+                    Label("No responsive problems detected in this viewport.", systemImage: "checkmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(issues) { issue in
+                        ResponsiveIssueRow(issue: issue)
+                    }
+                }
+            }
         }
     }
 

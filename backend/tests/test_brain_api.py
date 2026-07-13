@@ -213,3 +213,56 @@ def test_create_visual_snapshot_reports_missing_runtime(client, monkeypatch):
 
     assert resp.status_code == 503
     assert resp.json()["detail"] == "Playwright missing"
+
+
+def test_start_visual_snapshot_job_returns_pollable_status(client, monkeypatch):
+    bm = client.post("/api/bookmarks", json={
+        "title": "Design Ref",
+        "url": "https://design.example",
+        "source": "manual",
+    }).json()
+    captured = {}
+
+    monkeypatch.setattr(
+        "routers.brain.visual_snapshot_job_service.get_status",
+        lambda: {"running": False, "bookmark_id": None},
+    )
+
+    async def fake_start(bookmark_id, url, title=""):
+        captured.update({"bookmark_id": bookmark_id, "url": url, "title": title})
+        return {
+            "running": True,
+            "bookmark_id": bookmark_id,
+            "stage": "queued",
+            "completed": 0,
+            "total": 3,
+            "snapshot": None,
+            "error": None,
+        }
+
+    monkeypatch.setattr("routers.brain.visual_snapshot_job_service.start", fake_start)
+
+    resp = client.post(f"/api/brain/bookmarks/{bm['id']}/visual-snapshot/job")
+
+    assert resp.status_code == 200
+    assert resp.json()["running"] is True
+    assert resp.json()["total"] == 3
+    assert captured == {"bookmark_id": bm["id"], "url": bm["url"], "title": bm["title"]}
+
+
+def test_visual_snapshot_run_history_is_exposed(client, monkeypatch):
+    bm = client.post("/api/bookmarks", json={
+        "title": "Design Ref",
+        "url": "https://design.example",
+        "source": "manual",
+    }).json()
+    history = [{"run_id": "run-2", "status": "completed", "issue_count": 4}]
+    monkeypatch.setattr(
+        "routers.brain.visual_snapshot_service.list_snapshot_runs",
+        lambda bookmark_id: history if bookmark_id == bm["id"] else [],
+    )
+
+    resp = client.get(f"/api/brain/bookmarks/{bm['id']}/visual-snapshot/runs")
+
+    assert resp.status_code == 200
+    assert resp.json() == history
