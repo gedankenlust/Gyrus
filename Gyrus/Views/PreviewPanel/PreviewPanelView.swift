@@ -213,9 +213,17 @@ struct BookmarkDetailView: View {
                 isFocused.toggle()
             } label: {
                 Image(systemName: isFocused ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                    .frame(width: 16, height: 16)
+                    .padding(5)
+                    .foregroundStyle(isFocused ? Color.accentColor : Color.secondary)
+                    .background(
+                        isFocused ? Color.accentColor.opacity(0.14) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 6)
+                    )
             }
             .buttonStyle(.plain)
-            .help(isFocused ? "Exit Focus Mode" : "Focus Detail")
+            .help(isFocused ? "Show All Columns" : "Focus Detail")
+            .accessibilityLabel(isFocused ? "Show All Columns" : "Focus Detail")
             Button {
                 bookmarkStore.safeBrowserOpen(bookmark.url)
             } label: {

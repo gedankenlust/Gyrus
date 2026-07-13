@@ -7117,18 +7117,18 @@
         }
       }
     },
-    "Exit Focus Mode": {
+    "Show All Columns": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fokusmodus beenden"
+            "value": "Alle Spalten anzeigen"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Exit Focus Mode"
+            "value": "Show All Columns"
           }
         }
       }

@@ -15,6 +15,8 @@ struct ContentView: View {
     @State private var newTagName = ""
     @State private var newTagColor: Color = .blue
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var previousColumnVisibility: NavigationSplitViewVisibility = .all
+    @State private var isDetailFocused = false
 
     private var confirmTitle: String {
         let n = uiStateStore.pendingBatchOpen?.count ?? 0
@@ -37,12 +39,10 @@ struct ContentView: View {
             BookmarkListView(showAddBookmark: $showAddBookmark)
                 .navigationSplitViewColumnWidth(min: 300, ideal: 420)
         } detail: {
-            PreviewPanelView(isFocused: Binding(
-                get: { columnVisibility == .detailOnly },
-                set: { columnVisibility = $0 ? .detailOnly : .all }
-            ))
+            PreviewPanelView(isFocused: detailFocusBinding)
             .navigationSplitViewColumnWidth(min: 520, ideal: 720)
         }
+        .navigationSplitViewStyle(.balanced)
         .sheet(isPresented: $showImport) {
             ImportWizardView(isPresented: $showImport)
         }
@@ -214,6 +214,31 @@ struct ContentView: View {
                     }
                     .keyboardShortcut(.escape, modifiers: [])
                     .opacity(0)
+                }
+            }
+        )
+    }
+
+    private var detailFocusBinding: Binding<Bool> {
+        Binding(
+            get: { isDetailFocused },
+            set: { shouldFocus in
+                if shouldFocus {
+                    if columnVisibility != .detailOnly {
+                        previousColumnVisibility = columnVisibility
+                    }
+                    isDetailFocused = true
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        columnVisibility = .detailOnly
+                    }
+                } else {
+                    isDetailFocused = false
+                    let restoredVisibility = previousColumnVisibility == .detailOnly
+                        ? NavigationSplitViewVisibility.all
+                        : previousColumnVisibility
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        columnVisibility = restoredVisibility
+                    }
                 }
             }
         )
