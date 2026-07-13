@@ -212,7 +212,11 @@ extension VisualSnapshotTabView {
                     IssueMetricPill(label: "Low", value: low, color: .secondary)
                 }
 
-                if issues.isEmpty {
+                if viewport.responsiveIssues == nil {
+                    Label("Reinspect this page to run responsive checks.", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if issues.isEmpty {
                     Label("No responsive problems detected in this viewport.", systemImage: "checkmark.circle")
                         .font(.caption)
                         .foregroundStyle(.secondary)
