@@ -57,6 +57,14 @@ struct BookmarkTableView: View {
                 // Flexible width (not a fixed value) so the Tags/Date boundary
                 // is user-resizable, like the Title column.
                 .width(min: 80, ideal: 120, max: 400)
+                TableColumn("Captured") { bm in
+                    HStack {
+                        Spacer(minLength: 0)
+                        snapshotStatusIcon(for: bm)
+                        Spacer(minLength: 0)
+                    }
+                }
+                .width(min: 64, ideal: 72, max: 96)
                 TableColumn("Date Added", value: \.createdAt) { bm in
                     Text(bm.createdAt, style: .date)
                         .font(.caption).foregroundStyle(.secondary)
@@ -92,6 +100,23 @@ struct BookmarkTableView: View {
     }
 
     // MARK: - Helpers
+
+    @ViewBuilder
+    private func snapshotStatusIcon(for bookmark: Bookmark) -> some View {
+        if bookmark.designSnapshotCapturedAt == nil {
+            Image(systemName: "minus.circle")
+                .foregroundStyle(.tertiary)
+                .help("Not captured")
+        } else if bookmark.designSnapshotComplete {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+                .help("Captured")
+        } else {
+            Image(systemName: "arrow.clockwise.circle.fill")
+                .foregroundStyle(.orange)
+                .help("Reinspection required")
+        }
+    }
 
     private func syncSortOrder() {
         let order: SortOrder = bookmarkStore.sortOrder == "asc" ? .forward : .reverse

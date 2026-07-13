@@ -27,6 +27,8 @@ struct Bookmark: Identifiable, Codable, Hashable {
     var source: String
     var isDead: Bool
     var isRead: Bool
+    var designSnapshotCapturedAt: Date?
+    var designSnapshotComplete: Bool
     var collectionId: String?
     var tags: [Tag]
     let createdAt: Date
@@ -46,6 +48,8 @@ struct Bookmark: Identifiable, Codable, Hashable {
         case ogImagePath = "og_image_path"
         case isDead = "is_dead"
         case isRead = "is_read"
+        case designSnapshotCapturedAt = "design_snapshot_captured_at"
+        case designSnapshotComplete = "design_snapshot_complete"
         case collectionId = "collection_id"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -66,6 +70,8 @@ struct Bookmark: Identifiable, Codable, Hashable {
         isDead = try c.decodeIfPresent(Bool.self, forKey: .isDead) ?? false
         // Tolerate responses without is_read (defaults to unread) for safety.
         isRead = try c.decodeIfPresent(Bool.self, forKey: .isRead) ?? false
+        designSnapshotCapturedAt = try c.decodeIfPresent(Date.self, forKey: .designSnapshotCapturedAt)
+        designSnapshotComplete = try c.decodeIfPresent(Bool.self, forKey: .designSnapshotComplete) ?? false
         collectionId = try c.decodeIfPresent(String.self, forKey: .collectionId)
         tags = try c.decodeIfPresent([Tag].self, forKey: .tags) ?? []
         createdAt = try c.decode(Date.self, forKey: .createdAt)
@@ -76,11 +82,14 @@ struct Bookmark: Identifiable, Codable, Hashable {
     init(id: String, title: String, url: String, description: String?, notes: String?,
          bookmarkNotes: [BookmarkNote], faviconPath: String?, ogImageUrl: String?,
          ogImagePath: String?, source: String, isDead: Bool, isRead: Bool = false,
-         collectionId: String?, tags: [Tag], createdAt: Date, updatedAt: Date) {
+         collectionId: String?, tags: [Tag], createdAt: Date, updatedAt: Date,
+         designSnapshotCapturedAt: Date? = nil, designSnapshotComplete: Bool = false) {
         self.id = id; self.title = title; self.url = url
         self.description = description; self.notes = notes; self.bookmarkNotes = bookmarkNotes
         self.faviconPath = faviconPath; self.ogImageUrl = ogImageUrl; self.ogImagePath = ogImagePath
         self.source = source; self.isDead = isDead; self.isRead = isRead
+        self.designSnapshotCapturedAt = designSnapshotCapturedAt
+        self.designSnapshotComplete = designSnapshotComplete
         self.collectionId = collectionId; self.tags = tags
         self.createdAt = createdAt; self.updatedAt = updatedAt
     }

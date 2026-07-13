@@ -1,7 +1,8 @@
 import pytest
 import httpx
+from bs4 import BeautifulSoup
 from unittest.mock import AsyncMock, patch, MagicMock
-from services.scraper_service import scraper_service
+from services.scraper_service import _extract_jsonld_facts, scraper_service
 
 @pytest.mark.asyncio
 async def test_extract_content_success():
@@ -87,3 +88,25 @@ async def test_get_pagespeed_metrics_failure():
         
         assert result["error"] == "API returned 500"
         assert result["score"] is None
+def test_jsonld_reader_facts_skip_breadcrumb_and_article_metadata():
+    soup = BeautifulSoup(
+        """
+        <script type="application/ld+json">
+        {
+          "@type": "Article",
+          "headline": "Repeated headline",
+          "datePublished": "2026-07-11",
+          "itemListElement": [{"position": 1, "name": "News"}],
+          "offers": {"price": 19, "priceCurrency": "EUR"}
+        }
+        </script>
+        """,
+        "html.parser",
+    )
+
+    facts = _extract_jsonld_facts(soup)
+
+    assert "headline" not in facts
+    assert "itemListElement" not in facts
+    assert "datePublished" not in facts
+    assert "offers price: 19" in facts

@@ -131,6 +131,31 @@ extension APIClient {
         return res.content
     }
 
+    func translateReaderContent(
+        id: String,
+        content: String,
+        targetLanguage: String,
+        config: AIBrainConfig
+    ) async throws -> String {
+        struct Body: Encodable {
+            let provider_config: ProviderPayload
+            let target_language: String
+            let content: String
+        }
+        struct ReaderResponse: Decodable { let content: String }
+        let body = Body(
+            provider_config: ProviderPayload(config),
+            target_language: targetLanguage,
+            content: content
+        )
+        let res: ReaderResponse = try await post(
+            base.appending(path: "/api/bookmarks/\(id)/reader/translate"),
+            body: body,
+            timeout: APIClient.llmTimeout
+        )
+        return res.content
+    }
+
     func autoTag(bookmarkId: String, config: AIBrainConfig) async throws -> Bookmark {
         struct Body: Encodable { let provider_config: ProviderPayload; let language: String }
         return try await post(base.appending(path: "/api/bookmarks/\(bookmarkId)/auto-tag"),

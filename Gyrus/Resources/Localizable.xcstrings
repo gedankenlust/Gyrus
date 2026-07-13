@@ -7101,38 +7101,6 @@
         }
       }
     },
-    "Focus Detail": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detail fokussieren"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Focus Detail"
-          }
-        }
-      }
-    },
-    "Show All Columns": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alle Spalten anzeigen"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show All Columns"
-          }
-        }
-      }
-    },
     "Components": {
       "localizations": {
         "de": {
@@ -8235,6 +8203,42 @@
             "value": "Compare Viewports"
           }
         }
+      }
+    },
+    "Captured": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Erfasst" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Captured" } }
+      }
+    },
+    "Not captured": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Nicht erfasst" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Not captured" } }
+      }
+    },
+    "Reinspection required": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Erneute Untersuchung erforderlich" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Reinspection required" } }
+      }
+    },
+    "Formatting Reader with AI": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Reader wird mit KI formatiert" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Formatting Reader with AI" } }
+      }
+    },
+    "Translate": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Übersetzen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Translate" } }
+      }
+    },
+    "Translate the Reader text into the app language": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Reader-Text in die App-Sprache übersetzen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Translate the Reader text into the app language" } }
       }
     }
   },

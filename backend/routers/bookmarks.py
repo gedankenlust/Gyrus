@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from database import get_db, SessionLocal
@@ -9,6 +9,7 @@ from services import bookmark_service
 from services import metadata_service
 from services import link_check_service
 from services import metadata_refresh_service
+from services import visual_snapshot_service
 from services.scraper_service import scraper_service
 
 router = APIRouter(prefix="/api/bookmarks", tags=["bookmarks"])
@@ -26,6 +27,9 @@ def _enrich(bm) -> BookmarkOut:
     # Sort tags alphabetically by name for deterministic responses
     tags = [bt.tag for bt in bm.bookmark_tags]
     out.tags = sorted(tags, key=lambda t: t.name)
+    captured_at, complete = visual_snapshot_service.snapshot_summary(bm.id)
+    out.design_snapshot_captured_at = captured_at
+    out.design_snapshot_complete = complete
     return out
 
 
@@ -303,6 +307,12 @@ class ReaderCleanupRequest(BaseModel):
     provider_config: dict | None = {"provider": "ollama", "model": "llama3"}
 
 
+class ReaderTranslateRequest(BaseModel):
+    provider_config: dict | None = {"provider": "ollama", "model": "llama3"}
+    target_language: str = "de"
+    content: str | None = Field(default=None, max_length=20_000)
+
+
 @router.post("/{bookmark_id}/reader/cleanup", response_model=ReaderResponse)
 async def cleanup_reader_content(
     bookmark_id: str, request: ReaderCleanupRequest, db: Session = Depends(get_db)
@@ -326,20 +336,62 @@ async def cleanup_reader_content(
         raise HTTPException(422, "No readable content to clean up")
 
     prompt = (
-        "Reformat the page text below into clean, readable prose. Fix broken "
-        "line breaks and spacing, keep headings and lists. Do NOT add, remove "
-        "or change any facts — only improve formatting. Return only the text."
+        "Turn the extracted article text below into clean, readable Markdown. "
+        "Fix broken line breaks and spacing, preserve meaningful headings, "
+        "paragraphs, quotations, and lists. Remove navigation breadcrumbs, "
+        "duplicated metadata, schema.org field labels, and repeated summaries. "
+        "Do not invent facts or summarize the article. Return only the cleaned "
+        "article text in its original language."
     )
     try:
         cleaned = await LLMService.ask_llm(
             prompt=prompt, context=content[:15000],
             provider_config=request.provider_config or {"provider": "ollama", "model": "llama3"},
             title=bm.title or "", url=bm.url or "",
+            think=False,
         )
     except Exception as e:
         raise HTTPException(502, f"LLM cleanup failed: {e}")
 
     return ReaderResponse(content=cleaned or content)
+
+
+@router.post("/{bookmark_id}/reader/translate", response_model=ReaderResponse)
+async def translate_reader_content(
+    bookmark_id: str, request: ReaderTranslateRequest, db: Session = Depends(get_db)
+):
+    """Translate the current Reader text while preserving its Markdown layout."""
+    from services.llm_service import LLMService
+
+    bm = bookmark_service.get_bookmark(db, bookmark_id)
+    if not bm:
+        raise HTTPException(404, "Bookmark not found")
+
+    content = (request.content or bm.scraped_content or "").strip()
+    if not content:
+        raise HTTPException(422, "No readable content to translate")
+
+    language = request.target_language if request.target_language in {"de", "en"} else "de"
+    language_name = "German" if language == "de" else "English"
+    prompt = (
+        f"Translate the Reader text below into {language_name}. Preserve its "
+        "Markdown headings, paragraphs, lists, quotations, names, links, numbers, "
+        "and meaning. Do not summarize or add commentary. Return only the translation."
+    )
+    try:
+        translated = await LLMService.ask_llm(
+            prompt=prompt,
+            context=content[:15_000],
+            provider_config=request.provider_config or {"provider": "ollama", "model": "llama3"},
+            title=bm.title or "",
+            url=bm.url or "",
+            think=False,
+            language=language,
+        )
+    except Exception as e:
+        raise HTTPException(502, f"LLM translation failed: {e}")
+
+    return ReaderResponse(content=translated or content)
 
 
 @router.post("/{bookmark_id}/auto-tag", response_model=BookmarkOut)

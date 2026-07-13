@@ -210,6 +210,17 @@ final class BookmarkStore {
         }
     }
 
+    func updateDesignSnapshotStatus(bookmarkId: String, complete: Bool) {
+        if let idx = bookmarks.firstIndex(where: { $0.id == bookmarkId }) {
+            bookmarks[idx].designSnapshotCapturedAt = Date()
+            bookmarks[idx].designSnapshotComplete = complete
+        }
+        if selectedBookmark?.id == bookmarkId {
+            selectedBookmark?.designSnapshotCapturedAt = Date()
+            selectedBookmark?.designSnapshotComplete = complete
+        }
+    }
+
     /// Remove a deleted tag from every local bookmark so its chip disappears
     /// immediately, without waiting for a reload.
     func removeTagLocally(_ tagId: String) {

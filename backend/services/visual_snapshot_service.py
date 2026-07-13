@@ -11,7 +11,7 @@ from database import DATA_DIR
 
 SNAPSHOT_DIR = DATA_DIR / "visual_snapshots"
 VIEWPORTS = [
-    {"name": "desktop", "width": 1440, "height": 1200, "device_scale_factor": 1},
+    {"name": "desktop", "width": 1440, "height": 900, "device_scale_factor": 1},
     {"name": "tablet", "width": 834, "height": 1112, "device_scale_factor": 2},
     {"name": "mobile", "width": 390, "height": 844, "device_scale_factor": 2},
 ]
@@ -37,6 +37,27 @@ def read_snapshot(bookmark_id: str) -> dict[str, Any] | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def snapshot_summary(bookmark_id: str) -> tuple[datetime | None, bool]:
+    """Return capture time and whether all current viewport presets exist."""
+    snapshot = read_snapshot(bookmark_id)
+    if not snapshot:
+        return None, False
+
+    expected = {(item["name"], item["width"], item["height"]) for item in VIEWPORTS}
+    actual = {
+        (item.get("name"), item.get("width"), item.get("height"))
+        for item in snapshot.get("viewports", [])
+    }
+    captured_at = None
+    try:
+        captured_at = datetime.fromisoformat(
+            str(snapshot.get("captured_at", "")).replace("Z", "+00:00")
+        )
+    except ValueError:
+        pass
+    return captured_at, expected.issubset(actual)
 
 
 async def capture_snapshot(bookmark_id: str, url: str, title: str = "") -> dict[str, Any]:

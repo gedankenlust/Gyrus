@@ -64,6 +64,8 @@ class BookmarkOut(BaseModel):
     source: str
     is_dead: bool
     is_read: bool = False
+    design_snapshot_captured_at: datetime | None = None
+    design_snapshot_complete: bool = False
     collection_id: str | None
     tags: list[TagOut] = []
     created_at: datetime

@@ -116,3 +116,28 @@ def test_auto_tag_bookmark_respects_language(client, db):
         resp = client.post(f"/api/bookmarks/{bm_id}/auto-tag", json={})
         sent_prompt = mock_ask.call_args.kwargs.get("prompt") or mock_ask.call_args.args[0]
         assert "tagging assistant" in sent_prompt
+
+
+def test_translate_reader_preserves_current_content_and_language(client, db):
+    from unittest.mock import patch
+
+    created = client.post("/api/bookmarks", json={
+        "title": "Article", "url": "https://reader.example", "source": "manual"
+    }).json()
+
+    with patch("services.llm_service.LLMService.ask_llm") as mock_ask:
+        mock_ask.return_value = "# Deutsche Überschrift\n\nÜbersetzter Text."
+        response = client.post(
+            f"/api/bookmarks/{created['id']}/reader/translate",
+            json={
+                "target_language": "de",
+                "content": "# English heading\n\nOriginal text.",
+                "provider_config": {"provider": "ollama", "model": "qwen3"},
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["content"].startswith("# Deutsche Überschrift")
+    assert mock_ask.call_args.kwargs["context"].startswith("# English heading")
+    assert mock_ask.call_args.kwargs["language"] == "de"
+    assert mock_ask.call_args.kwargs["think"] is False

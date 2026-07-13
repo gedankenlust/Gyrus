@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from schemas.bookmark import BookmarkOut
 from services.search_service import search_bookmarks, search_bookmarks_semantic
+from services import visual_snapshot_service
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,9 @@ router = APIRouter(prefix="/api/search", tags=["search"])
 def _enrich(bm) -> BookmarkOut:
     item = BookmarkOut.model_validate(bm)
     item.tags = [bt.tag for bt in bm.bookmark_tags]
+    captured_at, complete = visual_snapshot_service.snapshot_summary(bm.id)
+    item.design_snapshot_captured_at = captured_at
+    item.design_snapshot_complete = complete
     return item
 
 

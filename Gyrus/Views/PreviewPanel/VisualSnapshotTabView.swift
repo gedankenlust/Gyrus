@@ -44,6 +44,7 @@ private enum DesignReviewMode: String, CaseIterable, Identifiable {
 }
 
 struct VisualSnapshotTabView: View {
+    @Environment(BookmarkStore.self) private var bookmarkStore
     let bookmark: Bookmark
 
     @State private var snapshot: APIClient.VisualSnapshotDTO?
@@ -429,6 +430,7 @@ struct VisualSnapshotTabView: View {
             let loaded = try await APIClient.shared.visualSnapshot(bookmarkId: bookmark.id)
             snapshot = loaded
             selectedViewportName = loaded.viewports.first?.name
+            updateBookmarkSnapshotStatus(loaded)
         } catch APIError.serverMessage(let message) where message == "Visual snapshot not found" {
             snapshot = nil
         } catch APIError.serverError(404) {
@@ -446,6 +448,7 @@ struct VisualSnapshotTabView: View {
             snapshot = captured
             loadError = nil
             selectedViewportName = captured.viewports.first?.name
+            updateBookmarkSnapshotStatus(captured)
             AppStore.shared.uiStateStore.showInfo("Snapshot captured.")
         } catch {
             AppStore.shared.uiStateStore.showError(error.localizedDescription)
@@ -463,5 +466,21 @@ struct VisualSnapshotTabView: View {
             return String(localized: "The design engine is not fully installed in this build of Gyrus.")
         }
         return error.localizedDescription
+    }
+
+    private func updateBookmarkSnapshotStatus(_ snapshot: APIClient.VisualSnapshotDTO) {
+        let expected = [
+            ("desktop", 1440, 900),
+            ("tablet", 834, 1112),
+            ("mobile", 390, 844),
+        ]
+        let complete = expected.allSatisfy { expectedViewport in
+            snapshot.viewports.contains {
+                $0.name == expectedViewport.0 &&
+                $0.width == expectedViewport.1 &&
+                $0.height == expectedViewport.2
+            }
+        }
+        bookmarkStore.updateDesignSnapshotStatus(bookmarkId: bookmark.id, complete: complete)
     }
 }

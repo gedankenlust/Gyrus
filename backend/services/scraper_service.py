@@ -11,6 +11,13 @@ from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+_JSONLD_READER_NOISE = {
+    "about", "author", "breadcrumb", "dateCreated", "dateModified",
+    "datePublished", "description", "headline", "inLanguage",
+    "isPartOf", "itemListElement", "keywords", "mainEntityOfPage",
+    "potentialAction", "publisher",
+}
+
 # A browser-like User-Agent: YouTube (and many sites) serve much richer HTML to
 # a real browser UA than to an obvious bot, which is what we need for scraping.
 _BROWSER_UA = (
@@ -66,7 +73,11 @@ def _flatten_jsonld(obj: Any, lines: list, key: str = "", depth: int = 0) -> Non
             lines.append(f"{key}: {obj['value']} {unit}".strip())
             return
         for k, v in obj.items():
-            if k.startswith("@") or k in ("image", "logo", "url", "sameAs", "contentUrl", "thumbnailUrl"):
+            if (
+                k.startswith("@")
+                or k in _JSONLD_READER_NOISE
+                or k in ("image", "logo", "url", "sameAs", "contentUrl", "thumbnailUrl")
+            ):
                 continue
             _flatten_jsonld(v, lines, f"{key} {k}".strip(), depth + 1)
     elif isinstance(obj, list):

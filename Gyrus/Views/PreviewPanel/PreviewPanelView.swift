@@ -69,11 +69,10 @@ private enum PageMode: String, CaseIterable, Identifiable {
 
 struct PreviewPanelView: View {
     @Environment(BookmarkStore.self) private var bookmarkStore
-    @Binding var isFocused: Bool
 
     var body: some View {
         if let bookmark = bookmarkStore.selectedBookmark {
-            BookmarkDetailView(bookmark: bookmark, isFocused: $isFocused)
+            BookmarkDetailView(bookmark: bookmark)
         } else {
             EmptyPreviewView()
         }
@@ -129,7 +128,6 @@ struct HintRow: View {
 
 struct BookmarkDetailView: View {
     let bookmark: Bookmark
-    @Binding var isFocused: Bool
     @Environment(BookmarkStore.self) private var bookmarkStore
     @Environment(CollectionStore.self) private var collectionStore
     @Environment(TagStore.self) private var tagStore
@@ -141,6 +139,8 @@ struct BookmarkDetailView: View {
     @State private var newNoteText  = ""
     @State private var readerContent: String = "Loading..."
     @State private var isCleaningReader = false
+    @State private var isTranslatingReader = false
+    @State private var readerLoadedBookmarkID: String?
 
     // Edit-mode drafts
     @State private var editTitle    = ""
@@ -192,6 +192,8 @@ struct BookmarkDetailView: View {
             selectedTab = preferredTab
             pageMode = PageMode.fromPreference(AppSettings.shared.defaultPreviewTab)
             isEditing   = false
+            readerContent = "Loading..."
+            readerLoadedBookmarkID = nil
             Task { try? await bookmarkStore.fetchMeta(bookmark) }
         }
     }
@@ -209,21 +211,6 @@ struct BookmarkDetailView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            Button {
-                isFocused.toggle()
-            } label: {
-                Image(systemName: isFocused ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                    .frame(width: 16, height: 16)
-                    .padding(5)
-                    .foregroundStyle(isFocused ? Color.accentColor : Color.secondary)
-                    .background(
-                        isFocused ? Color.accentColor.opacity(0.14) : Color.clear,
-                        in: RoundedRectangle(cornerRadius: 6)
-                    )
-            }
-            .buttonStyle(.plain)
-            .help(isFocused ? "Show All Columns" : "Focus Detail")
-            .accessibilityLabel(isFocused ? "Show All Columns" : "Focus Detail")
             Button {
                 bookmarkStore.safeBrowserOpen(bookmark.url)
             } label: {
@@ -327,24 +314,27 @@ struct BookmarkDetailView: View {
 
     private var readerMode: some View {
         VStack(spacing: 0) {
-            // Optional, opt-in AI tidy-up. The local model reformats the text;
-            // it never silently replaces the extracted original on disk.
             HStack {
+                if isCleaningReader {
+                    ProgressView()
+                        .controlSize(.small)
+                        .help("Formatting Reader with AI")
+                }
                 Spacer()
                 if aiConfig.aiEnabled {
                     Button {
-                        cleanupReaderWithAI()
+                        translateReaderWithAI()
                     } label: {
-                        if isCleaningReader {
+                        if isTranslatingReader {
                             ProgressView().scaleEffect(0.5)
                         } else {
-                            Label("Tidy with AI", systemImage: "sparkles")
+                            Label("Translate", systemImage: "character.bubble")
                                 .font(.caption.weight(.medium))
                         }
                     }
                     .buttonStyle(.borderless)
-                    .disabled(isCleaningReader || readerContent == "Loading..." || readerContent == "Failed to load content.")
-                    .help("Reformat this text into clean prose using your local AI model")
+                    .disabled(isCleaningReader || isTranslatingReader || readerContent == "Loading..." || readerContent == "Failed to load content.")
+                    .help("Translate the Reader text into the app language")
                 }
             }
             .padding(.horizontal, 16)
@@ -358,7 +348,7 @@ struct BookmarkDetailView: View {
                         .font(.title.bold())
 
                     // Using AttributedString for basic markdown parsing without dependencies
-                    if let attrString = try? AttributedString(markdown: readerContent, options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+                    if let attrString = try? AttributedString(markdown: readerContent) {
                         Text(attrString)
                             .font(.body)
                             .lineSpacing(4)
@@ -373,27 +363,47 @@ struct BookmarkDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .onAppear {
-            Task {
-                readerContent = "Loading..."
-                do {
-                    readerContent = try await APIClient.shared.fetchReaderContent(id: bookmark.id)
-                } catch {
-                    readerContent = "Failed to load content."
-                }
+        .task(id: bookmark.id) {
+            await loadReaderContent()
+        }
+    }
+
+    private func loadReaderContent() async {
+        guard readerLoadedBookmarkID != bookmark.id else { return }
+        readerLoadedBookmarkID = bookmark.id
+        readerContent = "Loading..."
+        do {
+            let extracted = try await APIClient.shared.fetchReaderContent(id: bookmark.id)
+            readerContent = extracted
+            guard aiConfig.aiEnabled else { return }
+
+            isCleaningReader = true
+            defer { isCleaningReader = false }
+            readerContent = try await APIClient.shared.cleanupReaderContent(
+                id: bookmark.id,
+                config: AppSettings.shared.aiBrainConfig
+            )
+        } catch {
+            if readerContent == "Loading..." {
+                readerContent = "Failed to load content."
+            } else {
+                AppStore.shared.uiStateStore.showError(error.localizedDescription)
             }
         }
     }
 
-    private func cleanupReaderWithAI() {
-        isCleaningReader = true
+    private func translateReaderWithAI() {
+        isTranslatingReader = true
         Task {
-            defer { isCleaningReader = false }
+            defer { isTranslatingReader = false }
             do {
-                readerContent = try await APIClient.shared.cleanupReaderContent(
-                    id: bookmark.id, config: AppSettings.shared.aiBrainConfig)
+                readerContent = try await APIClient.shared.translateReaderContent(
+                    id: bookmark.id,
+                    content: readerContent,
+                    targetLanguage: AppSettings.shared.effectiveLanguageCode,
+                    config: AppSettings.shared.aiBrainConfig
+                )
             } catch {
-                // Keep the original text; surface the reason via the shared toast.
                 AppStore.shared.uiStateStore.showError(error.localizedDescription)
             }
         }
