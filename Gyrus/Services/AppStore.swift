@@ -312,37 +312,31 @@ final class AppStore {
         }
     }
 
-    /// Auto-tag a set of bookmarks with AI in the background. Polls progress,
-    /// reloads the list as tags land so they appear live, and reports the count.
+    /// Build one shared taxonomy for a bookmark selection. Nothing is written
+    /// until the user reviews and applies the resulting draft.
     func startBatchAutoTag(ids: [String]) async {
         guard uiStateStore.batchAutoTagStatus?.running != true else { return }
         guard !ids.isEmpty else { return }
         let config = AppSettings.shared.aiBrainConfig
         do {
             uiStateStore.batchAutoTagStatus = try await api.startBatchAutoTag(ids: ids, config: config)
-            uiStateStore.showInfo(AppSettings.shared.localized("Generating tags for \(ids.count) bookmarks…"))
+            uiStateStore.showInfo(AppSettings.shared.localized("Analyzing \(ids.count) bookmarks…"))
             batchTagPoller.start(
                 interval: 1.5,
                 fetch: { [api] in try await api.batchAutoTagStatus() },
                 onTick: { [weak self] status in
                     guard let self else { return }
                     self.uiStateStore.batchAutoTagStatus = status
-                    // Reload every few ticks so new tags show up progressively.
-                    if status.running && self.batchTagPoller.ticks % 3 == 0 {
-                        await self.loadBookmarks()
-                        try? await self.tagsStore.fetchTags()
-                    }
                 },
                 onFinished: { [weak self] status in
                     guard let self else { return }
-                    await self.loadBookmarks()
-                    try? await self.tagsStore.fetchTags()
-                    self.reportBatchTagOutcome(status)
                     self.uiStateStore.batchAutoTagStatus = nil
-                    // Offer to review tags the LLM invented during this run,
-                    // so junk gets discarded before it settles into the sidebar.
-                    if !status.createdTags.isEmpty {
-                        self.uiStateStore.batchTagReview = TagReviewPayload(tags: status.createdTags)
+                    if let draft = status.draft {
+                        self.uiStateStore.batchTagReview = TagReviewPayload(draft: draft)
+                    } else if let error = status.error {
+                        self.uiStateStore.showError(error)
+                    } else if status.phase != "cancelled" {
+                        self.uiStateStore.showError(AppSettings.shared.localized("No tag system could be created."))
                     }
                 }
             )
@@ -353,35 +347,13 @@ final class AppStore {
 
     func cancelBatchAutoTag() async {
         batchTagPoller.stop()
-        let last = uiStateStore.batchAutoTagStatus
         _ = try? await api.cancelBatchAutoTag()
         uiStateStore.batchAutoTagStatus = nil
-        // Reload so tags written before the stop actually appear, and report
-        // what landed instead of leaving the user guessing.
-        await loadBookmarks()
-        try? await tagsStore.fetchTags()
-        if let last {
-            uiStateStore.showInfo(AppSettings.shared.localized("Stopped — tagged \(last.tagged) of \(last.total)."))
-        }
+        uiStateStore.showInfo(AppSettings.shared.localized("Analysis stopped. No tags were changed."))
     }
 
 
 
-
-    /// Summarize a finished batch run: surface failures (e.g. Ollama down)
-    /// rather than a misleading "tagged 0 of N".
-    private func reportBatchTagOutcome(_ status: BatchAutoTagStatus) {
-        if status.tagged == 0 && status.failed > 0 {
-            let reason = (status.error?.contains("Ollama") ?? false)
-                ? AppSettings.shared.localized("Couldn't reach Ollama — is it running?")
-                : AppSettings.shared.localized("Tagging failed for all \(status.failed) bookmarks.")
-            uiStateStore.showError(reason)
-        } else if status.failed > 0 {
-            uiStateStore.showInfo(AppSettings.shared.localized("Tagged \(status.tagged) of \(status.total) — \(status.failed) failed."))
-        } else {
-            uiStateStore.showInfo(AppSettings.shared.localized("Tagged \(status.tagged) of \(status.total) bookmarks."))
-        }
-    }
 
     // MARK: - Batch Actions & Undo
 

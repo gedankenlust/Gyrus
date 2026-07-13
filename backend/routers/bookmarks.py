@@ -107,6 +107,17 @@ class AutoTagBatchRequest(BaseModel):
     language: str | None = None
 
 
+class TaxonomyTagEdit(BaseModel):
+    id: str
+    name: str
+    enabled: bool = True
+
+
+class ApplyTaxonomyRequest(BaseModel):
+    draft_id: str
+    tags: list[TaxonomyTagEdit]
+
+
 @router.post("/auto-tag-batch")
 async def start_auto_tag_batch(request: AutoTagBatchRequest):
     """Auto-tag a list of bookmarks in the background (one run at a time).
@@ -125,6 +136,24 @@ async def auto_tag_batch_status():
 async def cancel_auto_tag_batch():
     from services import auto_tag_batch_service
     return auto_tag_batch_service.cancel()
+
+
+@router.post("/auto-tag-batch/apply")
+def apply_auto_tag_taxonomy(request: ApplyTaxonomyRequest, db: Session = Depends(get_db)):
+    """Apply a reviewed taxonomy draft in one transaction."""
+    from services import taxonomy_service
+    return taxonomy_service.apply_draft(
+        db,
+        request.draft_id,
+        [tag.model_dump() for tag in request.tags],
+    )
+
+
+@router.delete("/auto-tag-batch/draft/{draft_id}")
+def discard_auto_tag_taxonomy(draft_id: str):
+    from services import taxonomy_service
+    taxonomy_service.discard_draft(draft_id)
+    return {"status": "discarded"}
 
 
 @router.get("/ids", response_model=list[str])

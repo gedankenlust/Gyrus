@@ -153,7 +153,7 @@ def test_auto_tag_rejects_unsupported_generic_tags(client, db):
     assert {tag["name"] for tag in response.json()["tags"]} == {"lesen"}
 
 
-def test_auto_tag_replaces_ai_tags_but_preserves_manual_tags(client, db):
+def test_auto_tag_reuses_existing_system_and_preserves_manual_tags(client, db):
     from unittest.mock import patch
     from models.tag import BookmarkTag, Tag
 
@@ -178,15 +178,12 @@ def test_auto_tag_replaces_ai_tags_but_preserves_manual_tags(client, db):
         response = client.post(f"/api/bookmarks/{created['id']}/auto-tag", json={})
 
     assert response.status_code == 200
-    assert {tag["name"] for tag in response.json()["tags"]} == {
-        "design",
-        "webentwicklung",
-    }
+    assert {tag["name"] for tag in response.json()["tags"]} == {"design"}
     sources = {
         row.tag.name: row.source
         for row in db.query(BookmarkTag).filter(BookmarkTag.bookmark_id == created["id"]).all()
     }
-    assert sources == {"design": "manual", "webentwicklung": "ai"}
+    assert sources == {"design": "manual"}
 
 
 def test_auto_tag_uses_cached_reader_content_without_scraping(client, db):

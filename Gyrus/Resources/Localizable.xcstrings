@@ -8450,6 +8450,114 @@
         "de": { "stringUnit": { "state": "translated", "value": "Untersuche diese Seite erneut, um die Responsive-Prüfung auszuführen." } },
         "en": { "stringUnit": { "state": "translated", "value": "Reinspect this page to run responsive checks." } }
       }
+    },
+    "Review Tag System": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Tag-System prüfen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Review Tag System" } }
+      }
+    },
+    "Nothing has been changed yet. Rename tags, disable weak suggestions, then apply the system once.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Noch wurde nichts geändert. Benenne Tags um, deaktiviere schwache Vorschläge und wende das System anschließend einmalig an." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Nothing has been changed yet. Rename tags, disable weak suggestions, then apply the system once." } }
+      }
+    },
+    "%lld tags": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%lld Tags" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%lld tags" } }
+      }
+    },
+    "%lld of %lld bookmarks": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%1$lld von %2$lld Lesezeichen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%1$lld of %2$lld bookmarks" } }
+      }
+    },
+    "%lld without a tag": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%lld ohne Tag" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%lld without a tag" } }
+      }
+    },
+    "Tag name": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Tag-Name" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Tag name" } }
+      }
+    },
+    "Show assigned bookmarks": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Zugeordnete Lesezeichen anzeigen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Show assigned bookmarks" } }
+      }
+    },
+    "%lld selected": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%lld ausgewählt" } },
+        "en": { "stringUnit": { "state": "translated", "value": "%lld selected" } }
+      }
+    },
+    "Apply Tag System": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Tag-System anwenden" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Apply Tag System" } }
+      }
+    },
+    "Analyzing %lld bookmarks…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%lld Lesezeichen werden analysiert…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Analyzing %lld bookmarks…" } }
+      }
+    },
+    "Building tag system…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Tag-System wird erstellt…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Building tag system…" } }
+      }
+    },
+    "Analysis stopped. No tags were changed.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Analyse gestoppt. Es wurden keine Tags geändert." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Analysis stopped. No tags were changed." } }
+      }
+    },
+    "No tag system could be created.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Es konnte kein Tag-System erstellt werden." } },
+        "en": { "stringUnit": { "state": "translated", "value": "No tag system could be created." } }
+      }
+    },
+    "Applied %lld tags to %lld of %lld bookmarks.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%1$lld Tags auf %2$lld von %3$lld Lesezeichen angewendet." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Applied %1$lld tags to %2$lld of %3$lld bookmarks." } }
+      }
+    },
+    "Build Tag System": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Tag-System erstellen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Build Tag System" } }
+      }
+    },
+    "Stop analysis — no tags are changed before review": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Analyse stoppen — vor der Prüfung werden keine Tags geändert" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Stop analysis — no tags are changed before review" } }
+      }
+    },
+    "Analyze the selection and review one shared tag system before applying it": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Auswahl analysieren und ein gemeinsames Tag-System vor dem Anwenden prüfen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Analyze the selection and review one shared tag system before applying it" } }
+      }
+    },
+    "Without a tag": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Ohne Tag" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Without a tag" } }
+      }
     }
   },
   "version": "1.1"

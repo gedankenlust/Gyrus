@@ -90,6 +90,43 @@ final class ModelEncodingTests: XCTestCase {
         XCTAssertEqual(col.children[0].id, "child")
     }
 
+    // MARK: - Taxonomy draft decoding
+
+    func testBatchTagStatusDecodesReviewDraft() throws {
+        let data = """
+        {
+          "running": false,
+          "processed": 3,
+          "total": 3,
+          "assigned": 2,
+          "without_tags": 1,
+          "failed": 0,
+          "phase": "review",
+          "draft": {
+            "id": "draft-1",
+            "language": "de",
+            "total": 3,
+            "assigned": 2,
+            "without_tags": 1,
+            "tags": [{
+              "id": "T001",
+              "name": "design",
+              "bookmark_count": 2,
+              "bookmark_ids": ["b1", "b2"],
+              "bookmark_titles": ["One", "Two"]
+            }],
+            "untagged": [{"id": "b3", "title": "Three"}]
+          }
+        }
+        """.data(using: .utf8)!
+
+        let status = try JSONDecoder().decode(BatchAutoTagStatus.self, from: data)
+
+        XCTAssertEqual(status.phase, "review")
+        XCTAssertEqual(status.draft?.tags.first?.bookmarkCount, 2)
+        XCTAssertEqual(status.draft?.untagged.first?.title, "Three")
+    }
+
     // MARK: - Design inspection decoding
 
     func testVisualSnapshotJobDecodesResponsiveIssue() throws {

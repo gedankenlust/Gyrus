@@ -158,11 +158,12 @@ struct ContentView: View {
             get: { uiStateStore.batchTagReview },
             set: { uiStateStore.batchTagReview = $0 }
         )) { payload in
-            TagReviewSheet(payload: payload) { discard in
+            TagReviewSheet(payload: payload) {
                 uiStateStore.batchTagReview = nil
-                if !discard.isEmpty {
-                    Task { await appStore.discardReviewedTags(discard) }
-                }
+                Task { await appStore.discardTaxonomyDraft(payload.draft) }
+            } onApply: { edits in
+                uiStateStore.batchTagReview = nil
+                Task { await appStore.applyTaxonomyDraft(payload.draft, edits: edits) }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .showImport)) { _ in showImport = true }

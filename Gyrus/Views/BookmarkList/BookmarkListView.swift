@@ -286,7 +286,9 @@ struct SelectionStatusBar: View {
             if let status = uiStateStore.batchAutoTagStatus, status.running {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
-                    Text("Tagging \(status.processed)/\(status.total)…")
+                    Text(status.phase == "organizing"
+                         ? "Building tag system…"
+                         : "Analyzing \(status.processed)/\(status.total)…")
                         .font(.caption).foregroundStyle(.secondary)
                     Button {
                         Task { await appStore.cancelBatchAutoTag() }
@@ -296,7 +298,7 @@ struct SelectionStatusBar: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .tint(.red)
-                    .help("Stop tagging — bookmarks already tagged are kept")
+                    .help("Stop analysis — no tags are changed before review")
                 }
             } else if !collectionStore.showTrash && AppSettings.shared.aiBrainConfig.aiEnabled {
                 // Bulk AI tagging — shown only when AI is enabled (the master
@@ -305,12 +307,12 @@ struct SelectionStatusBar: View {
                     let ids = Array(bookmarkStore.selectedIds)
                     Task { await appStore.startBatchAutoTag(ids: ids) }
                 } label: {
-                    Label("Generate Tags", systemImage: "wand.and.stars")
+                    Label("Build Tag System", systemImage: "wand.and.stars")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .tint(.purple)
-                .help("Auto-tag the selected bookmarks with AI")
+                .help("Analyze the selection and review one shared tag system before applying it")
             }
 
             if collectionStore.showTrash {

@@ -89,7 +89,10 @@ def backup(db: Session = Depends(get_db)):
             for c in db.query(Collection).all()
         ],
         "tags": [
-            {"id": t.id, "name": t.name, "color": t.color, "created_at": _iso(t.created_at)}
+            {
+                "id": t.id, "name": t.name, "color": t.color,
+                "source": t.source, "created_at": _iso(t.created_at),
+            }
             for t in db.query(Tag).all()
         ],
         "bookmarks": [
@@ -159,6 +162,7 @@ def restore(data: RestoreData, db: Session = Depends(get_db)):
         # 2. Tags.
         for t in data.tags:
             db.add(Tag(id=t["id"], name=t["name"], color=t.get("color"),
+                       source=t.get("source", "manual"),
                        created_at=_parse_dt(t.get("created_at"))))
 
         # 3. Collections — two passes so self-referential parent_id never

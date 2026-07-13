@@ -22,32 +22,80 @@ struct MetadataRefreshStatus: Decodable, JobStatusReporting {
     let updated: Int
 }
 
-/// A tag the LLM created during a batch auto-tag run — offered for review
-/// (keep or discard) when the run finishes.
-struct CreatedTagInfo: Decodable, Identifiable, Hashable {
+struct TaxonomyDraftTag: Decodable, Identifiable, Hashable {
     let id: String
     let name: String
-    let color: String?
+    let bookmarkCount: Int
+    let bookmarkIds: [String]
+    let bookmarkTitles: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case id, name
+        case bookmarkCount = "bookmark_count"
+        case bookmarkIds = "bookmark_ids"
+        case bookmarkTitles = "bookmark_titles"
+    }
 }
 
-/// Sheet payload for the post-batch tag review (Identifiable for .sheet(item:)).
+struct TaxonomyUntaggedBookmark: Decodable, Identifiable, Hashable {
+    let id: String
+    let title: String
+}
+
+struct TaxonomyDraft: Decodable, Identifiable, Hashable {
+    let id: String
+    let language: String
+    let total: Int
+    let assigned: Int
+    let withoutTags: Int
+    let tags: [TaxonomyDraftTag]
+    let untagged: [TaxonomyUntaggedBookmark]
+
+    enum CodingKeys: String, CodingKey {
+        case id, language, total, assigned, tags, untagged
+        case withoutTags = "without_tags"
+    }
+}
+
+struct TaxonomyTagEdit: Encodable, Identifiable, Hashable {
+    let id: String
+    var name: String
+    var enabled: Bool
+}
+
+struct ApplyTaxonomyResult: Decodable {
+    let status: String
+    let tags: Int
+    let assignments: Int
+    let assigned: Int
+    let withoutTags: Int
+    let total: Int
+
+    enum CodingKeys: String, CodingKey {
+        case status, tags, assignments, assigned, total
+        case withoutTags = "without_tags"
+    }
+}
+
 struct TagReviewPayload: Identifiable {
-    let id = UUID()
-    let tags: [CreatedTagInfo]
+    var id: String { draft.id }
+    let draft: TaxonomyDraft
 }
 
 struct BatchAutoTagStatus: Decodable, JobStatusReporting {
     let running: Bool
     let processed: Int
     let total: Int
-    let tagged: Int
+    let assigned: Int
+    let withoutTags: Int
     let failed: Int
     let error: String?
-    let createdTags: [CreatedTagInfo]
+    let phase: String
+    let draft: TaxonomyDraft?
 
     enum CodingKeys: String, CodingKey {
-        case running, processed, total, tagged, failed, error
-        case createdTags = "created_tags"
+        case running, processed, total, assigned, failed, error, phase, draft
+        case withoutTags = "without_tags"
     }
 
     init(from decoder: Decoder) throws {
@@ -55,11 +103,12 @@ struct BatchAutoTagStatus: Decodable, JobStatusReporting {
         running = try c.decode(Bool.self, forKey: .running)
         processed = try c.decode(Int.self, forKey: .processed)
         total = try c.decode(Int.self, forKey: .total)
-        tagged = try c.decode(Int.self, forKey: .tagged)
-        // Defaulted so older backend responses (without these keys) still decode.
+        assigned = try c.decodeIfPresent(Int.self, forKey: .assigned) ?? 0
+        withoutTags = try c.decodeIfPresent(Int.self, forKey: .withoutTags) ?? 0
         failed = try c.decodeIfPresent(Int.self, forKey: .failed) ?? 0
         error = try c.decodeIfPresent(String.self, forKey: .error)
-        createdTags = try c.decodeIfPresent([CreatedTagInfo].self, forKey: .createdTags) ?? []
+        phase = try c.decodeIfPresent(String.self, forKey: .phase) ?? "preparing"
+        draft = try c.decodeIfPresent(TaxonomyDraft.self, forKey: .draft)
     }
 }
 

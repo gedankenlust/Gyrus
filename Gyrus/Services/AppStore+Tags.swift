@@ -120,23 +120,24 @@ extension AppStore {
         }
     }
 
-    /// Discard tags the user rejected in the post-batch review sheet.
-    func discardReviewedTags(_ tags: [CreatedTagInfo]) async {
-        guard !tags.isEmpty else { return }
-        var failure: Error?
-        for t in tags {
-            do { try await api.deleteTag(id: t.id) }
-            catch { failure = error; continue }
-            bookmarksStore.removeTagLocally(t.id)
+    func applyTaxonomyDraft(_ draft: TaxonomyDraft, edits: [TaxonomyTagEdit]) async {
+        do {
+            let result = try await api.applyTaxonomyDraft(id: draft.id, tags: edits)
+            await loadBookmarks()
+            try? await tagsStore.fetchTags()
+            uiStateStore.showInfo(AppSettings.shared.localized(
+                "Applied \(result.tags) tags to \(result.assigned) of \(result.total) bookmarks."
+            ))
+        } catch {
+            surfaceError(error)
         }
-        try? await tagsStore.fetchTags()
-        await loadBookmarks()
-        if let failure {
-            surfaceError(failure)
-        } else {
-            uiStateStore.showInfo(tags.count == 1
-                ? AppSettings.shared.localized("Discarded 1 tag.")
-                : AppSettings.shared.localized("Discarded \(tags.count) tags."))
+    }
+
+    func discardTaxonomyDraft(_ draft: TaxonomyDraft) async {
+        do {
+            try await api.discardTaxonomyDraft(id: draft.id)
+        } catch {
+            surfaceError(error)
         }
     }
 }

@@ -1,99 +1,114 @@
-"""
-Bulk AI auto-tagging.
-
-Runs the per-bookmark auto-tagger over a selected list of bookmark IDs in the
-background, so the user can tag many (or all) bookmarks at once without freezing
-the app. One run at a time, progress polled via BackgroundJob, cancellable.
-Concurrency is deliberately modest — each tag means a local LLM call, and too
-many in parallel would thrash Ollama / VRAM on smaller Macs.
-"""
+"""Review-first global taxonomy generation for bookmark batches."""
 import asyncio
 
 from database import SessionLocal
-from services import bookmark_service
+from models.bookmark import Bookmark
+from services import bookmark_service, taxonomy_service
 from services.background_job import BackgroundJob
+from services.scraper_service import scraper_service
 
 
-# 3 parallel Ollama calls keeps Apple Silicon busy without thrashing. Higher
-# values risk VRAM pressure / OOM on smaller Macs (16GB) with large models —
-# Gyrus ships to all of them, so the default stays conservative.
-CONCURRENCY = 3
+# Page extraction is I/O-bound. Keeping this modest avoids hammering sites while
+# still preparing a larger collection in a reasonable amount of time.
+SCRAPE_CONCURRENCY = 4
 
-job = BackgroundJob(processed=0, total=0, tagged=0, failed=0, created_tags=[])
+job = BackgroundJob(
+    processed=0,
+    total=0,
+    assigned=0,
+    without_tags=0,
+    failed=0,
+    phase="idle",
+    draft=None,
+)
 
 get_status = job.get_status
 is_running = job.is_running
 cancel = job.cancel
 
 
-async def _run(ids: list[str], provider_config: dict | None, language: str | None, job: BackgroundJob) -> None:
-    from models.tag import Tag
+async def _prepare_bookmark(bookmark_id: str, semaphore: asyncio.Semaphore,
+                            job: BackgroundJob) -> bool:
+    """Ensure useful Reader text exists without assigning any tags."""
+    if job.cancelled:
+        return False
+    async with semaphore:
+        db = SessionLocal()
+        try:
+            bookmark = db.query(Bookmark).filter(
+                Bookmark.id == bookmark_id,
+                Bookmark.deleted_at.is_(None),
+            ).first()
+            if bookmark is None:
+                job.state["failed"] += 1
+                return False
 
-    # Snapshot tag ids so we can report which tags the LLM *created* during
-    # this run — the review sheet lets the user discard junk before it settles.
+            if not (bookmark.scraped_content or "").strip():
+                try:
+                    result = await scraper_service.extract_content(bookmark.url)
+                    content = (result.get("content") or "").strip()
+                    if content:
+                        bookmark_service.store_scraped_content(db, bookmark.id, content)
+                except asyncio.CancelledError:
+                    raise
+                except Exception:
+                    # A page can block extraction or be temporarily unavailable.
+                    # Its title and description still remain valid taxonomy input.
+                    pass
+            return True
+        finally:
+            db.close()
+            job.state["processed"] += 1
+
+
+async def _run(ids: list[str], provider_config: dict | None, language: str | None,
+               job: BackgroundJob) -> None:
+    job.state["phase"] = "preparing"
+    semaphore = asyncio.Semaphore(SCRAPE_CONCURRENCY)
+    results = await asyncio.gather(*(
+        _prepare_bookmark(bookmark_id, semaphore, job) for bookmark_id in ids
+    ))
+    if job.cancelled:
+        job.state["phase"] = "cancelled"
+        return
+
+    valid_ids = [bookmark_id for bookmark_id, valid in zip(ids, results) if valid]
+    if not valid_ids:
+        job.state["phase"] = "failed"
+        raise ValueError("No selected bookmarks are available for taxonomy generation.")
+
+    job.state["phase"] = "organizing"
     db = SessionLocal()
     try:
-        before = {t.id for t in db.query(Tag.id).all()}
+        bookmarks_by_id = {
+            bookmark.id: bookmark
+            for bookmark in db.query(Bookmark).filter(Bookmark.id.in_(valid_ids)).all()
+        }
+        bookmarks = [bookmarks_by_id[bookmark_id] for bookmark_id in valid_ids
+                     if bookmark_id in bookmarks_by_id]
+        draft = await taxonomy_service.generate_draft(
+            db, bookmarks, provider_config, language
+        )
     finally:
         db.close()
 
-    sem = asyncio.Semaphore(CONCURRENCY)
-    tagged = 0
-    failed = 0
-
-    async def tag_one(bm_id: str) -> None:
-        nonlocal tagged, failed
-        if job.cancelled:
-            return
-        async with sem:
-            if job.cancelled:
-                return
-            # Each concurrent task gets its own session — a Session is not safe
-            # to share across concurrent coroutines.
-            db = SessionLocal()
-            try:
-                # Reuse cached Reader content and fetch it only when it is
-                # missing. Titles alone are too ambiguous for reliable tags.
-                await bookmark_service.auto_tag_bookmark(db, bm_id, provider_config, scrape=True, language=language)
-                tagged += 1
-            except Exception as e:
-                # One failure (missing bookmark, LLM hiccup) must not abort the
-                # batch — but don't fail silently: count it and keep the last
-                # message so the UI can tell the user *why* (e.g. Ollama down)
-                # instead of a misleading "tagged 0 of N".
-                failed += 1
-                job.state["error"] = str(e)
-            finally:
-                db.close()
-        async with job.lock:
-            job.state["processed"] += 1
-            job.state["tagged"] = tagged
-            job.state["failed"] = failed
-
-    tasks = [asyncio.create_task(tag_one(i)) for i in ids]
-    try:
-        await asyncio.gather(*tasks, return_exceptions=True)
-    except asyncio.CancelledError:
-        pass  # still report what was created before the stop
-    finally:
-        # Plain assignments — safe even mid-cancellation (see BackgroundJob).
-        job.state["tagged"] = tagged
-        job.state["failed"] = failed
-        db = SessionLocal()
-        try:
-            job.state["created_tags"] = [
-                {"id": t.id, "name": t.name, "color": t.color}
-                for t in db.query(Tag).filter(~Tag.id.in_(before)).all()
-            ]
-        finally:
-            db.close()
+    job.state["draft"] = draft
+    job.state["assigned"] = draft["assigned"]
+    job.state["without_tags"] = draft["without_tags"]
+    job.state["phase"] = "review"
 
 
-async def start(ids: list[str], provider_config: dict | None = None, language: str | None = None) -> dict:
-    if not ids:
-        return await job.run_noop(reset={"total": 0})
+async def start(ids: list[str], provider_config: dict | None = None,
+                language: str | None = None) -> dict:
+    # Preserve selection order while preventing duplicated work and counts.
+    unique_ids = list(dict.fromkeys(ids))
+    if not unique_ids:
+        return await job.run_noop(reset={"total": 0, "phase": "idle"})
 
-    async def runner(job: BackgroundJob) -> None:
-        await _run(ids, provider_config, language, job)
+    async def runner(active_job: BackgroundJob) -> None:
+        await _run(unique_ids, provider_config, language, active_job)
 
-    return await job.start(runner, reset={"total": len(ids)})
+    return await job.start(
+        runner,
+        reset={"total": len(unique_ids), "phase": "preparing"},
+    )

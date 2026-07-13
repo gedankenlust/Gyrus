@@ -54,7 +54,7 @@ def create_tag(data: TagCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(409, "Tag already exists")
     color = data.color or next_color(db)
-    tag = Tag(name=data.name, color=color)
+    tag = Tag(name=data.name, color=color, source="manual")
     db.add(tag)
     db.commit()
     db.refresh(tag)
@@ -82,7 +82,7 @@ def restore_tag(data: TagRestore, db: Session = Depends(get_db)):
     that no longer exist or are already linked."""
     tag = db.query(Tag).filter(Tag.name == data.name).first()
     if not tag:
-        tag = Tag(name=data.name, color=data.color)
+        tag = Tag(name=data.name, color=data.color, source="manual")
         db.add(tag)
         db.flush()
     if data.bookmark_ids:
@@ -91,7 +91,7 @@ def restore_tag(data: TagRestore, db: Session = Depends(get_db)):
         valid = {bid for (bid,) in db.query(Bookmark.id)
                  .filter(Bookmark.id.in_(data.bookmark_ids)).all()}
         for bid in valid - linked:
-            db.add(BookmarkTag(bookmark_id=bid, tag_id=tag.id))
+            db.add(BookmarkTag(bookmark_id=bid, tag_id=tag.id, source="manual"))
     db.commit()
     db.refresh(tag)
     return tag
@@ -118,6 +118,8 @@ def merge_tags(data: TagMerge, db: Session = Depends(get_db)):
         for link in db.query(BookmarkTag).filter(BookmarkTag.tag_id == target.id).all()
     }
     moved_links = db.query(BookmarkTag).filter(BookmarkTag.tag_id.in_(source_ids)).all()
+    if any(source.source == "manual" for source in sources):
+        target.source = "manual"
     for link in moved_links:
         existing = target_links.get(link.bookmark_id)
         if existing:

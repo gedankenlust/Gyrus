@@ -533,6 +533,18 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
     )
     context = metadata + (f"\n\nPage content:\n{content[:10_000]}" if content else "")
     primary_text = f"{bm.title}\n{bm.description or ''}"
+    existing_tags = db.query(Tag).order_by(Tag.name).all()
+    approved_names = [tag.name for tag in existing_tags]
+    approved_instruction_de = (
+        " Verwende ausschließlich passende Namen aus diesem bestehenden Tag-System: "
+        + ", ".join(approved_names[:60]) + ". Erfinde keine neuen Tags."
+        if approved_names else ""
+    )
+    approved_instruction_en = (
+        " Use only matching names from this existing tag system: "
+        + ", ".join(approved_names[:60]) + ". Do not invent new tags."
+        if approved_names else ""
+    )
 
     # The quote requirement makes suggestions auditable and lets us reject a
     # model's unsupported guesses before they ever reach the database.
@@ -546,6 +558,7 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
             "Gib für jedes Tag unter 'evidence' ein kurzes, exakt aus der Quelle kopiertes Zitat an. "
             "Ohne eindeutigen Beleg vergib kein Tag. Antworte ausschließlich als gültiges JSON: "
             "{\"tags\":[{\"name\":\"tag\",\"evidence\":\"exaktes Zitat\"}]}"
+            + approved_instruction_de
         )
     else:
         prompt = (
@@ -556,6 +569,7 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
             "For every tag, put a short exact quote copied from the source in 'evidence'. "
             "If there is no clear evidence, assign no tag. Reply only as valid JSON: "
             "{\"tags\":[{\"name\":\"tag\",\"evidence\":\"exact quote\"}]}"
+            + approved_instruction_en
         )
     
     try:
@@ -574,6 +588,14 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
         raise HTTPException(500, f"LLM Error: {str(e)}")
 
     suggested = _validated_tag_names(response, context, primary_text, content[:10_000])
+    if existing_tags:
+        from services.taxonomy_service import canonical_tag_key
+        existing_by_key = {canonical_tag_key(tag.name): tag.name for tag in existing_tags}
+        suggested = [
+            existing_by_key[key]
+            for name in suggested
+            if (key := canonical_tag_key(name)) in existing_by_key
+        ]
 
     # Replace only previous AI assignments. Manual tags are user-owned and must
     # survive every automatic run.
@@ -591,7 +613,7 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
     for tag_name in suggested:
         tag = db.query(Tag).filter(Tag.name == tag_name).first()
         if not tag:
-            tag = Tag(name=tag_name, color=_next_tag_color(db))
+            tag = Tag(name=tag_name, color=_next_tag_color(db), source="ai")
             db.add(tag)
             db.flush()
         if tag.id not in preserved_tag_ids:

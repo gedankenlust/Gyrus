@@ -43,4 +43,24 @@ extension APIClient {
     func cancelBatchAutoTag() async throws -> BatchAutoTagStatus {
         try await post(base.appending(path: "/api/bookmarks/auto-tag-batch/cancel"), body: EmptyBody())
     }
+
+    func applyTaxonomyDraft(id: String, tags: [TaxonomyTagEdit]) async throws -> ApplyTaxonomyResult {
+        struct Body: Encodable {
+            let draftId: String
+            let tags: [TaxonomyTagEdit]
+
+            enum CodingKeys: String, CodingKey {
+                case draftId = "draft_id"
+                case tags
+            }
+        }
+        return try await post(
+            base.appending(path: "/api/bookmarks/auto-tag-batch/apply"),
+            body: Body(draftId: id, tags: tags)
+        )
+    }
+
+    func discardTaxonomyDraft(id: String) async throws {
+        try await delete(base.appending(path: "/api/bookmarks/auto-tag-batch/draft/\(id)"))
+    }
 }

@@ -90,7 +90,7 @@ def test_backup_restore_roundtrip(client, db):
     client.post(f"/api/bookmarks/{bm['id']}/notes", json={"content": "keep me", "source": "user"})
     brain_chat_service.add_message(db, bm["id"], "user", "remember me", model="llama3")
     brain_chat_service.add_message(db, bm["id"], "assistant", "I remembered it.", model="llama3")
-    ai_tag = Tag(name="research", color="#123456")
+    ai_tag = Tag(name="research", color="#123456", source="ai")
     db.add(ai_tag)
     db.flush()
     db.add(BookmarkTag(bookmark_id=bm["id"], tag_id=ai_tag.id, source="ai"))
@@ -101,6 +101,7 @@ def test_backup_restore_roundtrip(client, db):
     assert backup.status_code == 200
     payload = backup.json()
     assert payload["version"] == 1
+    assert payload["tags"][0]["source"] == "ai"
     assert len(payload["collections"]) == 2
     assert len(payload["bookmarks"]) == 1
     assert payload["bookmark_tags"] == [{
@@ -128,3 +129,4 @@ def test_backup_restore_roundtrip(client, db):
     assert any(m["content"] == "remember me" for m in chat)
     restored_link = db.query(BookmarkTag).filter(BookmarkTag.bookmark_id == bm["id"]).one()
     assert restored_link.source == "ai"
+    assert db.query(Tag).filter(Tag.id == ai_tag.id).one().source == "ai"

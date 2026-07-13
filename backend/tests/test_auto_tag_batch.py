@@ -1,9 +1,12 @@
-"""Bulk auto-tag background job: progress accounting and lifecycle."""
+"""Global taxonomy background job: progress, missing rows, and lifecycle."""
 import asyncio
-
-import pytest
+import uuid
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
+from database import SessionLocal
+from models.bookmark import Bookmark
 from services import auto_tag_batch_service
 
 
@@ -14,39 +17,68 @@ async def _wait_until_done(timeout: float = 5.0) -> None:
         elapsed += 0.05
 
 
+def _bookmarks(count: int) -> list[str]:
+    db = SessionLocal()
+    ids: list[str] = []
+    try:
+        for index in range(count):
+            bookmark = Bookmark(
+                title=f"Taxonomy test {uuid.uuid4()}",
+                url=f"https://taxonomy-{uuid.uuid4()}.example/{index}",
+                scraped_content="Enough cached content for the taxonomy.",
+            )
+            db.add(bookmark)
+            db.flush()
+            ids.append(bookmark.id)
+        db.commit()
+        return ids
+    finally:
+        db.close()
+
+
+def _draft(ids: list[str]) -> dict:
+    return {
+        "id": str(uuid.uuid4()), "language": "en", "total": len(ids),
+        "assigned": len(ids), "without_tags": 0,
+        "tags": [{
+            "id": "T001", "name": "testing", "bookmark_ids": ids,
+            "bookmark_titles": ["Test"] * len(ids), "bookmark_count": len(ids),
+        }],
+        "untagged": [],
+    }
+
+
 @pytest.mark.asyncio
-async def test_batch_tags_every_id_and_reports_counts():
-    # Mock the per-bookmark tagger so the test needs neither Ollama nor scraping.
-    tagger = AsyncMock(return_value=None)
-    with patch("services.bookmark_service.auto_tag_bookmark", new=tagger):
-        await auto_tag_batch_service.start(["a", "b", "c"], None)
+async def test_batch_builds_one_review_draft_without_writing_tags():
+    ids = _bookmarks(3)
+    generator = AsyncMock(return_value=_draft(ids))
+    with patch("services.taxonomy_service.generate_draft", new=generator):
+        await auto_tag_batch_service.start(ids, None)
         await _wait_until_done()
 
     status = auto_tag_batch_service.get_status()
     assert status["total"] == 3
     assert status["processed"] == 3
-    assert status["tagged"] == 3
-    assert status["running"] is False
-    assert all(call.kwargs["scrape"] is True for call in tagger.await_args_list)
+    assert status["assigned"] == 3
+    assert status["failed"] == 0
+    assert status["phase"] == "review"
+    assert status["draft"]["tags"][0]["name"] == "testing"
+    generator.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_batch_survives_a_failing_bookmark():
-    # One bookmark raises; the batch must keep going and not count it as tagged.
-    calls = {"n": 0}
-
-    async def flaky(db, bm_id, cfg, scrape=True, language=None):
-        calls["n"] += 1
-        if bm_id == "boom":
-            raise RuntimeError("LLM hiccup")
-
-    with patch("services.bookmark_service.auto_tag_bookmark", new=AsyncMock(side_effect=flaky)):
-        await auto_tag_batch_service.start(["ok1", "boom", "ok2"], None)
+async def test_batch_reports_missing_bookmark_and_uses_valid_rows():
+    ids = _bookmarks(2)
+    requested = [ids[0], "missing", ids[1]]
+    generator = AsyncMock(return_value=_draft(ids))
+    with patch("services.taxonomy_service.generate_draft", new=generator):
+        await auto_tag_batch_service.start(requested, None)
         await _wait_until_done()
 
     status = auto_tag_batch_service.get_status()
-    assert status["processed"] == 3      # all attempted
-    assert status["tagged"] == 2         # only the two that succeeded
+    assert status["processed"] == 3
+    assert status["failed"] == 1
+    assert status["assigned"] == 2
     assert status["running"] is False
 
 
