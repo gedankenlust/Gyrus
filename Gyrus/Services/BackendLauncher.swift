@@ -140,6 +140,10 @@ final class BackendLauncher {
         if usesBundledRuntime {
             environment["PLAYWRIGHT_BROWSERS_PATH"] = backendDir
                 .appendingPathComponent("python-runtime/playwright-browsers").path
+            // Never let Python create __pycache__ inside the signed app bundle.
+            // Keep bytecode caching, but redirect it to writable app support.
+            environment["PYTHONPYCACHEPREFIX"] = dataDir
+                .appendingPathComponent("python-cache").path
         }
         proc.environment = environment
         let logURL = dataDir.appendingPathComponent("backend.log")
