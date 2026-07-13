@@ -15,8 +15,105 @@ extension Notification.Name {
     static let bookmarksMoved = Notification.Name("bookmarksMoved")
 }
 
+@MainActor
+final class GyrusApplicationDelegate: NSObject, NSApplicationDelegate {
+    var openMainWindow: (() -> Void)?
+    private weak var mainWindow: NSWindow?
+    private var mainWindowDelegate: MainWindowDelegateProxy?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        ProcessInfo.processInfo.disableAutomaticTermination(
+            "Gyrus remains available for its menu bar item and global shortcuts"
+        )
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        if let mainWindow, !mainWindow.isVisible {
+            mainWindow.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        showMainWindow()
+        return false
+    }
+
+    func showMainWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let window = mainWindow {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            openMainWindow?()
+        }
+    }
+
+    func registerMainWindow(_ window: NSWindow) {
+        guard mainWindow !== window else { return }
+        let proxy = MainWindowDelegateProxy(forwardingTo: window.delegate)
+        mainWindow = window
+        mainWindowDelegate = proxy
+        window.identifier = NSUserInterfaceItemIdentifier("gyrus-main-window")
+        window.isReleasedWhenClosed = false
+        window.delegate = proxy
+    }
+}
+
+@MainActor
+private final class MainWindowDelegateProxy: NSObject, NSWindowDelegate {
+    private weak var forwardedDelegate: NSWindowDelegate?
+
+    init(forwardingTo delegate: NSWindowDelegate?) {
+        forwardedDelegate = delegate
+    }
+
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        sender.orderOut(nil)
+        DispatchQueue.main.async {
+            NSApp.hide(nil)
+        }
+        return false
+    }
+
+    override func responds(to selector: Selector!) -> Bool {
+        super.responds(to: selector) || forwardedDelegate?.responds(to: selector) == true
+    }
+
+    override func forwardingTarget(for selector: Selector!) -> Any? {
+        if forwardedDelegate?.responds(to: selector) == true {
+            return forwardedDelegate
+        }
+        return super.forwardingTarget(for: selector)
+    }
+}
+
+private struct MainWindowLifecycleRegistration: ViewModifier {
+    @Environment(\.openWindow) private var openWindow
+    let appDelegate: GyrusApplicationDelegate
+
+    func body(content: Content) -> some View {
+        content.onAppear {
+            DispatchQueue.main.async {
+                if let window = NSApp.keyWindow {
+                    appDelegate.registerMainWindow(window)
+                }
+            }
+            appDelegate.openMainWindow = {
+                openWindow(id: "main")
+            }
+        }
+    }
+}
+
 @main
 struct GyrusApp: App {
+    @NSApplicationDelegateAdaptor(GyrusApplicationDelegate.self) private var appDelegate
     @State private var launcher = BackendLauncher.shared
     @State private var store = AppStore.shared
     @State private var bookmarkStore = AppStore.shared.bookmarksStore
@@ -65,7 +162,7 @@ struct GyrusApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        Window("Gyrus", id: "main") {
             Group {
                 if launcher.isRunning {
                     ContentView()
@@ -80,6 +177,7 @@ struct GyrusApp: App {
                 }
             }
             .preferredColorScheme(resolvedScheme)
+            .modifier(MainWindowLifecycleRegistration(appDelegate: appDelegate))
             .task {
                 await launcher.start()
                 if launcher.isRunning {
@@ -130,8 +228,7 @@ struct GyrusApp: App {
             }
 
             Button("Open Gyrus") {
-                NSApp.activate(ignoringOtherApps: true)
-                NSApp.windows.first?.makeKeyAndOrderFront(nil)
+                appDelegate.showMainWindow()
             }
 
             SettingsLink {
