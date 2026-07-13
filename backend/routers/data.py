@@ -119,7 +119,11 @@ def backup(db: Session = Depends(get_db)):
             for m in db.query(BrainMessage).all()
         ],
         "bookmark_tags": [
-            {"bookmark_id": bt.bookmark_id, "tag_id": bt.tag_id}
+            {
+                "bookmark_id": bt.bookmark_id,
+                "tag_id": bt.tag_id,
+                "source": bt.source,
+            }
             for bt in db.query(BookmarkTag).all()
         ],
     }
@@ -197,7 +201,11 @@ def restore(data: RestoreData, db: Session = Depends(get_db)):
                                 status=m.get("status", "complete"),
                                 created_at=_parse_dt(m.get("created_at"))))
         for bt in data.bookmark_tags:
-            db.add(BookmarkTag(bookmark_id=bt["bookmark_id"], tag_id=bt["tag_id"]))
+            db.add(BookmarkTag(
+                bookmark_id=bt["bookmark_id"],
+                tag_id=bt["tag_id"],
+                source=bt.get("source", "manual"),
+            ))
 
         db.commit()
     except Exception as e:

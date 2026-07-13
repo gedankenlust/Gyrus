@@ -1,4 +1,6 @@
+import json
 import logging
+import re
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -331,7 +333,7 @@ async def index_bookmark_embedding(bookmark_id: str, text: str) -> None:
 def _set_tags(db: Session, bm: Bookmark, tag_ids: list[str]) -> None:
     db.query(BookmarkTag).filter(BookmarkTag.bookmark_id == bm.id).delete()
     for tag_id in tag_ids:
-        db.add(BookmarkTag(bookmark_id=bm.id, tag_id=tag_id))
+        db.add(BookmarkTag(bookmark_id=bm.id, tag_id=tag_id, source="manual"))
 
 
 def get_bookmark_tags(bm: Bookmark) -> list[Tag]:
@@ -382,6 +384,124 @@ def delete_note(db: Session, bookmark_id: str, note_id: str):
     return False
 
 
+_TAG_NAME_RE = re.compile(r"^[\wäöüÄÖÜß+#.-][\wäöüÄÖÜß +#./-]{0,39}$", re.UNICODE)
+_GENERIC_TAG_PATTERNS = {
+    "ai": re.compile(
+        r"\b(ai|ki|llms?|artificial intelligence|künstliche intelligenz|"
+        r"machine learning|deep learning|chatgpt|claude|anthropic|ollama|"
+        r"generative ai|agentic|code agents?)\b",
+        re.IGNORECASE,
+    ),
+    "software": re.compile(
+        r"\b(software|apps?|applications?|programme?|desktop app|web app)\b",
+        re.IGNORECASE,
+    ),
+    "webdevelopment": re.compile(
+        r"\b(webentwicklung|web development|frontend|backend|full[ -]stack|"
+        r"html|css|javascript|typescript|react|vue|svelte|wordpress|webdesign|"
+        r"website builder|web app)\b",
+        re.IGNORECASE,
+    ),
+}
+_GENERIC_TAG_ALIASES = {
+    "ki": "ai",
+    "ai": "ai",
+    "software": "software",
+    "web": "webdevelopment",
+    "webdev": "webdevelopment",
+    "webentwicklung": "webdevelopment",
+    "web development": "webdevelopment",
+}
+
+
+def _normalized_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value.casefold()).strip()
+
+
+def _clean_tag_name(value: str) -> str | None:
+    name = value.strip().strip("`'\"#*[]{}()").casefold()
+    name = re.sub(r"\s+", " ", name)
+    if not name or not _TAG_NAME_RE.fullmatch(name):
+        return None
+    return name
+
+
+def _parse_tag_suggestions(response: str) -> list[tuple[str, str]]:
+    """Parse evidence-backed JSON, with a conservative legacy fallback."""
+    cleaned = response.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    items: list[tuple[str, str]] = []
+    start, end = cleaned.find("{"), cleaned.rfind("}")
+    if start != -1 and end > start:
+        try:
+            payload = json.loads(cleaned[start:end + 1])
+            raw_tags = payload.get("tags", []) if isinstance(payload, dict) else []
+            for item in raw_tags:
+                if not isinstance(item, dict):
+                    continue
+                name = _clean_tag_name(str(item.get("name", "")))
+                evidence = str(item.get("evidence", "")).strip()
+                if name:
+                    items.append((name, evidence))
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
+    if items:
+        return items
+
+    # Older/smaller models occasionally ignore the JSON instruction. Do not
+    # turn prose into tags; only accept short comma-separated names.
+    if "\n" in cleaned or len(cleaned) > 160:
+        return []
+    for raw in cleaned.split(","):
+        name = _clean_tag_name(raw)
+        if name:
+            items.append((name, ""))
+    return items
+
+
+def _generic_tag_supported(name: str, primary_text: str, page_content: str) -> bool:
+    category = _GENERIC_TAG_ALIASES.get(name)
+    if not category:
+        return True
+    pattern = _GENERIC_TAG_PATTERNS[category]
+    if pattern.search(primary_text):
+        return True
+    # Extracted pages often contain unrelated navigation, ads, and footer text.
+    # One incidental keyword there is not enough to justify a broad category.
+    return len(pattern.findall(page_content)) >= 2
+
+
+def _validated_tag_names(
+    response: str,
+    context: str,
+    primary_text: str,
+    page_content: str,
+) -> list[str]:
+    context_normalized = _normalized_text(context)
+    accepted: list[str] = []
+    for name, evidence in _parse_tag_suggestions(response):
+        evidence_normalized = _normalized_text(evidence)
+        has_valid_evidence = (
+            len(evidence_normalized) >= 2 and evidence_normalized in context_normalized
+        )
+        explicitly_named = re.search(
+            rf"(?<!\w){re.escape(name)}(?!\w)", context, re.IGNORECASE
+        ) is not None
+        if not has_valid_evidence and not explicitly_named:
+            continue
+        if not _generic_tag_supported(name, primary_text, page_content):
+            continue
+        if name not in accepted:
+            accepted.append(name)
+
+    # "software" adds little when the model found a more informative subject.
+    if "software" in accepted and any(name != "software" for name in accepted):
+        accepted.remove("software")
+    return accepted[:3]
 
 
 async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict | None = None,
@@ -394,56 +514,48 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
     if not bm:
         raise HTTPException(status_code=404, detail="Bookmark not found")
 
-    # 1. Get existing tags to give the LLM context
-    all_tags = [t.name for t in db.query(Tag).all()]
-
-    # 2. Build context. Scraping the full page gives the best tags but is the
-    # slow part (a network fetch per bookmark) — bulk tagging skips it and tags
-    # from the title/URL/description, which is plenty for broad topic tags and
-    # an order of magnitude faster across a large selection.
-    context = ""
-    if scrape:
+    # Reuse Reader/Brain content when it already exists. A batch run only fetches
+    # pages that have never been read, so accuracy no longer comes at the cost of
+    # downloading every page again.
+    content = (bm.scraped_content or "").strip()
+    if scrape and not content:
         scrape_result = await scraper_service.extract_content(bm.url)
-        context = scrape_result.get("content", "")
-        if context:
-            store_scraped_content(db, bookmark_id, context)
-            # Index embedding in the background so semantic search can find this
-            # bookmark — fire-and-forget, uses the full text before truncation.
+        content = (scrape_result.get("content", "") or "").strip()
+        if content:
+            store_scraped_content(db, bookmark_id, content)
             from services import background
-            background.schedule(index_bookmark_embedding(bookmark_id, context))
-        if len(context) > 10000:
-            context = context[:10000]
+            background.schedule(index_bookmark_embedding(bookmark_id, content))
 
-    if not context:
-        context = f"Title: {bm.title}\nURL: {bm.url}\nDescription: {bm.description or ''}"
+    metadata = (
+        f"Title: {bm.title}\n"
+        f"URL: {bm.url}\n"
+        f"Description: {bm.description or ''}"
+    )
+    context = metadata + (f"\n\nPage content:\n{content[:10_000]}" if content else "")
+    primary_text = f"{bm.title}\n{bm.description or ''}"
 
-    # 3. Prompt the LLM. We want a FEW BROAD, reusable tags (topics that group
-    # many bookmarks) — not hyper-specific ones like "list-comprehensions" or
-    # "single-page-application", which clutter the sidebar and never repeat.
-    #
-    # Language: `language` is the app's UI language ("de"/"en"/None). It only
-    # steers NEW tags — reusing an existing tag always wins regardless of its
-    # language, so a mixed-language library never grows a duplicate ("webdev"
-    # next to "webentwicklung") just because the setting changed.
+    # The quote requirement makes suggestions auditable and lets us reject a
+    # model's unsupported guesses before they ever reach the database.
     if language == "de":
         prompt = (
-            "Du bist ein Tagging-Assistent. Schlage 1-3 breite, wiederverwendbare Themen-Tags vor, "
-            "die diesen Inhalt mit ähnlichen Lesezeichen gruppieren (z. B. 'python', 'ki', 'design', 'datenbank', 'frontend'). "
-            "Bevorzuge allgemeine Kategorien statt enger Spezifika: 'python' statt 'list-comprehensions', "
-            "'frontend' statt 'single-page-application'. Wenige, breite Tags sind besser als viele enge. "
-            f"Verwende bevorzugt diese bestehenden Tags, wenn sie passen: {', '.join(all_tags)}. "
-            "Erfinde nur dann einen neuen Tag, wenn keiner der bestehenden passt — und formuliere neue Tags auf Deutsch. "
-            "Antworte NUR mit kleingeschriebenen Tag-Namen, getrennt durch Kommas. Kein weiterer Text."
+            "Bestimme das tatsächliche Hauptthema des Inhalts. Vergib 1-3 kurze, "
+            "wiederverwendbare Themen-Tags auf Deutsch. Tags beschreiben den Inhalt, "
+            "nicht sein Medium: Eine Webseite ist nicht automatisch Webentwicklung, "
+            "ein digitales Produkt nicht automatisch Software und moderne Technik nicht automatisch KI. "
+            "Verwende solche allgemeinen Tags nur, wenn sie ausdrücklich das Hauptthema sind. "
+            "Gib für jedes Tag unter 'evidence' ein kurzes, exakt aus der Quelle kopiertes Zitat an. "
+            "Ohne eindeutigen Beleg vergib kein Tag. Antworte ausschließlich als gültiges JSON: "
+            "{\"tags\":[{\"name\":\"tag\",\"evidence\":\"exaktes Zitat\"}]}"
         )
     else:
         prompt = (
-            "You are a tagging assistant. Suggest 1-3 broad, reusable topic tags that group "
-            "this content with similar bookmarks (e.g. 'python', 'ai', 'design', 'database', 'frontend'). "
-            "Prefer general categories over narrow specifics: use 'python' not 'list-comprehensions', "
-            "'frontend' not 'single-page-application'. Fewer, broader tags are better than many narrow ones. "
-            f"Strongly prefer reusing these existing tags when any fit: {', '.join(all_tags)}. "
-            "Only invent a new tag if none of the existing ones fit. "
-            "Reply ONLY with lowercase tag names separated by commas. No other text."
+            "Identify the actual subject of the content. Assign 1-3 short, reusable topic tags. "
+            "Tags describe the content, not its medium: a website is not automatically web development, "
+            "a digital product is not automatically software, and modern technology is not automatically AI. "
+            "Use those broad tags only when they are explicitly the main subject. "
+            "For every tag, put a short exact quote copied from the source in 'evidence'. "
+            "If there is no clear evidence, assign no tag. Reply only as valid JSON: "
+            "{\"tags\":[{\"name\":\"tag\",\"evidence\":\"exact quote\"}]}"
         )
     
     try:
@@ -453,30 +565,39 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
             provider_config=provider_config or {"provider": "ollama", "model": "llama3"},
             # Tagging is a short, mechanical task. Disable the reasoning phase
             # (qwen3/deepseek-r1 otherwise spend ~25s "thinking" per bookmark for
-            # the same 3 tags) and cap output — tags are a dozen tokens at most.
+            # the same tags) and cap output to a compact evidence payload.
             think=False,
-            options={"num_predict": 64, "temperature": 0},
+            options={"num_predict": 192, "temperature": 0},
+            language=language,
         )
     except Exception as e:
         raise HTTPException(500, f"LLM Error: {str(e)}")
 
-    # 4. Parse and apply tags. (Any <think>…</think> block is already stripped by
-    # LLMService, so this is plain comma-separated tag text.)
-    suggested = [t.strip().lower() for t in response.split(",") if t.strip()]
-    suggested = suggested[:3] # Max 3 tags
-    
-    current_tag_ids = [bt.tag_id for bt in bm.bookmark_tags]
+    suggested = _validated_tag_names(response, context, primary_text, content[:10_000])
+
+    # Replace only previous AI assignments. Manual tags are user-owned and must
+    # survive every automatic run.
+    db.query(BookmarkTag).filter(
+        BookmarkTag.bookmark_id == bm.id,
+        BookmarkTag.source == "ai",
+    ).delete(synchronize_session=False)
+    preserved_tag_ids = {
+        row.tag_id
+        for row in db.query(BookmarkTag).filter(
+            BookmarkTag.bookmark_id == bm.id,
+            BookmarkTag.source != "ai",
+        ).all()
+    }
     for tag_name in suggested:
-        if not tag_name: continue
         tag = db.query(Tag).filter(Tag.name == tag_name).first()
         if not tag:
             tag = Tag(name=tag_name, color=_next_tag_color(db))
             db.add(tag)
             db.flush()
-        if tag.id not in current_tag_ids:
-            current_tag_ids.append(tag.id)
-        
-    _set_tags(db, bm, current_tag_ids)
+        if tag.id not in preserved_tag_ids:
+            db.add(BookmarkTag(bookmark_id=bm.id, tag_id=tag.id, source="ai"))
+
     db.commit()
+    db.expire(bm, ["bookmark_tags"])
     db.refresh(bm)
     return bm

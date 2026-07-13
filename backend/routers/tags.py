@@ -113,12 +113,25 @@ def merge_tags(data: TagMerge, db: Session = Depends(get_db)):
     if len(sources) != len(source_ids):
         raise HTTPException(404, "A source tag was not found")
 
-    already = {bid for (bid,) in db.query(BookmarkTag.bookmark_id)
-               .filter(BookmarkTag.tag_id == target.id).all()}
-    moved = {bid for (bid,) in db.query(BookmarkTag.bookmark_id)
-             .filter(BookmarkTag.tag_id.in_(source_ids)).distinct().all()}
-    for bid in moved - already:
-        db.add(BookmarkTag(bookmark_id=bid, tag_id=target.id))
+    target_links = {
+        link.bookmark_id: link
+        for link in db.query(BookmarkTag).filter(BookmarkTag.tag_id == target.id).all()
+    }
+    moved_links = db.query(BookmarkTag).filter(BookmarkTag.tag_id.in_(source_ids)).all()
+    for link in moved_links:
+        existing = target_links.get(link.bookmark_id)
+        if existing:
+            # A manual assignment always wins when duplicate tags are merged.
+            if link.source == "manual":
+                existing.source = "manual"
+            continue
+        replacement = BookmarkTag(
+            bookmark_id=link.bookmark_id,
+            tag_id=target.id,
+            source=link.source,
+        )
+        db.add(replacement)
+        target_links[link.bookmark_id] = replacement
     for src in sources:
         db.delete(src)  # cascades to its BookmarkTag rows
     db.commit()

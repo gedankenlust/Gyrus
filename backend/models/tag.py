@@ -22,6 +22,7 @@ class BookmarkTag(Base):
 
     bookmark_id: Mapped[str] = mapped_column(String, ForeignKey("bookmarks.id"), primary_key=True)
     tag_id: Mapped[str] = mapped_column(String, ForeignKey("tags.id"), primary_key=True)
+    source: Mapped[str] = mapped_column(String, nullable=False, default="manual", server_default="manual")
 
     bookmark: Mapped["Bookmark"] = relationship("Bookmark", back_populates="bookmark_tags")
     tag: Mapped["Tag"] = relationship("Tag", back_populates="bookmark_tags")

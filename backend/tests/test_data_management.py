@@ -79,6 +79,8 @@ def test_backup(client):
 
 
 def test_backup_restore_roundtrip(client, db):
+    from models.tag import BookmarkTag, Tag
+
     # Build some data: folder + nested folder + tag + bookmark with a note.
     parent = client.post("/api/collections", json={"name": "Work"}).json()
     child = client.post("/api/collections", json={"name": "Sub", "parent_id": parent["id"]}).json()
@@ -88,6 +90,11 @@ def test_backup_restore_roundtrip(client, db):
     client.post(f"/api/bookmarks/{bm['id']}/notes", json={"content": "keep me", "source": "user"})
     brain_chat_service.add_message(db, bm["id"], "user", "remember me", model="llama3")
     brain_chat_service.add_message(db, bm["id"], "assistant", "I remembered it.", model="llama3")
+    ai_tag = Tag(name="research", color="#123456")
+    db.add(ai_tag)
+    db.flush()
+    db.add(BookmarkTag(bookmark_id=bm["id"], tag_id=ai_tag.id, source="ai"))
+    db.commit()
 
     # Backup → JSON.
     backup = client.get("/api/data/backup")
@@ -96,6 +103,11 @@ def test_backup_restore_roundtrip(client, db):
     assert payload["version"] == 1
     assert len(payload["collections"]) == 2
     assert len(payload["bookmarks"]) == 1
+    assert payload["bookmark_tags"] == [{
+        "bookmark_id": bm["id"],
+        "tag_id": ai_tag.id,
+        "source": "ai",
+    }]
 
     # Wipe everything.
     client.post("/api/data/clear-bookmarks")
@@ -114,3 +126,5 @@ def test_backup_restore_roundtrip(client, db):
     assert any(n["content"] == "keep me" for n in restored["bookmark_notes"])
     chat = client.get(f"/api/brain/bookmarks/{bm['id']}/messages").json()
     assert any(m["content"] == "remember me" for m in chat)
+    restored_link = db.query(BookmarkTag).filter(BookmarkTag.bookmark_id == bm["id"]).one()
+    assert restored_link.source == "ai"

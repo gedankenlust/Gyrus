@@ -40,6 +40,33 @@ def test_merge_deduplicates_bookmarks_with_both_tags(client):
     assert ids.count(bm["id"]) == 1
 
 
+def test_merge_preserves_manual_tag_source(client, db):
+    from models.tag import BookmarkTag
+
+    bm = _mk_bookmark(client, "https://source.test")
+    target = _mk_tag(client, "artificial intelligence")
+    source = _mk_tag(client, "ai")
+    _tag_bookmark(client, bm, [target["id"], source["id"]])
+    source_link = db.query(BookmarkTag).filter(
+        BookmarkTag.bookmark_id == bm["id"],
+        BookmarkTag.tag_id == source["id"],
+    ).one()
+    source_link.source = "ai"
+    db.commit()
+
+    response = client.post(
+        "/api/tags/merge",
+        json={"source_ids": [source["id"]], "target_id": target["id"]},
+    )
+
+    assert response.status_code == 200
+    target_link = db.query(BookmarkTag).filter(
+        BookmarkTag.bookmark_id == bm["id"],
+        BookmarkTag.tag_id == target["id"],
+    ).one()
+    assert target_link.source == "manual"
+
+
 def test_merge_rejects_target_in_sources_and_missing_tags(client):
     a = _mk_tag(client, "solo")
     # target within sources only -> nothing to merge

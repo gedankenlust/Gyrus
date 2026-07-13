@@ -17,7 +17,8 @@ async def _wait_until_done(timeout: float = 5.0) -> None:
 @pytest.mark.asyncio
 async def test_batch_tags_every_id_and_reports_counts():
     # Mock the per-bookmark tagger so the test needs neither Ollama nor scraping.
-    with patch("services.bookmark_service.auto_tag_bookmark", new=AsyncMock(return_value=None)):
+    tagger = AsyncMock(return_value=None)
+    with patch("services.bookmark_service.auto_tag_bookmark", new=tagger):
         await auto_tag_batch_service.start(["a", "b", "c"], None)
         await _wait_until_done()
 
@@ -26,6 +27,7 @@ async def test_batch_tags_every_id_and_reports_counts():
     assert status["processed"] == 3
     assert status["tagged"] == 3
     assert status["running"] is False
+    assert all(call.kwargs["scrape"] is True for call in tagger.await_args_list)
 
 
 @pytest.mark.asyncio

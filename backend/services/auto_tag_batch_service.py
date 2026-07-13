@@ -52,9 +52,9 @@ async def _run(ids: list[str], provider_config: dict | None, language: str | Non
             # to share across concurrent coroutines.
             db = SessionLocal()
             try:
-                # scrape=False: tag from title/URL/description, skipping the
-                # per-page network fetch — far faster across a big selection.
-                await bookmark_service.auto_tag_bookmark(db, bm_id, provider_config, scrape=False, language=language)
+                # Reuse cached Reader content and fetch it only when it is
+                # missing. Titles alone are too ambiguous for reliable tags.
+                await bookmark_service.auto_tag_bookmark(db, bm_id, provider_config, scrape=True, language=language)
                 tagged += 1
             except Exception as e:
                 # One failure (missing bookmark, LLM hiccup) must not abort the
