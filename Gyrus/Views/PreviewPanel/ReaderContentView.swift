@@ -103,73 +103,67 @@ enum ReaderContentParser {
 }
 
 struct ReaderFormattedContent: View {
+    let title: String
     let content: String
 
-    private var blocks: [ReaderContentBlock] {
-        ReaderContentParser.parse(content)
-    }
-
     var body: some View {
-        LazyVStack(alignment: .leading, spacing: 16) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                blockView(block)
-            }
-        }
+        Text(attributedContent)
+            .font(.body)
+            .lineSpacing(5)
         .frame(maxWidth: 760, alignment: .leading)
     }
 
-    @ViewBuilder
-    private func blockView(_ block: ReaderContentBlock) -> some View {
-        switch block {
-        case let .heading(level, text):
-            inlineMarkdown(text)
-                .font(headingFont(level))
-                .padding(.top, level <= 2 ? 8 : 2)
-        case let .paragraph(text):
-            inlineMarkdown(text)
-                .font(.body)
-                .lineSpacing(5)
-        case let .unorderedList(items):
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text("•").foregroundStyle(.secondary)
-                        inlineMarkdown(item).font(.body).lineSpacing(4)
-                    }
-                }
+    private var attributedContent: AttributedString {
+        var output = inlineMarkdown(title)
+        output.font = .title.bold()
+        let blocks = ReaderContentParser.parse(content)
+
+        for block in blocks {
+            output.append(AttributedString("\n\n"))
+
+            switch block {
+            case let .heading(level, text):
+                var heading = inlineMarkdown(text)
+                heading.font = headingFont(level)
+                output.append(heading)
+            case let .paragraph(text):
+                output.append(inlineMarkdown(text))
+            case let .unorderedList(items):
+                appendList(items, ordered: false, to: &output)
+            case let .orderedList(items):
+                appendList(items, ordered: true, to: &output)
+            case let .quote(text):
+                var quote = inlineMarkdown(text)
+                quote.font = .body.italic()
+                quote.foregroundColor = .secondary
+                output.append(AttributedString("│ "))
+                output.append(quote)
             }
-        case let .orderedList(items):
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text("\(index + 1).")
-                            .foregroundStyle(.secondary)
-                            .frame(minWidth: 22, alignment: .trailing)
-                        inlineMarkdown(item).font(.body).lineSpacing(4)
-                    }
-                }
-            }
-        case let .quote(text):
-            HStack(alignment: .top, spacing: 12) {
-                Rectangle()
-                    .fill(Color.secondary.opacity(0.45))
-                    .frame(width: 3)
-                inlineMarkdown(text)
-                    .font(.body.italic())
-                    .lineSpacing(5)
-                    .foregroundStyle(.secondary)
-            }
+        }
+
+        return output
+    }
+
+    private func appendList(
+        _ items: [String],
+        ordered: Bool,
+        to output: inout AttributedString
+    ) {
+        for (index, item) in items.enumerated() {
+            if index > 0 { output.append(AttributedString("\n")) }
+            output.append(AttributedString(ordered ? "\(index + 1). " : "• "))
+            output.append(inlineMarkdown(item))
         }
     }
 
-    private func inlineMarkdown(_ text: String) -> Text {
+    private func inlineMarkdown(_ text: String) -> AttributedString {
         let options = AttributedString.MarkdownParsingOptions(
             interpretedSyntax: .inlineOnlyPreservingWhitespace
         )
         if let attributed = try? AttributedString(markdown: text, options: options) {
-            return Text(attributed)
+            return attributed
         }
-        return Text(text)
+        return AttributedString(text)
     }
 
     private func headingFont(_ level: Int) -> Font {

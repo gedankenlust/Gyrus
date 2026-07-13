@@ -140,6 +140,7 @@ struct BookmarkDetailView: View {
     @State private var readerContent: String = "Loading..."
     @State private var isCleaningReader = false
     @State private var isTranslatingReader = false
+    @State private var didCopyReader = false
     @State private var readerLoadedBookmarkID: String?
 
     // Edit-mode drafts
@@ -321,6 +322,19 @@ struct BookmarkDetailView: View {
                         .help("Formatting Reader with AI")
                 }
                 Spacer()
+                Button {
+                    copyReaderContent()
+                } label: {
+                    Label(
+                        didCopyReader ? "Copied" : "Copy text",
+                        systemImage: didCopyReader ? "checkmark" : "doc.on.doc"
+                    )
+                    .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.borderless)
+                .disabled(readerContent == "Loading..." || readerContent == "Failed to load content.")
+                .help("Copy the complete Reader text")
+
                 if aiConfig.aiEnabled {
                     Button {
                         translateReaderWithAI()
@@ -344,10 +358,7 @@ struct BookmarkDetailView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text(bookmark.title)
-                        .font(.title.bold())
-
-                    ReaderFormattedContent(content: readerContent)
+                    ReaderFormattedContent(title: bookmark.title, content: readerContent)
                         .textSelection(.enabled)
                 }
                 .padding(24)
@@ -397,6 +408,16 @@ struct BookmarkDetailView: View {
             } catch {
                 AppStore.shared.uiStateStore.showError(error.localizedDescription)
             }
+        }
+    }
+
+    private func copyReaderContent() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString("\(bookmark.title)\n\n\(readerContent)", forType: .string)
+        didCopyReader = true
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            didCopyReader = false
         }
     }
 
