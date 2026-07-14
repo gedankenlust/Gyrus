@@ -312,35 +312,18 @@ final class AppStore {
         }
     }
 
-    /// Build one shared taxonomy for a bookmark selection. Nothing is written
-    /// until the user reviews and applies the resulting draft.
+    /// Quickly distribute broad tags across a bookmark selection. This is the
+    /// everyday path: no large LLM, no long-running taxonomy draft.
     func startBatchAutoTag(ids: [String]) async {
         guard uiStateStore.batchAutoTagStatus?.running != true else { return }
         guard !ids.isEmpty else { return }
-        let config = AppSettings.shared.aiBrainConfig
         do {
-            uiStateStore.batchAutoTagStatus = try await api.startBatchAutoTag(ids: ids, config: config)
-            uiStateStore.showInfo(AppSettings.shared.localized("Analyzing \(ids.count) bookmarks…"))
-            batchTagPoller.start(
-                interval: 1.5,
-                fetch: { [api] in try await api.batchAutoTagStatus() },
-                onTick: { [weak self] status in
-                    guard let self else { return }
-                    self.uiStateStore.batchAutoTagStatus = status
-                },
-                onFinished: { [weak self] status in
-                    guard let self else { return }
-                    self.uiStateStore.batchAutoTagStatus = nil
-                    if let draft = status.draft {
-                        self.uiStateStore.batchTagReview = TagReviewPayload(draft: draft)
-                    } else if let error = status.error?.trimmingCharacters(in: .whitespacesAndNewlines),
-                              !error.isEmpty {
-                        self.uiStateStore.showError(error)
-                    } else if status.phase != "cancelled" {
-                        self.uiStateStore.showError(AppSettings.shared.localized("No tag system could be created."))
-                    }
-                }
-            )
+            let result = try await api.fastAutoTag(ids: ids)
+            try? await tagsStore.fetchTags()
+            await loadBookmarks()
+            uiStateStore.showInfo(AppSettings.shared.localized(
+                "Tagged \(result.tagged) of \(result.total) bookmarks."
+            ))
         } catch {
             handleUIError(error)
         }

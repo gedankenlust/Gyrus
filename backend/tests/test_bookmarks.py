@@ -72,29 +72,43 @@ def test_sort_by_tag(client):
     assert titles_desc == ["B", "C", "A"]  # zebra, apple, then untagged last
 
 def test_auto_tag_bookmark(client, db):
-    # Mock LLM service to avoid real calls
     from unittest.mock import patch
+
     with patch("services.llm_service.LLMService.ask_llm") as mock_ask:
-        mock_ask.return_value = (
-            '{"tags":['
-            '{"name":"ai","evidence":"AI News"},'
-            '{"name":"future","evidence":"AI News"},'
-            '{"name":"tech","evidence":"AI News"}'
-            "]}"
-        )
-        
-        # Create a bookmark
         resp = client.post("/api/bookmarks", json={
             "title": "AI News", "url": "https://ai.com", "source": "manual"
         })
         bm_id = resp.json()["id"]
 
-        # Call auto-tag
         resp = client.post(f"/api/bookmarks/{bm_id}/auto-tag", json={})
-        assert resp.status_code == 200
-        tags = resp.json()["tags"]
-        assert len(tags) == 3
-        assert tags[0]["name"] == "ai"
+
+    assert resp.status_code == 200
+    tags = {tag["name"] for tag in resp.json()["tags"]}
+    assert tags == {"ki"}
+    mock_ask.assert_not_called()
+
+
+def test_fast_auto_tag_batch_assigns_one_hundred_without_llm(client, db):
+    from unittest.mock import patch
+
+    ids = []
+    for index in range(100):
+        title = "Coworking Office" if index % 2 == 0 else "How MCP Is Changing WordPress Development"
+        url = f"https://bulk-tags-{index}.example"
+        ids.append(client.post("/api/bookmarks", json={
+            "title": title,
+            "url": url,
+            "source": "manual",
+        }).json()["id"])
+
+    with patch("services.llm_service.LLMService.ask_llm") as mock_ask:
+        resp = client.post("/api/bookmarks/auto-tag-fast", json={"bookmark_ids": ids})
+
+    assert resp.status_code == 200
+    result = resp.json()
+    assert result["total"] == 100
+    assert result["tagged"] == 100
+    mock_ask.assert_not_called()
 
 
 def test_fast_auto_tags_assign_multiple_broad_tags(client, db):
@@ -123,50 +137,10 @@ def test_fast_auto_tags_assign_multiple_broad_tags(client, db):
     assert {"creative coding", "softwareentwicklung", "ki"}.issubset(tags)
 
 
-def test_auto_tag_bookmark_respects_language(client, db):
-    # language="de" must steer the LLM prompt to German, not just the reply
-    # (a new tag's *language* is the model's choice — it can only follow the
-    # instruction it was given).
-    from unittest.mock import patch
-    with patch("services.llm_service.LLMService.ask_llm") as mock_ask:
-        mock_ask.return_value = (
-            '{"tags":['
-            '{"name":"ki","evidence":"KI News"},'
-            '{"name":"zukunft","evidence":"KI News"}'
-            "]}"
-        )
-
-        resp = client.post("/api/bookmarks", json={
-            "title": "KI News", "url": "https://ki.example", "source": "manual"
-        })
-        bm_id = resp.json()["id"]
-
-        resp = client.post(f"/api/bookmarks/{bm_id}/auto-tag", json={"language": "de"})
-        assert resp.status_code == 200
-        tags = {t["name"] for t in resp.json()["tags"]}
-        assert tags == {"ki", "zukunft"}
-
-        sent_prompt = mock_ask.call_args.kwargs.get("prompt") or mock_ask.call_args.args[0]
-        assert "Themen-Tags auf Deutsch" in sent_prompt
-
-        # Default (no language) stays English.
-        resp = client.post(f"/api/bookmarks/{bm_id}/auto-tag", json={})
-        sent_prompt = mock_ask.call_args.kwargs.get("prompt") or mock_ask.call_args.args[0]
-        assert "reusable topic tags" in sent_prompt
-
-
-def test_auto_tag_rejects_unsupported_generic_tags(client, db):
+def test_fast_auto_tag_does_not_trust_generic_url_words(client, db):
     from unittest.mock import patch
 
     with patch("services.llm_service.LLMService.ask_llm") as mock_ask:
-        mock_ask.return_value = (
-            '{"tags":['
-            '{"name":"ki","evidence":"How to read more books"},'
-            '{"name":"software","evidence":"How to read more books"},'
-            '{"name":"webentwicklung","evidence":"How to read more books"},'
-            '{"name":"lesen","evidence":"read more books"}'
-            "]}"
-        )
         created = client.post("/api/bookmarks", json={
             "title": "How to read more books",
             "url": "https://ai-software-webdevelopment.example/article",
@@ -177,10 +151,10 @@ def test_auto_tag_rejects_unsupported_generic_tags(client, db):
 
     assert response.status_code == 200
     assert {tag["name"] for tag in response.json()["tags"]} == {"lesen"}
+    mock_ask.assert_not_called()
 
 
 def test_auto_tag_reuses_existing_system_and_preserves_manual_tags(client, db):
-    from unittest.mock import patch
     from models.tag import BookmarkTag, Tag
 
     manual = client.post("/api/tags", json={"name": "design"}).json()
@@ -197,22 +171,18 @@ def test_auto_tag_reuses_existing_system_and_preserves_manual_tags(client, db):
     db.add(BookmarkTag(bookmark_id=created["id"], tag_id=old_ai.id, source="ai"))
     db.commit()
 
-    with patch("services.llm_service.LLMService.ask_llm") as mock_ask:
-        mock_ask.return_value = (
-            '{"tags":[{"name":"webentwicklung","evidence":"CSS layout guide"}]}'
-        )
-        response = client.post(f"/api/bookmarks/{created['id']}/auto-tag", json={})
+    response = client.post(f"/api/bookmarks/{created['id']}/auto-tag", json={})
 
     assert response.status_code == 200
-    assert {tag["name"] for tag in response.json()["tags"]} == {"design"}
+    assert {tag["name"] for tag in response.json()["tags"]} == {"design", "webdesign"}
     sources = {
         row.tag.name: row.source
         for row in db.query(BookmarkTag).filter(BookmarkTag.bookmark_id == created["id"]).all()
     }
-    assert sources == {"design": "manual"}
+    assert sources == {"design": "manual", "webdesign": "ai"}
 
 
-def test_auto_tag_uses_cached_reader_content_without_scraping(client, db):
+def test_auto_tag_uses_cached_reader_content_without_scraping_or_llm(client, db):
     from unittest.mock import patch
     from models.bookmark import Bookmark
 
@@ -229,15 +199,12 @@ def test_auto_tag_uses_cached_reader_content_without_scraping(client, db):
         patch("services.scraper_service.scraper_service.extract_content") as mock_scrape,
         patch("services.llm_service.LLMService.ask_llm") as mock_ask,
     ):
-        mock_ask.return_value = (
-            '{"tags":[{"name":"keramik","evidence":"ceramic glazing"}]}'
-        )
         response = client.post(f"/api/bookmarks/{created['id']}/auto-tag", json={})
 
     assert response.status_code == 200
-    assert {tag["name"] for tag in response.json()["tags"]} == {"keramik"}
+    assert response.json()["tags"] == []
     mock_scrape.assert_not_called()
-    assert "ceramic glazing" in mock_ask.call_args.kwargs["context"]
+    mock_ask.assert_not_called()
 
 
 def test_translate_reader_preserves_current_content_and_language(client, db):

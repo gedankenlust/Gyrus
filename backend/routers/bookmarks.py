@@ -108,6 +108,11 @@ class AutoTagBatchRequest(BaseModel):
     language: str | None = None
 
 
+class FastAutoTagRequest(BaseModel):
+    bookmark_ids: list[str] = Field(default_factory=list, min_length=1)
+    limit_per_bookmark: int = Field(default=3, ge=1, le=3)
+
+
 class TaxonomyTagEdit(BaseModel):
     id: str
     name: str
@@ -125,6 +130,34 @@ async def start_auto_tag_batch(request: AutoTagBatchRequest):
     Returns immediately with the initial status; poll /auto-tag-batch/status."""
     from services import auto_tag_batch_service
     return await auto_tag_batch_service.start(request.bookmark_ids, request.provider_config, request.language)
+
+
+@router.post("/auto-tag-fast")
+def fast_auto_tag_batch(request: FastAutoTagRequest, db: Session = Depends(get_db)):
+    rows = db.query(Bookmark).filter(
+        Bookmark.id.in_(request.bookmark_ids),
+        Bookmark.deleted_at.is_(None),
+    ).all()
+    tagged = 0
+    total_assignments = 0
+    for bm in rows:
+        before = {tag.id for tag in bm.tags}
+        bm = bookmark_service.apply_fast_auto_tags(
+            db,
+            bm,
+            content=bm.scraped_content or "",
+            limit=request.limit_per_bookmark,
+        )
+        after = {tag.id for tag in bm.tags}
+        if after - before:
+            tagged += 1
+        total_assignments += len(after)
+    return {
+        "status": "ok",
+        "total": len(rows),
+        "tagged": tagged,
+        "assignments": total_assignments,
+    }
 
 
 @router.get("/auto-tag-batch/status")
@@ -433,7 +466,13 @@ async def translate_reader_content(
 
 @router.post("/{bookmark_id}/auto-tag", response_model=BookmarkOut)
 async def auto_tag_bookmark(bookmark_id: str, request: AutoTagRequest, db: Session = Depends(get_db)):
-    bm = await bookmark_service.auto_tag_bookmark(db, bookmark_id, request.provider_config, language=request.language)
+    bm = bookmark_service.get_bookmark(db, bookmark_id)
     if not bm:
         raise HTTPException(404, "Bookmark not found")
+    bm = bookmark_service.apply_fast_auto_tags(
+        db,
+        bm,
+        content=bm.scraped_content or "",
+        limit=3,
+    )
     return _enrich(bm)

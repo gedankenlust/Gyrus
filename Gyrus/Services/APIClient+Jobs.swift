@@ -35,6 +35,17 @@ extension APIClient {
         return try await post(base.appending(path: "/api/bookmarks/auto-tag-batch"), body: body)
     }
 
+    func fastAutoTag(ids: [String], limitPerBookmark: Int = 3) async throws -> FastAutoTagResult {
+        struct Body: Encodable {
+            let bookmark_ids: [String]
+            let limit_per_bookmark: Int
+        }
+        return try await post(
+            base.appending(path: "/api/bookmarks/auto-tag-fast"),
+            body: Body(bookmark_ids: ids, limit_per_bookmark: limitPerBookmark)
+        )
+    }
+
     func batchAutoTagStatus() async throws -> BatchAutoTagStatus {
         try await get(base.appending(path: "/api/bookmarks/auto-tag-batch/status"))
     }

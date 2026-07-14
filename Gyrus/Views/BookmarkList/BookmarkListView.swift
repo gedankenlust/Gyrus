@@ -298,19 +298,17 @@ struct SelectionStatusBar: View {
                     .tint(.red)
                     .help("Stop analysis — no tags are changed before review")
                 }
-            } else if !collectionStore.showTrash && AppSettings.shared.aiBrainConfig.aiEnabled {
-                // Bulk AI tagging — shown only when AI is enabled (the master
-                // switch), like every other AI affordance.
+            } else if !collectionStore.showTrash {
                 Button {
                     let ids = Array(bookmarkStore.selectedIds)
                     Task { await appStore.startBatchAutoTag(ids: ids) }
                 } label: {
-                    Label("Build Tag System", systemImage: "wand.and.stars")
+                    Label("Assign Tags", systemImage: "tag")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .tint(.purple)
-                .help("Analyze the selection and review one shared tag system before applying it")
+                .help("Quickly assign 1-3 broad tags to the selected bookmarks")
             }
 
             if collectionStore.showTrash {

@@ -28,16 +28,14 @@ struct BookmarkContextMenu: View {
             }
             .disabled(bookmarkStore.bookmarks.isEmpty)
 
-            // Auto-tag the whole selection with AI — only when AI is enabled.
-            if AppSettings.shared.aiBrainConfig.aiEnabled {
-                Button {
-                    Task { await appStore.startBatchAutoTag(ids: Array(ids)) }
-                } label: {
-                    Label(single ? "Generate Tags with AI" : "Generate Tags with AI (\(count))",
-                          systemImage: "wand.and.stars")
-                }
-                .disabled(uiStateStore.batchAutoTagStatus?.running == true)
+            // Fast broad tag assignment for the whole selection.
+            Button {
+                Task { await appStore.startBatchAutoTag(ids: Array(ids)) }
+            } label: {
+                Label(single ? "Assign Tags" : "Assign Tags (\(count))",
+                      systemImage: "tag")
             }
+            .disabled(uiStateStore.batchAutoTagStatus?.running == true)
 
             Divider()
 

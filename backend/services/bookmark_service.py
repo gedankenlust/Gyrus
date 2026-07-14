@@ -569,16 +569,26 @@ def _fast_tag_names(bm: Bookmark, content: str = "", limit: int = 3) -> list[str
     broad user-facing buckets based on title, URL, description, and cached reader
     text. The slower review workflow can still refine the system later.
     """
-    haystack = _normalized_text(
+    text_haystack = _normalized_text(
+        "\n".join(filter(None, [bm.title, bm.description or "", content[:4000]]))
+    )
+    all_haystack = _normalized_text(
         "\n".join(filter(None, [bm.title, bm.url, bm.description or "", content[:4000]]))
     )
-    padded = f" {haystack} "
+    padded_text = f" {text_haystack} "
+    padded_all = f" {all_haystack} "
     scored: list[tuple[int, int, str]] = []
     for order, (tag_name, needles) in enumerate(_FAST_TAG_RULES):
         score = 0
         for needle in needles:
             normalized = _normalized_text(needle)
-            if normalized and normalized in padded:
+            search_space = padded_all if "." in normalized or "/" in normalized else padded_text
+            if not normalized:
+                continue
+            if normalized.isalpha() and len(normalized) <= 3:
+                if re.search(rf"(?<!\w){re.escape(normalized)}(?!\w)", search_space):
+                    score += 1
+            elif normalized in search_space:
                 score += 1
         if score:
             scored.append((score, -order, tag_name))

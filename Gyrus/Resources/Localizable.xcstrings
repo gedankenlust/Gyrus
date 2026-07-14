@@ -8535,6 +8535,30 @@
         "en": { "stringUnit": { "state": "translated", "value": "Applied %1$lld tags to %2$lld of %3$lld bookmarks." } }
       }
     },
+    "Assign Tags": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Tags zuweisen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Assign Tags" } }
+      }
+    },
+    "Assign Tags (%lld)": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Tags zuweisen (%lld)" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Assign Tags (%lld)" } }
+      }
+    },
+    "Quickly assign 1-3 broad tags to the selected bookmarks": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Der Auswahl schnell 1-3 grobe Tags zuweisen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Quickly assign 1-3 broad tags to the selected bookmarks" } }
+      }
+    },
+    "Tagged %lld of %lld bookmarks.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%1$lld von %2$lld Lesezeichen getaggt." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Tagged %1$lld of %2$lld bookmarks." } }
+      }
+    },
     "Build Tag System": {
       "localizations": {
         "de": { "stringUnit": { "state": "translated", "value": "Tag-System erstellen" } },
