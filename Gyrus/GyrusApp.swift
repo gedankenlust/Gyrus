@@ -18,7 +18,7 @@ extension Notification.Name {
 @MainActor
 final class GyrusApplicationDelegate: NSObject, NSApplicationDelegate {
     var openMainWindow: (() -> Void)?
-    private weak var mainWindow: NSWindow?
+    private var mainWindow: NSWindow?
     private var mainWindowDelegate: MainWindowDelegateProxy?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -28,8 +28,13 @@ final class GyrusApplicationDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidBecomeActive(_ notification: Notification) {
-        if let mainWindow, !mainWindow.isVisible {
-            mainWindow.makeKeyAndOrderFront(nil)
+        guard mainWindow?.isVisible != true else { return }
+        showMainWindow(activate: false)
+    }
+
+    func applicationWillUnhide(_ notification: Notification) {
+        if mainWindow?.isVisible != true {
+            showMainWindow(activate: false)
         }
     }
 
@@ -45,12 +50,24 @@ final class GyrusApplicationDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
-    func showMainWindow() {
-        NSApp.activate(ignoringOtherApps: true)
+    func showMainWindow(activate: Bool = true) {
+        if activate {
+            NSApp.activate(ignoringOtherApps: true)
+        }
         if let window = mainWindow {
+            if window.isMiniaturized {
+                window.deminiaturize(nil)
+            }
             window.makeKeyAndOrderFront(nil)
         } else {
             openMainWindow?()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                if let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.title == "Gyrus" }) {
+                    self.registerMainWindow(window)
+                    window.makeKeyAndOrderFront(nil)
+                }
+            }
         }
     }
 
@@ -75,9 +92,6 @@ private final class MainWindowDelegateProxy: NSObject, NSWindowDelegate {
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         sender.orderOut(nil)
-        DispatchQueue.main.async {
-            NSApp.hide(nil)
-        }
         return false
     }
 
