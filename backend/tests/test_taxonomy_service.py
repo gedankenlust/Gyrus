@@ -90,12 +90,12 @@ def test_assignment_schema_constrains_every_bookmark_to_known_clusters():
 
 def test_reusable_labels_reject_generic_and_forced_mixed_topics():
     assert taxonomy_service._is_reusable_label("coworking", "de")
-    assert not taxonomy_service._is_reusable_label("ki", "de")
-    assert not taxonomy_service._is_reusable_label("ki dienstleistungen", "de")
-    assert not taxonomy_service._is_reusable_label("softwareentwicklung mit ki", "de")
-    assert not taxonomy_service._is_reusable_label("lokale datenverwaltung", "de")
-    assert not taxonomy_service._is_reusable_label("persönliche entwicklung", "de")
+    assert taxonomy_service._is_reusable_label("ki", "de")
+    assert taxonomy_service._is_reusable_label("ki dienstleistungen", "de")
+    assert taxonomy_service._is_reusable_label("softwareentwicklung", "de")
+    assert taxonomy_service._is_reusable_label("persönliche entwicklung", "de")
     assert not taxonomy_service._is_reusable_label("allgemeine links", "de")
+    assert not taxonomy_service._is_reusable_label("website", "de")
     assert not taxonomy_service._is_reusable_label("fussball und web scraping", "de")
 
 
@@ -207,9 +207,9 @@ def test_parse_rejects_one_generic_catch_all_tag():
 def test_parse_rejects_oversized_catch_all_category():
     keyed = _stub_bookmarks(99)
     raw = json.dumps({"taxonomy": [
-        {"name": "webdesign", "bookmark_ids": [f"B{index:03d}" for index in range(1, 20)]},
-        {"name": "coworking", "bookmark_ids": ["B020", "B021"]},
-        {"name": "baustoffe", "bookmark_ids": ["B022", "B023"]},
+        {"name": "webdesign", "bookmark_ids": [f"B{index:03d}" for index in range(1, 40)]},
+        {"name": "coworking", "bookmark_ids": ["B040", "B041"]},
+        {"name": "baustoffe", "bookmark_ids": ["B042", "B043"]},
     ]})
 
     with pytest.raises(taxonomy_service.TaxonomyQualityError, match="oversized catch-all"):
@@ -232,6 +232,20 @@ def test_parse_accepts_sparse_high_precision_taxonomy():
 
     assert draft["assigned"] == 4
     assert draft["without_tags"] == 16
+
+
+def test_parse_accepts_broad_reviewable_taxonomy_for_large_collection():
+    keyed = _stub_bookmarks(99)
+    raw = json.dumps({"taxonomy": [
+        {"name": "ki", "bookmark_ids": [f"B{index:03d}" for index in range(1, 18)]},
+        {"name": "webdesign", "bookmark_ids": [f"B{index:03d}" for index in range(18, 37)]},
+        {"name": "softwareentwicklung", "bookmark_ids": [f"B{index:03d}" for index in range(37, 49)]},
+    ]})
+
+    draft = taxonomy_service.parse_taxonomy(raw, keyed, max_tags=35, singleton_limit=8, language="de")
+
+    assert [tag["name"] for tag in draft["tags"]] == ["webdesign", "ki", "softwareentwicklung"]
+    assert draft["assigned"] == 48
 
 
 def test_apply_draft_is_transactional_and_preserves_manual_assignments(db):
