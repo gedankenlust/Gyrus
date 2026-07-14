@@ -10,6 +10,7 @@ from services import metadata_service
 from services import link_check_service
 from services import metadata_refresh_service
 from services import visual_snapshot_service
+from services import bookmark_enrichment_service
 from services.scraper_service import scraper_service
 
 router = APIRouter(prefix="/api/bookmarks", tags=["bookmarks"])
@@ -223,7 +224,14 @@ async def create_bookmark(
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, "Bookmark with this URL already exists")
-    background_tasks.add_task(_fetch_meta, bm.id, bm.url)
+    if data.source in {"extension", "menubar"}:
+        background_tasks.add_task(
+            bookmark_enrichment_service.enrich_bookmark,
+            bm.id,
+            include_design_snapshot=data.source == "extension",
+        )
+    else:
+        background_tasks.add_task(_fetch_meta, bm.id, bm.url)
     return _enrich(bm)
 
 

@@ -97,6 +97,32 @@ def test_auto_tag_bookmark(client, db):
         assert tags[0]["name"] == "ai"
 
 
+def test_fast_auto_tags_assign_multiple_broad_tags(client, db):
+    from models.bookmark import Bookmark
+    from models.tag import BookmarkTag
+    from services import bookmark_service
+
+    created = client.post("/api/bookmarks", json={
+        "title": "SubjectiveZero: Agentic editor for creative coding",
+        "url": "https://github.com/sxp-studio/subjective-zero",
+        "description": "Agentic creative-coding and realtime-VFX harness.",
+        "source": "manual",
+    }).json()
+    bookmark = db.query(Bookmark).filter(Bookmark.id == created["id"]).one()
+
+    bookmark_service.apply_fast_auto_tags(
+        db,
+        bookmark,
+        content="Agents turn visual ideas into hot-reloading Metal nodes for creative coding.",
+    )
+
+    tags = {
+        row.tag.name
+        for row in db.query(BookmarkTag).filter(BookmarkTag.bookmark_id == bookmark.id).all()
+    }
+    assert {"creative coding", "softwareentwicklung", "ki"}.issubset(tags)
+
+
 def test_auto_tag_bookmark_respects_language(client, db):
     # language="de" must steer the LLM prompt to German, not just the reply
     # (a new tag's *language* is the model's choice — it can only follow the
