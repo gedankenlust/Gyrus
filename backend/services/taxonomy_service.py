@@ -40,11 +40,19 @@ _ALIASES = {
     "real estate listing": "real estate",
     "property listings": "real estate",
     "data visualisation": "data visualization",
+    "web design": "webdesign",
+    "finanzen software": "finanzsoftware",
+    "finanz technologie": "finanztechnologie",
+    "system programmierung": "systemprogrammierung",
+    "video bearbeitung": "videobearbeitung",
+    "coworking räume": "coworking",
+    "temporär bau": "temporärer bau",
     "lokal verwaltete lesezeichen": "lesezeichenverwaltung",
     "gebrauchtfahrzeuge": "gebrauchte fahrzeuge",
     "agentische entwicklungsumgebungen": "coding-agenten",
 }
 _PLURAL_EXCEPTIONS = {"business", "news", "sports", "css", "physics"}
+_UNSUPPORTED_TAXONOMY_MODELS = {"qwen3:8b"}
 
 
 class TaxonomyQualityError(ValueError):
@@ -78,6 +86,21 @@ def _canonical_key(name: str) -> str:
             elif last.endswith("s") and not last.endswith("ss") and len(last) > 3:
                 words[-1] = last[:-1]
     return " ".join(words)
+
+
+def _max_category_size(bookmark_count: int) -> int:
+    if bookmark_count < 50:
+        return max(8, math.ceil(bookmark_count * 0.4))
+    return max(8, math.ceil(bookmark_count * 0.15))
+
+
+def _assert_taxonomy_model_supported(config: dict[str, Any]) -> None:
+    model = str(config.get("model") or "").casefold()
+    if model in _UNSUPPORTED_TAXONOMY_MODELS:
+        raise TaxonomyQualityError(
+            "qwen3:8b is too unreliable for global auto-tagging. "
+            "Use a stronger model such as gemma4:12b-mlx."
+        )
 
 
 def canonical_tag_key(name: str) -> str:
@@ -320,6 +343,7 @@ def _is_reusable_label(name: str, language: str | None) -> bool:
         "ki anwendungen", "ai applications", "ki dienstleistungen", "ai services",
         "web tools", "developer tools", "persönliche entwicklung", "personal development",
         "lokale datenverwaltung", "local data management", "lokale apps", "local apps",
+        "entwickler tools", "entwicklertools", "terminal emulation",
     }
     if lowered in generic:
         return False
@@ -417,6 +441,15 @@ def parse_taxonomy(raw: str, keyed: dict[str, Bookmark], max_tags: int,
         issues.append(f"only {len(groups)} reusable tags were produced; at least {minimum_groups} are needed")
     if len(keyed) >= 10 and singleton_count > singleton_limit:
         issues.append(f"{singleton_count} one-off tags exceed the limit of {singleton_limit}")
+    oversized = [
+        f"{group['name']} ({len(group['bookmark_keys'])})"
+        for group in groups
+        if len(group["bookmark_keys"]) > _max_category_size(len(keyed))
+    ]
+    if oversized:
+        issues.append(
+            "oversized catch-all categories: " + ", ".join(oversized[:3])
+        )
     if len(assigned_keys) < minimum_assigned:
         issues.append(f"only {len(assigned_keys)} of {len(keyed)} bookmarks are assigned")
     if issues:
@@ -455,6 +488,7 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
     max_tags, singleton_limit = taxonomy_limits(len(bookmarks))
     existing_tags = [name for (name,) in db.query(Tag.name).order_by(Tag.name).all()]
     config = provider_config or {"provider": "ollama", "model": "llama3"}
+    _assert_taxonomy_model_supported(config)
     base_url = config.get("ollama_url") or config.get("base_url") or "http://localhost:11434"
 
     # A previous chat or taxonomy attempt can leave a second 8-12B model in
@@ -550,7 +584,7 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
                     raise TaxonomyQualityError(f"The model did not classify {key}.")
                 grouped_keys[cluster_id].append(key)
             largest = max((len(keys) for keys in grouped_keys.values()), default=0)
-            if len(bookmark_keys) >= 20 and largest > math.ceil(len(bookmark_keys) * 0.4):
+            if len(bookmark_keys) >= 20 and largest > _max_category_size(len(bookmark_keys)):
                 raise TaxonomyQualityError(f"one category captured {largest} unrelated bookmarks")
             return grouped_keys
 

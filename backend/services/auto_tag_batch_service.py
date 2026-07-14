@@ -29,6 +29,16 @@ is_running = job.is_running
 cancel = job.cancel
 
 
+def discard_draft(draft_id: str) -> None:
+    taxonomy_service.discard_draft(draft_id)
+    draft = job.state.get("draft")
+    if isinstance(draft, dict) and draft.get("id") == draft_id:
+        job.state["draft"] = None
+        job.state["assigned"] = 0
+        job.state["without_tags"] = job.state.get("total", 0)
+        job.state["phase"] = "idle"
+
+
 async def _prepare_bookmark(bookmark_id: str, semaphore: asyncio.Semaphore,
                             job: BackgroundJob) -> bool:
     """Ensure useful Reader text exists without assigning any tags."""

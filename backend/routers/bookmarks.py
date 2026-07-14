@@ -151,8 +151,8 @@ def apply_auto_tag_taxonomy(request: ApplyTaxonomyRequest, db: Session = Depends
 
 @router.delete("/auto-tag-batch/draft/{draft_id}")
 def discard_auto_tag_taxonomy(draft_id: str):
-    from services import taxonomy_service
-    taxonomy_service.discard_draft(draft_id)
+    from services import auto_tag_batch_service
+    auto_tag_batch_service.discard_draft(draft_id)
     return {"status": "discarded"}
 
 

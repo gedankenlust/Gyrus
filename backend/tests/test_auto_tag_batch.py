@@ -73,6 +73,24 @@ async def test_batch_builds_one_review_draft_without_writing_tags():
 
 
 @pytest.mark.asyncio
+async def test_discard_draft_clears_visible_job_status():
+    ids = _bookmarks(2)
+    draft = _draft(ids)
+    generator = AsyncMock(return_value=draft)
+    with patch("services.taxonomy_service.generate_draft", new=generator):
+        await auto_tag_batch_service.start(ids, None)
+        await _wait_until_done()
+
+    auto_tag_batch_service.discard_draft(draft["id"])
+
+    status = auto_tag_batch_service.get_status()
+    assert status["draft"] is None
+    assert status["assigned"] == 0
+    assert status["without_tags"] == 2
+    assert status["phase"] == "idle"
+
+
+@pytest.mark.asyncio
 async def test_batch_reports_missing_bookmark_and_uses_valid_rows():
     ids = _bookmarks(2)
     requested = [ids[0], "missing", ids[1]]

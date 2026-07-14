@@ -103,6 +103,9 @@ def test_candidate_aliases_turn_awkward_labels_into_reusable_topics():
     assert taxonomy_service.normalize_tag_name("lokal verwaltete Lesezeichen") == "lesezeichenverwaltung"
     assert taxonomy_service.normalize_tag_name("agentische Entwicklungsumgebungen") == "coding-agenten"
     assert taxonomy_service.normalize_tag_name("Gebrauchtfahrzeuge") == "gebrauchte fahrzeuge"
+    assert taxonomy_service.normalize_tag_name("finanzen software") == "finanzsoftware"
+    assert taxonomy_service.normalize_tag_name("video bearbeitung") == "videobearbeitung"
+    assert taxonomy_service.normalize_tag_name("coworking räume") == "coworking"
 
 
 def test_cluster_context_includes_url_and_excerpt_for_wordplay_checks():
@@ -199,6 +202,23 @@ def test_parse_rejects_one_generic_catch_all_tag():
 
     with pytest.raises(taxonomy_service.TaxonomyQualityError, match="reusable tags"):
         taxonomy_service.parse_taxonomy(raw, keyed, max_tags=12, singleton_limit=3, language="en")
+
+
+def test_parse_rejects_oversized_catch_all_category():
+    keyed = _stub_bookmarks(99)
+    raw = json.dumps({"taxonomy": [
+        {"name": "webdesign", "bookmark_ids": [f"B{index:03d}" for index in range(1, 20)]},
+        {"name": "coworking", "bookmark_ids": ["B020", "B021"]},
+        {"name": "baustoffe", "bookmark_ids": ["B022", "B023"]},
+    ]})
+
+    with pytest.raises(taxonomy_service.TaxonomyQualityError, match="oversized catch-all"):
+        taxonomy_service.parse_taxonomy(raw, keyed, max_tags=12, singleton_limit=3, language="de")
+
+
+def test_taxonomy_rejects_qwen3_8b_for_global_tagging():
+    with pytest.raises(taxonomy_service.TaxonomyQualityError, match="qwen3:8b"):
+        taxonomy_service._assert_taxonomy_model_supported({"model": "qwen3:8b"})
 
 
 def test_parse_accepts_sparse_high_precision_taxonomy():
