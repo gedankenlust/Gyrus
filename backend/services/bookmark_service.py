@@ -419,9 +419,9 @@ _FAST_TAG_RULES: list[tuple[str, tuple[str, ...]]] = [
         "agentic", "code agent", "machine learning", "künstliche intelligenz",
     )),
     ("softwareentwicklung", (
-        "github.com", " code", "coding", "developer", "development", "entwickl",
-        "programming", "wordpress", "mcp", "api", "sdk", "git ", "swift",
-        "python", "typescript", "javascript", "native-macos", "command guard",
+        "coding", "developer", "development", "entwickl", "programming",
+        "wordpress", "mcp", "swift", "python", "typescript", "javascript",
+        "native-macos", "source code", "software architecture",
     )),
     ("webdesign", (
         "webdesign", "web design", "frontend", "css", "layout", "typografie",
@@ -432,11 +432,11 @@ _FAST_TAG_RULES: list[tuple[str, tuple[str, ...]]] = [
         "shader", "generative art", "visual ideas",
     )),
     ("videobearbeitung", (
-        "opencut", "video editing", "videobearbeitung", "video editor",
-        "timeline", "schnittprogramm",
+        "video editing", "videobearbeitung", "video editor",
+        "timeline", "schnittprogramm", "video schneiden",
     )),
     ("musikproduktion", (
-        "fl studio", "daw", "audio", "music production", "musikproduktion",
+        "daw", "audio", "music production", "musikproduktion",
         "plugin", "synthesizer",
     )),
     ("coworking", (
@@ -444,24 +444,23 @@ _FAST_TAG_RULES: list[tuple[str, tuple[str, ...]]] = [
         "besprechungsräume", "büros", "office service",
     )),
     ("immobilien", (
-        "willhaben.at/iad/immobilien", "immobilien", "wohnung", "haus ",
+        "immobilien", "wohnung", "haus ",
         "bungalow", "m²", "mieten", "real estate",
     )),
     ("bau", (
-        "sandwichpaneele", "baustoff", "bau ", "reparieren", "sanierung",
+        "baustoff", "bau ", "reparieren", "sanierung",
     )),
     ("lesen", (
-        "read more books", "flashcards", "book", "bücher", "lesen", "lesley lai",
+        "read more books", "flashcards", "book", "bücher", "lesen",
     )),
     ("gesundheit", (
-        "brain", "health", "gesundheit", "protecting your brain", "no-brainer",
+        "health", "gesundheit", "mental health", "medizin", "fitness",
     )),
     ("social media", (
         "social media", "posting", "facebook", "instagram", "tiktok",
     )),
     ("detektei", (
-        "detektei", "incognito", "ermittlung", "wirtschaftskriminalität",
-        "privatdetektiv",
+        "detektei", "ermittlung", "wirtschaftskriminalität", "privatdetektiv",
     )),
     ("finanzen", (
         "finance", "finanzen", "bank", "crypto", "stock", "fintech",

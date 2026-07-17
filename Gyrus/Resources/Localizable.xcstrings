@@ -8457,6 +8457,18 @@
         "en": { "stringUnit": { "state": "translated", "value": "Review Tag System" } }
       }
     },
+    "Review Tag System (%lld)": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Tag-System prüfen (%lld)" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Review Tag System (%lld)" } }
+      }
+    },
+    "Enable AI to review a tag system.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Aktiviere KI, um ein Tag-System zu prüfen." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Enable AI to review a tag system." } }
+      }
+    },
     "Nothing has been changed yet. Rename tags, disable weak suggestions, then apply the system once.": {
       "localizations": {
         "de": { "stringUnit": { "state": "translated", "value": "Noch wurde nichts geändert. Benenne Tags um, deaktiviere schwache Vorschläge und wende das System anschließend einmalig an." } },

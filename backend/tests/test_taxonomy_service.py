@@ -99,9 +99,7 @@ def test_reusable_labels_reject_generic_and_forced_mixed_topics():
     assert not taxonomy_service._is_reusable_label("fussball und web scraping", "de")
 
 
-def test_candidate_aliases_turn_awkward_labels_into_reusable_topics():
-    assert taxonomy_service.normalize_tag_name("lokal verwaltete Lesezeichen") == "lesezeichenverwaltung"
-    assert taxonomy_service.normalize_tag_name("agentische Entwicklungsumgebungen") == "coding-agenten"
+def test_candidate_aliases_turn_general_awkward_labels_into_reusable_topics():
     assert taxonomy_service.normalize_tag_name("Gebrauchtfahrzeuge") == "gebrauchte fahrzeuge"
     assert taxonomy_service.normalize_tag_name("finanzen software") == "finanzsoftware"
     assert taxonomy_service.normalize_tag_name("video bearbeitung") == "videobearbeitung"
@@ -216,9 +214,8 @@ def test_parse_rejects_oversized_catch_all_category():
         taxonomy_service.parse_taxonomy(raw, keyed, max_tags=12, singleton_limit=3, language="de")
 
 
-def test_taxonomy_rejects_qwen3_8b_for_global_tagging():
-    with pytest.raises(taxonomy_service.TaxonomyQualityError, match="qwen3:8b"):
-        taxonomy_service._assert_taxonomy_model_supported({"model": "qwen3:8b"})
+def test_taxonomy_does_not_hard_block_installed_user_model():
+    taxonomy_service._assert_taxonomy_model_supported({"model": "qwen3:8b"})
 
 
 def test_parse_accepts_sparse_high_precision_taxonomy():

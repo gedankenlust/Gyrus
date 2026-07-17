@@ -329,6 +329,44 @@ final class AppStore {
         }
     }
 
+    /// Build one shared, reviewable tag system for a selection. This is the
+    /// slower AI path and never writes tags until the user approves the draft.
+    func startTaxonomyReview(ids: [String]) async {
+        guard uiStateStore.batchAutoTagStatus?.running != true else { return }
+        guard !ids.isEmpty else { return }
+        let config = AppSettings.shared.aiBrainConfig
+        guard config.aiEnabled else {
+            uiStateStore.showError(AppSettings.shared.localized("Enable AI to review a tag system."))
+            return
+        }
+        do {
+            uiStateStore.batchAutoTagStatus = try await api.startBatchAutoTag(ids: ids, config: config)
+            uiStateStore.showInfo(AppSettings.shared.localized("Analyzing \(ids.count) bookmarks…"))
+            batchTagPoller.start(
+                interval: 1.5,
+                fetch: { [api] in try await api.batchAutoTagStatus() },
+                onTick: { [weak self] status in
+                    self?.uiStateStore.batchAutoTagStatus = status
+                },
+                onFinished: { [weak self] status in
+                    guard let self else { return }
+                    self.uiStateStore.batchAutoTagStatus = nil
+                    if let draft = status.draft {
+                        self.uiStateStore.batchTagReview = TagReviewPayload(draft: draft)
+                    } else if let error = status.error?.trimmingCharacters(in: .whitespacesAndNewlines),
+                              !error.isEmpty {
+                        self.uiStateStore.showError(error)
+                    } else if status.phase != "cancelled" {
+                        self.uiStateStore.showError(AppSettings.shared.localized("No tag system could be created."))
+                    }
+                }
+            )
+        } catch {
+            uiStateStore.batchAutoTagStatus = nil
+            handleUIError(error)
+        }
+    }
+
     func cancelBatchAutoTag() async {
         batchTagPoller.stop()
         _ = try? await api.cancelBatchAutoTag()

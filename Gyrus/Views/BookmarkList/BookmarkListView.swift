@@ -281,8 +281,8 @@ struct SelectionStatusBar: View {
 
             Spacer()
 
-            // Bulk AI tag generation — visible next to the other bulk actions so
-            // it's discoverable (not just buried in the right-click menu).
+            // Bulk tag actions: quick deterministic assignment for everyday use,
+            // plus a slower review-first AI taxonomy when explicitly requested.
             if let status = uiStateStore.batchAutoTagStatus, status.running {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
@@ -309,6 +309,18 @@ struct SelectionStatusBar: View {
                 .controlSize(.small)
                 .tint(.purple)
                 .help("Quickly assign 1-3 broad tags to the selected bookmarks")
+
+                if AppSettings.shared.aiBrainConfig.aiEnabled {
+                    Button {
+                        let ids = Array(bookmarkStore.selectedIds)
+                        Task { await appStore.startTaxonomyReview(ids: ids) }
+                    } label: {
+                        Label("Review Tag System", systemImage: "list.bullet.rectangle")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help("Analyze the selection and review one shared tag system before applying it")
+                }
             }
 
             if collectionStore.showTrash {

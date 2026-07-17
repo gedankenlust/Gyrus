@@ -37,6 +37,16 @@ struct BookmarkContextMenu: View {
             }
             .disabled(uiStateStore.batchAutoTagStatus?.running == true)
 
+            if AppSettings.shared.aiBrainConfig.aiEnabled {
+                Button {
+                    Task { await appStore.startTaxonomyReview(ids: Array(ids)) }
+                } label: {
+                    Label(single ? "Review Tag System" : "Review Tag System (\(count))",
+                          systemImage: "list.bullet.rectangle")
+                }
+                .disabled(uiStateStore.batchAutoTagStatus?.running == true)
+            }
+
             Divider()
 
             // Open

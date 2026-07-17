@@ -47,12 +47,10 @@ _ALIASES = {
     "video bearbeitung": "videobearbeitung",
     "coworking räume": "coworking",
     "temporär bau": "temporärer bau",
-    "lokal verwaltete lesezeichen": "lesezeichenverwaltung",
     "gebrauchtfahrzeuge": "gebrauchte fahrzeuge",
-    "agentische entwicklungsumgebungen": "coding-agenten",
 }
 _PLURAL_EXCEPTIONS = {"business", "news", "sports", "css", "physics"}
-_UNSUPPORTED_TAXONOMY_MODELS = {"qwen3:8b"}
+_UNSUPPORTED_TAXONOMY_MODELS: set[str] = set()
 
 
 class TaxonomyQualityError(ValueError):
@@ -104,8 +102,7 @@ def _assert_taxonomy_model_supported(config: dict[str, Any]) -> None:
     model = str(config.get("model") or "").casefold()
     if model in _UNSUPPORTED_TAXONOMY_MODELS:
         raise TaxonomyQualityError(
-            "qwen3:8b is too unreliable for global auto-tagging. "
-            "Use a stronger model such as gemma4:12b-mlx."
+            f"{config.get('model')} is currently not supported for global auto-tagging."
         )
 
 
@@ -494,10 +491,6 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
     _assert_taxonomy_model_supported(config)
     base_url = config.get("ollama_url") or config.get("base_url") or "http://localhost:11434"
 
-    # A previous chat or taxonomy attempt can leave a second 8-12B model in
-    # Ollama for several minutes. Clear that state before loading embeddings.
-    await llm_service.LLMService.unload_ollama_models(base_url)
-
     if progress:
         progress("embedding", 0)
     embedding_texts = [
@@ -639,9 +632,7 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
             keyed, max_tags, singleton_limit, language,
         )
     finally:
-        # The taxonomy is now a small in-memory draft. Keeping a 10+ GB model
-        # resident only increases pressure on Gyrus and other applications.
-        await llm_service.LLMService.unload_ollama_models(base_url)
+        pass
 
     _drafts[draft["id"]] = draft
     while len(_drafts) > 3:

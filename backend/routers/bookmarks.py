@@ -261,7 +261,9 @@ async def create_bookmark(
         background_tasks.add_task(
             bookmark_enrichment_service.enrich_bookmark,
             bm.id,
-            include_design_snapshot=data.source == "extension",
+            # Extension saves should stay lightweight. Chromium-based Design
+            # snapshots are intentionally user-triggered from the Design tab.
+            include_design_snapshot=False,
         )
     else:
         background_tasks.add_task(_fetch_meta, bm.id, bm.url)

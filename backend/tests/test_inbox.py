@@ -35,6 +35,27 @@ def test_extension_bookmark_goes_to_inbox(client, db):
     assert inbox is not None
     assert inbox.name == "Inbox"
 
+
+def test_extension_bookmark_does_not_auto_start_design_snapshot(client, monkeypatch):
+    calls = []
+
+    async def fake_enrich(bookmark_id: str, *, include_design_snapshot: bool = False):
+        calls.append((bookmark_id, include_design_snapshot))
+
+    monkeypatch.setattr(
+        "routers.bookmarks.bookmark_enrichment_service.enrich_bookmark",
+        fake_enrich,
+    )
+
+    resp = client.post("/api/bookmarks", json={
+        "title": "Extension Bookmark",
+        "url": "https://extension-no-snapshot.example",
+        "source": "extension",
+    })
+
+    assert resp.status_code == 201
+    assert calls == [(resp.json()["id"], False)]
+
 def test_menubar_bookmark_goes_to_inbox(client, db):
     # GIVEN: A bookmark created via the menu-bar quick-add (source="menubar")
     resp = client.post("/api/bookmarks", json={
