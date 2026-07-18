@@ -221,15 +221,28 @@ class BrainSyncService:
             path.unlink()
 
     def clear_all_files(self):
-        """Deletes all files and directories inside the root directory."""
+        """Delete only files that can be identified as Gyrus-generated.
+
+        Users may point the Brain at an existing Obsidian vault. A reset must
+        never treat that whole folder as disposable user data.
+        """
         if not self.root_dir.exists():
             return
+        root = self.root_dir.resolve()
+        home = Path.home().resolve()
+        protected = {
+            Path("/").resolve(),
+            home,
+            *(home / name for name in ("Desktop", "Documents", "Downloads", "Library")),
+        }
+        if root in protected or len(root.parts) < 3:
+            raise ValueError(f"Refusing to clear unsafe Brain root: {root}")
             
-        for item in self.root_dir.iterdir():
-            if item.is_file():
+        generated_suffix = re.compile(r"-[0-9a-fA-F]{8}\.md$")
+        for item in root.rglob("*.md"):
+            if item.name == self.INDEX_FILENAME or generated_suffix.search(item.name):
                 item.unlink()
-            elif item.is_dir():
-                shutil.rmtree(item)
+        self._prune_empty_dirs()
 
     @staticmethod
     def _frontmatter_url(path: Path) -> Optional[str]:
@@ -253,8 +266,8 @@ class BrainSyncService:
             try:
                 if not any(d.iterdir()):
                     d.rmdir()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Could not prune Brain directory %s: %s", d, exc)
 
     def resync_all(self, db: Session) -> None:
         """Reconcile the on-disk structure with the database: move every
@@ -281,8 +294,8 @@ class BrainSyncService:
                 if correct.exists():
                     continue  # don't clobber a file already at the target
                 path.rename(correct)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Could not move Brain file %s to %s: %s", path, correct, exc)
 
         self._prune_empty_dirs()
         self.rebuild_index(db, force=True)

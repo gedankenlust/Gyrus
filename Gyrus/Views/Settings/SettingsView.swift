@@ -145,12 +145,10 @@ private struct AppearancePane: View {
 
             Section("Preview") {
                 Picker("Open bookmarks on", selection: $settings.defaultPreviewTab) {
-                    Text("Info").tag("Info")
-                    Text("Reader").tag("Reader")
+                    Text("Page").tag("Page")
                     Text("Design").tag("Design")
                     Text("AI Brain").tag("AI Brain")
                     Text("Notes").tag("Notes")
-                    Text("Web").tag("Web")
                 }
                 Text("Which tab a bookmark opens to. AI Brain only shows when the AI Brain is enabled.")
                     .font(.caption)

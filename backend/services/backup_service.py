@@ -82,5 +82,6 @@ def _snapshot(src_path: Path, dst_path: Path) -> None:
             src.backup(dst)
         finally:
             dst.close()
+        dst_path.chmod(0o600)
     finally:
         src.close()

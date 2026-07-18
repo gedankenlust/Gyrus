@@ -195,8 +195,8 @@ def delete_bookmark(db: Session, bm: Bookmark) -> None:
     try:
         from services import vector_store
         vector_store.delete(bm.id)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Vector removal failed for bookmark %s: %s", bm.id, exc)
 
     bm.deleted_at = datetime.now(timezone.utc)
     db.commit()
@@ -229,8 +229,8 @@ def _drop_vectors(ids: list[str]) -> None:
         from services import vector_store
         for bm_id in ids:
             vector_store.delete(bm_id)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Bulk vector removal failed: %s", exc)
 
 
 def get_trashed(db: Session, limit: int = 200, offset: int = 0) -> list[Bookmark]:

@@ -45,4 +45,13 @@ final class CollectionTreeTests: XCTestCase {
         let already = URL(fileURLWithPath: "/Users/x/Gyrus Brain")
         XCTAssertEqual(AppSettings.brainRoot(forChosenDirectory: already), "/Users/x/Gyrus Brain")
     }
+
+    func testLegacyPreviewTabsMigrateToCurrentTabs() {
+        XCTAssertEqual(AppSettings.canonicalPreviewTab("Info"), "Page")
+        XCTAssertEqual(AppSettings.canonicalPreviewTab("Reader"), "Page")
+        XCTAssertEqual(AppSettings.canonicalPreviewTab("Web"), "Page")
+        XCTAssertEqual(AppSettings.canonicalPreviewTab("Snapshot"), "Design")
+        XCTAssertEqual(AppSettings.canonicalPreviewTab("Notes"), "Notes")
+        XCTAssertEqual(AppSettings.canonicalPreviewTab("unknown"), "Page")
+    }
 }

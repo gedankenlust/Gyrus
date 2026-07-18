@@ -115,8 +115,11 @@ final class APIClient {
     func health() async throws -> Bool {
         var request = URLRequest(url: base.appending(path: "/health"))
         request.timeoutInterval = 2.0 // Short timeout for health check
-        let (_, response) = try await URLSession.shared.data(for: request)
-        return (response as? HTTPURLResponse)?.statusCode == 200
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 200,
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return false }
+        return payload["status"] as? String == "ok"
     }
 
     // MARK: - HTTP verbs

@@ -7,6 +7,7 @@ import httpx
 from PIL import Image
 
 from database import DATA_DIR
+from services.outbound_url_security import request_guard
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,12 @@ _UA_HEADERS = {
 async def fetch_metadata(url: str) -> dict:
     result = {"og_image_url": None, "og_image_path": None, "description": None, "favicon_path": None}
     try:
-        async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=True, headers=_UA_HEADERS) as client:
+        async with httpx.AsyncClient(
+            timeout=TIMEOUT,
+            follow_redirects=True,
+            headers=_UA_HEADERS,
+            event_hooks={"request": [request_guard(url)]},
+        ) as client:
             from bs4 import BeautifulSoup
 
             # Fetch and parse the page — but a failure here (e.g. a 403 from a

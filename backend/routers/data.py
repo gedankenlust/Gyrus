@@ -1,8 +1,9 @@
 import shutil
+import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from database import get_db, DATA_DIR
 from services.brain_sync_service import brain_sync_service
@@ -11,6 +12,7 @@ from models.collection import Collection
 from models.tag import Tag, BookmarkTag
 
 router = APIRouter(prefix="/api/data", tags=["data"])
+logger = logging.getLogger(__name__)
 
 BACKUP_VERSION = 1
 
@@ -63,7 +65,8 @@ async def clear_bookmarks(db: Session = Depends(get_db)):
         db.commit()
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to clear bookmarks")
+        raise HTTPException(status_code=500, detail="Could not clear bookmarks") from e
     return {"status": "ok"}
 
 @router.post("/factory-reset")
@@ -138,17 +141,19 @@ def backup(db: Session = Depends(get_db)):
 
 class RestoreData(BaseModel):
     version: int = BACKUP_VERSION
-    collections: list[dict] = []
-    tags: list[dict] = []
-    bookmarks: list[dict] = []
-    bookmark_notes: list[dict] = []
-    brain_messages: list[dict] = []
-    bookmark_tags: list[dict] = []
+    collections: list[dict] = Field(default_factory=list, max_length=100_000)
+    tags: list[dict] = Field(default_factory=list, max_length=100_000)
+    bookmarks: list[dict] = Field(default_factory=list, max_length=250_000)
+    bookmark_notes: list[dict] = Field(default_factory=list, max_length=500_000)
+    brain_messages: list[dict] = Field(default_factory=list, max_length=1_000_000)
+    bookmark_tags: list[dict] = Field(default_factory=list, max_length=1_000_000)
 
 
 @router.post("/restore")
 def restore(data: RestoreData, db: Session = Depends(get_db)):
     """Replace ALL current data with the contents of a JSON backup."""
+    if data.version != BACKUP_VERSION:
+        raise HTTPException(status_code=422, detail="Unsupported backup version")
     try:
         # 1. Wipe existing data (FK-safe order).
         db.query(BookmarkTag).delete()
@@ -214,7 +219,8 @@ def restore(data: RestoreData, db: Session = Depends(get_db)):
         db.commit()
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Restore failed: {e}")
+        logger.exception("Backup restore failed")
+        raise HTTPException(status_code=400, detail="Restore failed; the backup was not applied") from e
 
     return {
         "status": "ok",

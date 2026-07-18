@@ -101,6 +101,16 @@ public final class AppSettings {
         didSet { defaults.set(defaultPreviewTab, forKey: Keys.defaultPreviewTab) }
     }
 
+    static func canonicalPreviewTab(_ value: String?) -> String {
+        switch value {
+        case "Design", "Snapshot": return "Design"
+        case "AI Brain": return "AI Brain"
+        case "Notes": return "Notes"
+        case "Page", "Info", "Reader", "Web": return "Page"
+        default: return "Page"
+        }
+    }
+
     /// Grid card layout: "titleFirst" (title on top, URL below) or "urlFirst".
     public var cardLayout: String {
         didSet { defaults.set(cardLayout, forKey: Keys.cardLayout) }
@@ -187,7 +197,12 @@ public final class AppSettings {
         confirmDelete = d.object(forKey: Keys.confirmDelete) as? Bool ?? true
         enableReadStatus = d.object(forKey: Keys.enableReadStatus) as? Bool ?? true
         defaultExportFmt = d.string(forKey: Keys.defaultExportFmt) ?? "markdown"
-        defaultPreviewTab = d.string(forKey: Keys.defaultPreviewTab) ?? "Info"
+        let storedPreviewTab = d.string(forKey: Keys.defaultPreviewTab)
+        let canonicalPreviewTab = Self.canonicalPreviewTab(storedPreviewTab)
+        defaultPreviewTab = canonicalPreviewTab
+        if storedPreviewTab != canonicalPreviewTab {
+            d.set(canonicalPreviewTab, forKey: Keys.defaultPreviewTab)
+        }
         cardLayout = d.string(forKey: Keys.cardLayout) ?? "titleFirst"
         tagSortMode = d.string(forKey: Keys.tagSortMode) ?? "name"
         didCompleteBrainOnboarding = d.bool(forKey: Keys.didCompleteBrainOnboarding)
@@ -262,14 +277,13 @@ extension Bundle {
 }
 
 extension AppSettings {
-    /// Relaunch Gyrus so a changed language takes effect. A detached shell
-    /// re-opens the app after this instance has fully quit — waiting also lets
-    /// the bundled backend shut down before the new instance claims its port.
+    /// Relaunch Gyrus so a changed language takes effect. `open -n` receives the
+    /// bundle path as a real argument, never as shell source.
     public static func relaunchApp() {
         let path = Bundle.main.bundlePath
         let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "sleep 0.8; /usr/bin/open \"\(path)\""]
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        task.arguments = ["-n", path]
         try? task.run()
         NSApp.terminate(nil)
     }

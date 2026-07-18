@@ -14,6 +14,7 @@ from bs4 import BeautifulSoup
 
 from database import DATA_DIR
 from services.scraper_service import _BROWSER_UA
+from services.outbound_url_security import request_guard
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +178,7 @@ class SiteStructureService:
             timeout=self.timeout,
             follow_redirects=True,
             headers=self.headers,
+            event_hooks={"request": [request_guard(start_url)]},
         ) as client:
             sitemap_urls, sitemap_sources = await self._discover_sitemap_urls(client, origin)
             for sitemap_url in sitemap_urls[: self.max_pages]:

@@ -8,6 +8,7 @@ import httpx
 from bs4 import BeautifulSoup
 from readability import Document
 from typing import Dict, Any, Optional
+from services.outbound_url_security import request_guard
 
 logger = logging.getLogger(__name__)
 
@@ -262,7 +263,12 @@ class ScraperService:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True, headers=self.headers) as client:
+            async with httpx.AsyncClient(
+                timeout=self.timeout,
+                follow_redirects=True,
+                headers=self.headers,
+                event_hooks={"request": [request_guard(url)]},
+            ) as client:
                 if _is_youtube(url):
                     yt = await self._extract_youtube(url, client)
                     if yt.get("content"):

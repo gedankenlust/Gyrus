@@ -1,4 +1,5 @@
 import json
+import logging
 import shutil
 from collections import Counter
 from datetime import datetime, timezone
@@ -9,6 +10,12 @@ from uuid import uuid4
 from PIL import Image
 
 from database import DATA_DIR
+from services.outbound_url_security import (
+    explicit_private_hostname,
+    validate_outbound_url,
+)
+
+logger = logging.getLogger(__name__)
 
 
 SNAPSHOT_DIR = DATA_DIR / "visual_snapshots"
@@ -130,6 +137,9 @@ async def capture_snapshot(
         ) from e
 
     run_id = run_id or new_snapshot_run_id()
+    allowed_private_host = explicit_private_hostname(url)
+    await validate_outbound_url(url, allowed_private_host=allowed_private_host)
+    dns_cache: dict[tuple[str, int], tuple[str, ...]] = {}
     out_dir = _run_dir(bookmark_id, run_id)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -166,6 +176,24 @@ async def capture_snapshot(
                         service_workers="block",
                         permissions=[],
                     )
+
+                    async def guard_route(route):
+                        request_url = route.request.url
+                        if request_url.startswith(("data:", "blob:", "about:")):
+                            await route.continue_()
+                            return
+                        try:
+                            await validate_outbound_url(
+                                request_url,
+                                allowed_private_host=allowed_private_host,
+                                dns_cache=dns_cache,
+                            )
+                        except ValueError:
+                            await route.abort("blockedbyclient")
+                            return
+                        await route.continue_()
+
+                    await context.route("**/*", guard_route)
                     page = await context.new_page()
                     network_entries: dict[str, dict[str, Any]] = {}
                     console_messages: list[dict[str, Any]] = []
@@ -230,8 +258,8 @@ async def capture_snapshot(
                     await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
                     try:
                         await page.wait_for_load_state("networkidle", timeout=5_000)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Viewport did not reach network idle: %s", exc)
 
                     screenshot_name = f"{viewport['name']}.png"
                     screenshot_path = out_dir / screenshot_name
@@ -363,7 +391,7 @@ def _dominant_colors(path: Path, max_colors: int = 8) -> list[str]:
         with Image.open(path) as img:
             img = img.convert("RGB")
             img.thumbnail((240, 240))
-            pixels = list(img.getdata())
+            pixels = list(img.get_flattened_data())
     except Exception:
         return []
 

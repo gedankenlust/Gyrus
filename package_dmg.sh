@@ -2,6 +2,7 @@
 #
 # Create a professional DMG installer for Gyrus.
 # Requires 'create-dmg' (brew install create-dmg).
+set -euo pipefail
 
 # 1. Setup paths
 APP_NAME="Gyrus"

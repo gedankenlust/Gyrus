@@ -21,15 +21,18 @@ def test_clear_cache(client):
     assert not test_favicon.exists()
 
 def test_clear_brain(client):
-    # Ensure brain directory exists and has some files
+    # Gyrus files are removed, unrelated files in a selected vault are not.
     brain_sync_service.root_dir.mkdir(parents=True, exist_ok=True)
-    test_file = brain_sync_service.root_dir / "test.md"
+    test_file = brain_sync_service.root_dir / "test-1234abcd.md"
     test_file.write_text("dummy")
+    user_file = brain_sync_service.root_dir / "my-own-note.md"
+    user_file.write_text("keep")
     
     resp = client.post("/api/data/clear-brain")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
     assert not test_file.exists()
+    assert user_file.exists()
 
 def test_clear_bookmarks(client):
     # Create a bookmark
@@ -53,7 +56,7 @@ def test_factory_reset(client):
     test_favicon.write_text("dummy")
     
     brain_sync_service.root_dir.mkdir(parents=True, exist_ok=True)
-    test_file = brain_sync_service.root_dir / "test.md"
+    test_file = brain_sync_service.root_dir / "test-1234abcd.md"
     test_file.write_text("dummy")
     
     client.post("/api/bookmarks", json={"title": "Example", "url": "https://example.com"})

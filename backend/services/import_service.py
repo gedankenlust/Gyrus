@@ -1,9 +1,13 @@
+import logging
+
 from bs4 import BeautifulSoup, Tag
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from models.bookmark import Bookmark
 from models.collection import Collection
 from services.url_utils import normalize_url
+
+logger = logging.getLogger(__name__)
 
 
 def parse_netscape_html(html_content: str, db: Session,
@@ -40,8 +44,8 @@ def parse_netscape_html(html_content: str, db: Session,
     try:
         from services.brain_sync_service import brain_sync_service
         brain_sync_service.rebuild_index(db)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("AI Brain index refresh after import failed: %s", exc)
     return stats
 
 

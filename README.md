@@ -4,339 +4,321 @@
 
 # Gyrus
 
-**The open-source, private, and local-first bookmark manager for macOS.**
+**A private, local-first bookmark and web research workspace for macOS.**
 
-Collect, organize, and rediscover your bookmarks on your own Mac.  
-No accounts required, no cloud sync, and zero telemetry.
+Collect, organize, read, inspect, and question web pages on your own Mac.
+No account, no cloud sync, and no telemetry.
 
 [![Platform](https://img.shields.io/badge/platform-macOS%2026%2B-black?logo=apple)](#requirements)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.0-brightgreen.svg?style=flat-square)](#project-status)
+[![Version](https://img.shields.io/badge/version-1.3.1-brightgreen.svg?style=flat-square)](#project-status)
 [![Built with Swift](https://img.shields.io/badge/Swift-SwiftUI-fa7343?logo=swift&logoColor=white&style=flat-square)](https://developer.apple.com/swiftui/)
-[![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)](https://api.tiangolo.com)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)](https://fastapi.tiangolo.com/)
 
-[**Download the latest App**](https://github.com/gedankenlust/Gyrus/releases) · [Features](#features) · [Quick start](#quick-start) · [AI Brain](#ai-brain-optional) · [Architecture](#architecture)
+[**Download Gyrus**](https://github.com/gedankenlust/Gyrus/releases/latest) · [Features](#features) · [Browser extension](#browser-extension) · [AI Brain](#ai-brain-optional) · [Build](#building-from-source)
 
 </div>
 
 ---
 
-> **New here?** The step-by-step guide in **[GETTING_STARTED.md](GETTING_STARTED.md)**
-> walks you through everything in English **and** German (Englisch **und** Deutsch).
+> New here? [GETTING_STARTED.md](GETTING_STARTED.md) contains a complete
+> English and German walkthrough.
 
 ## What is Gyrus?
 
 <p align="center">
-  <img src="docs/screenshots/main.png" width="800" alt="Gyrus Main Window">
+  <img src="docs/screenshots/main.png" width="900" alt="Gyrus main window">
 </p>
 
-Gyrus is a native macOS app for people who collect a lot of links and want to
-actually *find* them again. It combines the speed of a native desktop app with
-the power of local AI to help you organize and query your knowledge base.
+Gyrus is a native macOS app for people who collect useful links and want to do
+more than leave them in an endless list. It combines a fast bookmark library,
+a focused reader, a browser-based design inspector, notes, and an optional
+local AI workspace.
 
-Import your browser's bookmarks, sort them into folders and colored tags, search
-the full text in milliseconds, and use **AI Auto-Tags** to categorize your
-library effortlessly. With **Global Search**, your bookmarks are always just a
-shortcut away, no matter which app you're in.
+Every selected bookmark opens into four clear top-level areas:
 
-## 🚀 Download & Install
+1. **Page** — metadata, a formatted Reader, and the live website.
+2. **Design** — responsive rendering and inspectable design evidence.
+3. **AI Brain** — page-grounded chat using your local Ollama model.
+4. **Notes** — editable notes stored with the bookmark.
 
-**Just want to use the app?**  
-Download the latest **`Gyrus.dmg`** from the [Releases](https://github.com/gedankenlust/Gyrus/releases) page. Open the disk image and drag Gyrus to your Applications folder.
+AI is optional. With AI disabled, Gyrus remains a complete local bookmark,
+reading, and web-inspection app.
 
-**First launch (the app is open-source and unsigned):** macOS will refuse to open it the first time because it isn't from an "identified developer." This is expected — to allow it:
+## Download and install
 
-- **macOS 15 (Sequoia) and newer:** double-click Gyrus, dismiss the warning, then go to **System Settings → Privacy & Security**, scroll down, and click **"Open Anyway"**. Confirm once.
-- **Older macOS:** **right-click (or Control-click) Gyrus.app → "Open"**, then click **"Open"** in the dialog.
+Download **`Gyrus.dmg`** from the
+[latest release](https://github.com/gedankenlust/Gyrus/releases/latest), open
+it, and drag Gyrus into Applications.
 
-You only need to do this once per install/update. (Gyrus isn't notarized because it ships without a paid Apple Developer account — everything still runs 100% locally on your Mac.)
+Gyrus is distributed with an ad-hoc signature because the project does not use
+a paid Apple Developer membership. On first launch after each update:
 
-*Note: Gyrus requires macOS 26 (Tahoe) or newer. Since v1.3.0 the download is
-larger (~180 MB) because Gyrus bundles a headless Chromium browser for the
-Design tab — everything still runs locally with nothing to install separately.*
+- On current macOS versions, try opening Gyrus once, then go to
+  **System Settings → Privacy & Security → Open Anyway**.
+- On older macOS versions, Control-click Gyrus in Applications, choose
+  **Open**, and confirm.
 
----
+The released app is self-contained. Its local FastAPI backend, Python runtime,
+and headless Chromium are included; users do not install Python, Playwright, or
+a browser separately. The app bundle is roughly 490 MB, while the compressed
+DMG is smaller.
 
-Everything runs on your machine. There is no sign-up, no sync server, and no
-analytics — your bookmarks never leave your Mac. A small local backend does the
-heavy lifting (search, metadata, link checking) and is supervised by the app, so
-you never have to start anything by hand.
+## Why Gyrus?
 
-It also has an **optional, opt-in AI Brain**: keep a Markdown file per bookmark
-and chat about a page with a *local* large language model. If you never turn it
-on, Gyrus is a plain, fast bookmark manager.
-
-## Why another bookmark manager?
-
-- **Local-first by design.** Your data lives in a plain SQLite database on your
-  disk. You can back it up, inspect it, or delete it — it's yours.
-- **Fast, even with tens of thousands of bookmarks.** SQLite FTS5 full-text
-  search and paginated lists keep things instant — tested well past 100k.
-- **Native, not a web wrapper.** A real SwiftUI app with a Finder-quality
-  source-list sidebar — drag to reorder and nest folders, color them, bulk-tag
-  with a right-click.
-- **Private AI, if you want it.** The AI features talk to a local model via
-  [Ollama](https://ollama.com). Nothing is sent to a third party.
-- **Open and hackable.** Thin, documented FastAPI backend; generated Xcode
-  project; tests on both sides.
+- **Local-first.** Bookmarks live in SQLite on your Mac and can be exported at
+  any time.
+- **Native.** SwiftUI and AppKit provide a responsive three-column workspace,
+  native selection, drag and drop, keyboard commands, and a menu-bar quick add.
+- **Useful for web design.** Compare real desktop, tablet, and mobile renders;
+  inspect colors, type, components, assets, layout, SEO, accessibility,
+  network requests, and console output.
+- **Grounded local AI.** Gyrus supplies the model with extracted article text,
+  structured data, site structure, and captured design evidence instead of
+  asking it to guess.
+- **Open source.** The Swift app, Python backend, browser companion, migrations,
+  tests, and release scripts are all in this repository.
 
 ## Features
 
-| | |
+| Area | What it does |
 |---|---|
-| 📥 **Import & export** | Netscape HTML format — works with Brave, Arc, Chrome, Firefox and Safari |
-| 🗂️ **Folders & tags** | Native source-list sidebar: drag to reorder/nest folders and color them; colored tags; bulk-assign tags via right-click; merge near-duplicate tags; drag bookmarks onto a tag to assign it |
-| 🪄 **Instant tagging** | One click distributes broad topic tags across a selection immediately — no LLM required |
-| 📋 **Reviewable AI tag system** *(optional)* | Analyze a whole selection (10+ bookmarks) with a local LLM — clustering, naming and validating categories — and review a draft before a single tag is written |
-| 🎨 **Design tab** *(optional)* | Inspect any page with a bundled headless browser: screenshots across desktop/tablet/mobile, colors, typography, components, assets, SEO, accessibility, network and console evidence, plus PDF export |
-| 🔎 **Full-text search** | A search bar (and a ⌘K command palette) over titles, URLs, notes, AI Brain chats **and tags**, powered by SQLite FTS5 |
-| ✨ **Semantic search** | Find bookmarks by *meaning*, not just keywords — local embeddings (`nomic-embed-text` via Ollama). Toggle next to the search bar; falls back to keyword search when Ollama is off |
-| ⌨️ **Global Search** | Access your library from anywhere in macOS with a customizable system-wide hotkey (default `⌥ Space`) |
-| ⚡ **Menu-bar quick-add** | A menu-bar icon and a configurable global shortcut save the URL in your clipboard straight to the Inbox — without opening the main window |
-| 📖 **Reader Mode** | A distraction-free reading experience with structured article rendering, full-text copy/selection, optional AI cleanup into Markdown, and translation (German/English) |
-| ✅ **Multi-select & bulk actions** | Rubber-band (marquee), Shift- and ⌘-click, or "Select all" — then drag many bookmarks into a folder, tag or delete them at once |
-| 👁️ **Live preview** | Open any page in an embedded `WKWebView`, read its Open Graph metadata, or choose which tab a bookmark opens to |
-| 💀 **Dead-link detection** | Background check across all bookmarks; flags 404s for easy cleanup |
-| 🖼️ **Metadata refresh** | One click re-fetches favicons, descriptions and preview images for every bookmark |
-| 📝 **Markdown notes** | Per-bookmark notes with auto-save |
-| 🧠 **AI Brain** *(optional)* | Chat about a page with a local LLM that actually **reads the page** (article text, structured data, tables, YouTube, real site-structure/page-count data, Design-tab evidence). Conversations persist per bookmark and survive restarts. Each bookmark mirrors to a Markdown file that follows your folder structure — all on your machine |
-| 🌐 **Language-aware AI** | Auto-tags, chat replies, summaries and the tag system are generated in your app language (German/English) |
-| 🧩 **Browser extension** | A small "Gyrus Saver" popup saves the current tab straight into your Inbox |
-| 💾 **Backup & restore** | Export/import everything as a portable JSON file |
-| ↕️ **Sorting & pagination** | Sort by date, title, URL or tag; handles tens of thousands of bookmarks smoothly (tested past 100k) |
+| **Library** | List or grid view, folders, colored tags, Trash, sorting, pagination, resizable columns, and multi-selection |
+| **Import and export** | Netscape bookmark HTML for Brave, Arc, Chrome, Firefox, and Safari; portable JSON backup and restore |
+| **Search** | SQLite FTS5 over titles, URLs, tags, notes, and AI chats; global `⌥ Space` command palette |
+| **Tag assignment** | Assign existing tags to one or many bookmarks and preserve every manually assigned tag |
+| **Reviewable tag system** | With AI enabled, analyze 10 or more bookmarks together, review a proposed taxonomy, rename or remove categories, then apply it |
+| **Page workspace** | Overview, structured Reader, translation, complete text copy, and a live `WKWebView` |
+| **Design workspace** | Bundled Chromium captures desktop `1440×1200`, tablet `834×1112`, and mobile `390×844` views |
+| **Design evidence** | Colors, typography, components, layout, assets, SEO, accessibility, network, console, raw DOM/CSS evidence, and viewport PDF export |
+| **Notes** | Per-bookmark notes with auto-save |
+| **AI Brain** | Persistent page-grounded conversations, summaries, site-structure awareness, and optional Markdown mirroring |
+| **Link maintenance** | Background dead-link checks, manual status correction, metadata refresh, favicons, descriptions, and preview images |
+| **Browser extension** | Gyrus Saver sends the active browser tab to the Inbox and enriches it in the background |
+| **Quick add** | Menu-bar command and configurable global shortcut save a URL without opening the main window |
 
-## Privacy
+## Privacy and security
 
-Gyrus is built to keep your data on your machine:
+Gyrus is designed around a local trust boundary:
 
-- **No accounts, no cloud, no telemetry.** Nothing is uploaded anywhere.
-- The backend listens on **loopback only** (`127.0.0.1:8080`) and is **not**
-  exposed to your network.
-- The optional AI Brain uses a **local** model via Ollama — prompts and page
-  content stay on your Mac.
-- Network access happens only when *you* act: fetching a page's metadata,
-  checking a link, or opening a bookmark in your browser.
+- The backend listens only on `127.0.0.1:8080`.
+- Browser pages cannot call the local API. Requests with a web Origin are
+  rejected before they reach a route.
+- Gyrus Saver has a fixed extension identity, pairs with a short-lived backend
+  token, and is limited to creating bookmarks. It cannot access backups,
+  reset data, read notes, or call AI routes.
+- Page fetching and Chromium navigation block redirects and subresources that
+  resolve to loopback, private, link-local, or reserved networks. An explicitly
+  saved local development URL remains inspectable and is restricted to its
+  original host.
+- The database, backups, PID, and backend log use owner-only permissions.
+- AI runs through a local Ollama server. Gyrus has no hosted model provider.
+- Dependency auditing runs in CI, release inputs are pinned, and the standalone
+  Python archive is verified by SHA-256 before it is bundled.
 
-See [Where your data lives](#where-your-data-lives) for exact paths.
+Gyrus still accesses the internet when you ask it to fetch a bookmark, load a
+live page, refresh metadata, inspect a design, or check links. That traffic goes
+directly from your Mac to the referenced website.
 
 ## Requirements
 
 - **macOS 26 (Tahoe) or newer**
-- *(optional)* **[Ollama](https://ollama.com)** — only if you want the AI Brain
+- Optional: [Ollama](https://ollama.com) for AI Brain, semantic search,
+  translation, summaries, and taxonomy review
 
-A **released build is self-contained** — it bundles its own Python runtime, so end
-users need nothing installed. The tools below are only for **building from source**:
+No Apple Developer membership, Python installation, or external Chromium is
+required to run the released app.
 
-- **Xcode** (to build the app)
-- **Python 3** (to run the backend in development / build the bundled runtime)
+## Browser extension
 
-## Quick start
+The **Gyrus Saver** companion supports Chromium browsers such as Chrome, Brave,
+Arc, and Edge.
 
-```sh
-# 1. Clone
-git clone https://github.com/gedankenlust/gyrus.git
-cd gyrus
+### Install from a release
 
-# 2. Generate the Xcode project (it is generated by a script — see CONTRIBUTING.md)
-python3 generate_xcodeproj.py
+1. Download **`Gyrus-Saver-v1.3.1.zip`** from the same GitHub release as the
+   DMG and unzip it.
+2. Open `chrome://extensions`, `brave://extensions`, or the equivalent page.
+3. Enable **Developer mode**.
+4. Choose **Load unpacked** and select the unzipped `extension` folder.
+5. Pin Gyrus Saver to the toolbar.
 
-# 3. Open and run (⌘R)
-open Gyrus.xcodeproj
-```
+When updating from an older development build, remove the old extension first
+and then load the new folder. The secured extension has the stable ID
+`eoffmpeogpjblmimnhmhddelahenfdpg`.
 
-That's it. On first launch the app **bootstraps the backend automatically** —
-it creates a Python virtual environment, installs dependencies, and runs the
-database migrations. You do **not** need to start the backend yourself. It also
-offers to set up the optional AI Brain; you can decline and do it later.
+To verify it, open any normal web page and click Gyrus Saver. The popup confirms
+the save, and the bookmark appears in Gyrus under **Inbox**. Gyrus must have
+been opened once after a Mac restart so its local backend is running.
 
-> Prefer to set up the backend by hand? `cd backend && ./setup.sh` — but it's
-> optional, the app does this for you.
-
-A full walkthrough — installing, the browser extension, the AI Brain, and
-troubleshooting — is in **[GETTING_STARTED.md](GETTING_STARTED.md)**.
-
-## Browser Extension: Gyrus Saver
-
-The **Gyrus Saver** is a lightweight companion for your browser. It allows you to save any tab directly to your Gyrus Inbox with a single click, without ever leaving your browser.
-
-### How to Install (Chrome, Brave, Arc, Edge)
-
-Since Gyrus is privacy-focused and doesn't use a central cloud, the extension talks directly to the local Gyrus backend on your Mac. You can install it in a few seconds:
-
-1.  **Open Extension Settings:** In your browser, go to the extensions page (e.g., `chrome://extensions` or `brave://extensions`).
-2.  **Enable Developer Mode:** Toggle the **"Developer mode"** switch (usually in the top right corner).
-3.  **Load Gyrus Saver:** Click the **"Load unpacked"** button and select the `extension/` folder inside the Gyrus directory on your Mac.
-4.  **Pin it:** For the best experience, "pin" the Gyrus icon to your browser toolbar.
-
-### How it works
-*   **One-Click Save:** Click the icon while browsing, and the page is instantly sent to your local Gyrus database.
-*   **Private by Design:** The extension only has permission to talk to `127.0.0.1:8080` (your own Mac). It never connects to the internet or any third-party server.
-*   **Works in the background:** Once you've launched Gyrus, its local backend keeps running on your Mac — so you can save from your browser even with the Gyrus window closed or the app not in the foreground. You don't need to bring Gyrus to the front. (If you've never opened Gyrus since rebooting, open it once so the backend is up.)
+The extension requests only `activeTab` and access to `127.0.0.1:8080`. It does
+not send data to a Gyrus cloud service because no such service exists.
 
 ## AI Brain (optional)
 
-The AI Brain is entirely opt-in. When enabled, Gyrus:
+Enable AI under **Settings → AI**, connect Ollama, and choose separate text and
+embedding models. Gyrus then gains:
 
-- **Reads the actual page.** Before answering, it fetches and extracts the page
-  content — article text, structured data (`schema.org`/JSON-LD), data tables,
-  and YouTube titles/descriptions/transcripts — so the model can summarize or
-  answer questions about what's really on the page.
-- **Chats per bookmark, with memory.** Every conversation is anchored to that
-  specific page (title + URL) and remembers the previous turns. Chats persist
-  per bookmark and run in parallel, so switching bookmarks never interrupts a
-  reply.
-- **Mirrors to Markdown.** Each bookmark becomes a Markdown file in a "Gyrus
-  Brain" folder you choose, and the folder layout follows your Gyrus structure —
-  so your knowledge base is portable and editable in any editor.
+- chat grounded in the selected page rather than model memory alone;
+- persistent conversation history per bookmark;
+- article, JSON-LD, table, YouTube, site-structure, and design context;
+- local summaries, Reader translation, semantic search, and tag-system review;
+- an optional Markdown mirror that follows the folder structure and can be
+  opened in Obsidian, Logseq, or any editor.
 
-Install Ollama, pull a model (e.g. `ollama pull llama3`), then enable the AI
-Brain in **Settings → AI**. If you never enable it, Gyrus stays a plain,
-fast bookmark manager and never loads a model.
-
-For pages that build their content with JavaScript after loading (which plain
-fetching can't see), the **Design tab** renders the page with a bundled
-headless browser and feeds that as real visual/DOM evidence to the AI Brain —
-see [Features](#features).
+The database remains authoritative. The Markdown mirror is portable output,
+not a second hidden database. Clearing the Brain removes only files that Gyrus
+can identify as generated; unrelated notes in a selected vault are preserved.
 
 ## Architecture
 
-Gyrus is a SwiftUI macOS app paired with a local FastAPI backend:
+```text
+Gyrus.app (SwiftUI + AppKit)
+    |
+    | supervises a child process over loopback
+    v
+FastAPI on 127.0.0.1:8080
+    |-- routers and Pydantic request boundaries
+    |-- services for scraping, design capture, search, AI, and jobs
+    |-- SQLAlchemy + Alembic
+    `-- SQLite + FTS5 + sqlite-vec
 
-```
-┌───────────────────────────────────────────────┐
-│  Gyrus.app (SwiftUI + AppKit)                 │
-│                                               │
-│   Views ── @Observable stores ── APIClient    │
-│                     │                         │
-│            supervises (child process)         │
-│                     ▼                         │
-│   ┌───────────────────────────────────────┐   │
-│   │  FastAPI backend  (127.0.0.1:8080)    │   │
-│   │  routers → services → SQLAlchemy      │   │
-│   │  SQLite + FTS5 + Alembic              │   │
-│   └───────────────────────────────────────┘   │
-└───────────────────────────────────────────────┘
+Optional local services:
+    Ollama on 127.0.0.1:11434
+
+Browser companion:
+    fixed Chrome extension ID -> scoped token -> POST /api/bookmarks only
 ```
 
-- **Frontend** — SwiftUI with `@MainActor @Observable` stores behind an
-  `AppStore` façade. The sidebar is a native AppKit `NSOutlineView` (source
-  list) bridged into SwiftUI for Finder-quality drag & drop.
-- **Backend** — FastAPI + SQLAlchemy + SQLite, with thin routers, logic in a
-  `services/` layer, Alembic migrations, and an FTS5 virtual table for search.
-  We chose Python for the backend to leverage industry-standard libraries for
-  web scraping (BeautifulSoup, Readability-lxml) and AI integration, ensuring
-  robust content extraction and smart features while keeping the app logic
-  maintainable.
-- **Process model** — the app launches the backend as a child process and talks
-  to it over loopback (`127.0.0.1:8080`, never exposed to the network). A release
-  build bundles both the backend and a **self-contained Python runtime** (built
-  by `backend/build_python_runtime.sh`), so it runs on any Mac with nothing
-  installed. In development the app reuses the repo's `backend/` and a local venv.
+Repository layout:
 
-```
+```text
 Gyrus/                  SwiftUI app
-  Models/               Codable models (Bookmark, Collection, Tag, …)
-  Services/             @Observable stores, APIClient, BackendLauncher, AppSettings
-  Views/                Feature-grouped UI (Sidebar, BookmarkList, PreviewPanel, …)
-  Resources/            Assets, Info.plist, Localizable.xcstrings
-GyrusTests/             XCTest unit tests for the app
+  Models/               Codable domain models
+  Services/             Stores, API client, settings, backend launcher
+  Views/                Sidebar, library, preview, Design, Brain, settings
+  Resources/            Assets, Info.plist, localization catalog
+GyrusTests/             XCTest suite
 backend/                FastAPI backend
-  models/ schemas/ services/ routers/   layered architecture
-  alembic/              database migrations
-  tests/                pytest suite
-extension/              "Gyrus Saver" browser extension (MV3)
-generate_xcodeproj.py   generates Gyrus.xcodeproj (see CONTRIBUTING.md)
+  models/ schemas/      database and API models
+  routers/ services/    endpoints and application logic
+  alembic/ tests/       migrations and pytest suite
+extension/              Gyrus Saver Manifest V3 companion
+generate_xcodeproj.py   deterministic Xcode-project generator
+release.sh              tested build, packaging, checksum, and publish flow
 ```
 
-## Where your data lives
+## Where data lives
 
-| What | Location |
+| Data | Location |
 |---|---|
-| Bookmark database (SQLite) | `~/.gyrus/` |
-| Backend runtime (Python venv, PID file) | `~/Library/Application Support/Gyrus/` |
-| AI Brain Markdown files *(if enabled)* | a **"Gyrus Brain"** folder you choose |
+| SQLite database, backups, favicons, images, snapshots | `~/.gyrus/` |
+| Backend PID, log, and Python bytecode cache | `~/Library/Application Support/Gyrus/` |
+| AI Brain Markdown mirror | The `Gyrus Brain` folder selected by the user |
+| Application and bundled runtime | `/Applications/Gyrus.app` |
 
-To reset Gyrus completely, quit the app and delete those locations. Nothing is
-stored anywhere else, and nothing is uploaded.
+Use Gyrus's export tools before manually deleting these locations.
 
 ## Building from source
 
 ```sh
-python3 generate_xcodeproj.py   # after cloning, or whenever you add/remove files
-open Gyrus.xcodeproj            # then press Run (⌘R)
+git clone https://github.com/gedankenlust/Gyrus.git
+cd Gyrus
+
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cd ..
+
+python3 generate_xcodeproj.py
+open Gyrus.xcodeproj
 ```
 
-> ⚠️ **The Xcode project is generated.** `Gyrus.xcodeproj/project.pbxproj` is
-> produced by `generate_xcodeproj.py`. Don't hand-edit it in Xcode's UI — re-run
-> the script after adding, removing or moving files. Details in
-> [CONTRIBUTING.md](CONTRIBUTING.md).
+Run Gyrus from Xcode with `⌘R`. Development builds use `backend/venv`; release
+builds bundle the self-contained runtime produced by:
+
+```sh
+cd backend
+./build_python_runtime.sh
+```
+
+The runtime is generated locally and intentionally ignored by Git.
 
 ## Testing
 
 ```sh
-# Frontend (Swift) — or just press ⌘U in Xcode
+# Swift app
 xcodebuild test -project Gyrus.xcodeproj -scheme Gyrus \
   -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
 
-# Backend (Python)
-cd backend
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-pytest
+# Backend
+backend/venv/bin/pytest -q
+
+# Dependency audit
+backend/venv/bin/pip-audit -r backend/requirements.txt
 ```
+
+The release script repeats the regression tests, builds the Release app,
+applies an ad-hoc signature with Hardened Runtime on Gyrus, verifies sealed
+resources, starts bundled Chromium as a smoke test, creates the DMG and extension
+archive, and writes SHA-256 checksums.
 
 ## Project status
 
-**Gyrus is 1.0** — stable, feature-complete, and used daily. It ships with a
-comprehensive automated test suite across the backend and the app.
+**Current release: v1.3.1.** Gyrus is used as a real local bookmark and web
+research tool, with automated tests for both the backend and macOS app.
 
-AI is **fully optional**: with it switched off, Gyrus is a complete, fast
-bookmark manager. Switch it on (a single toggle) and you get local auto-tagging,
-meaning-based semantic search, summaries, and the AI Brain — all running on your
-own machine via Ollama.
-
-The app is **open-source and unsigned** (no paid Apple Developer account), so
-the first launch needs a one-time Gatekeeper bypass — see
-[Download & Install](#-download--install).
+The release is ad-hoc signed but not notarized. This keeps distribution possible
+without a paid Apple Developer membership, at the cost of the one-time
+Gatekeeper confirmation described above.
 
 ## Roadmap
 
-**Later — a smarter AI Brain.**
-- "Related bookmarks" suggestions across your library
-- Multi-bookmark queries (ask questions across your whole library)
-- A richer Obsidian knowledge graph from your bookmark mirror
-
-**Possible later — a signed build & Safari extension**, if a broad audience ever
-warrants a paid Apple Developer account.
+- Multi-bookmark AI questions across a selected set or the full library
+- Related-bookmark suggestions backed by local embeddings
+- A richer optional knowledge graph for the Markdown mirror
+- A signed and notarized build if the project later adopts the Apple Developer
+  Program
+- A Safari extension if demand justifies the additional native packaging work
 
 ## FAQ
 
-**Is my data sent anywhere?**  
-No. There are no accounts and no telemetry. The backend is loopback-only, and the AI Brain uses a local model.
+**Does Gyrus upload my bookmarks or prompts?**
 
-**Do I have to use the AI features?**  
-No. They are completely opt-in. Without them, Gyrus is a plain, fast, and private bookmark manager.
+No. Gyrus has no account system, sync backend, telemetry endpoint, or hosted AI
+provider. Website requests and local Ollama requests originate on your Mac.
 
-**Do I need to start the backend myself?**  
-No. The app creates the environment and supervises the backend process automatically.
+**Is AI required?**
 
-**Which browsers can I import from?**  
-Anything that exports the standard Netscape bookmark HTML — including Brave, Arc, Chrome, Firefox, and Safari.
+No. Page, Design, Notes, folders, tags, search, imports, exports, and maintenance
+features work without Ollama. The AI Brain tab is hidden while AI is disabled.
 
-**Where are my bookmarks stored?**  
-In a SQLite database under `~/.gyrus/`. See [Where your data lives](#where-your-data-lives) for details.
+**Do I start the backend manually?**
 
-**Is Windows or Linux supported?**  
-No. Gyrus is a native macOS app built with SwiftUI.
+No. Gyrus starts and supervises its bundled backend.
+
+**Why is the app large?**
+
+The release includes Python and a Chromium headless shell so Design inspection
+works immediately and consistently on another Mac.
+
+**Which browsers can I import from?**
+
+Anything that exports standard Netscape bookmark HTML, including Brave, Arc,
+Chrome, Firefox, and Safari.
+
+**Is Windows or Linux supported?**
+
+No. Gyrus is a native macOS application.
 
 ## Contributing
 
-Contributions are welcome — especially more tests and UI polish. See
-**[CONTRIBUTING.md](CONTRIBUTING.md)** for how to build, run, test, and the one
-project-specific quirk (the generated Xcode project).
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before adding
+files because `Gyrus.xcodeproj` is generated by `generate_xcodeproj.py`.
 
-By contributing, you agree your contributions are licensed under the MIT License.
+Do not commit local runtimes, build products, databases, DMGs, agent folders,
+or editor state. The repository's `.gitignore` covers these paths.
 
 ## License
 
@@ -344,6 +326,8 @@ By contributing, you agree your contributions are licensed under the MIT License
 
 ## Acknowledgements
 
-Built with [SwiftUI](https://developer.apple.com/swiftui/),
-[FastAPI](https://fastapi.tiangolo.com), [SQLAlchemy](https://www.sqlalchemy.org),
-[Alembic](https://alembic.sqlalchemy.org), and [Ollama](https://ollama.com).
+Gyrus is built with [SwiftUI](https://developer.apple.com/swiftui/),
+[FastAPI](https://fastapi.tiangolo.com/), [SQLAlchemy](https://www.sqlalchemy.org/),
+[Alembic](https://alembic.sqlalchemy.org/), [Playwright](https://playwright.dev/),
+and [Ollama](https://ollama.com/). Third-party license information is collected
+in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -4,10 +4,10 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 DATA_DIR = Path(os.environ.get("GYRUS_DATA_DIR", Path.home() / ".gyrus")).expanduser()
-DATA_DIR.mkdir(exist_ok=True)
-(DATA_DIR / "favicons").mkdir(exist_ok=True)
-(DATA_DIR / "og_images").mkdir(exist_ok=True)
-(DATA_DIR / "db").mkdir(exist_ok=True)
+DATA_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+for directory in (DATA_DIR, DATA_DIR / "favicons", DATA_DIR / "og_images", DATA_DIR / "db"):
+    directory.mkdir(exist_ok=True, mode=0o700)
+    directory.chmod(0o700)
 
 DB_PATH = DATA_DIR / "db" / "gyrus.db"
 DATABASE_URL = f"sqlite:///{DB_PATH}"
@@ -20,6 +20,8 @@ engine = create_engine(
 
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_connection, _):
+    if DB_PATH.exists():
+        DB_PATH.chmod(0o600)
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA foreign_keys=ON")

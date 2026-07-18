@@ -43,9 +43,7 @@ enum PreviewTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     static func fromPreference(_ value: String) -> PreviewTab? {
-        if ["Info", "Reader", "Web"].contains(value) { return .page }
-        if value == "Snapshot" { return .design }
-        return PreviewTab(rawValue: value)
+        PreviewTab(rawValue: AppSettings.canonicalPreviewTab(value))
     }
 }
 

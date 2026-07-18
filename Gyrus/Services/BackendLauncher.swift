@@ -76,33 +76,27 @@ final class BackendLauncher {
     private init() {}
 
     private func killExistingBackend() {
-        // Kill by PID file if available (precise)
+        // Kill only a process whose executable belongs to Gyrus. PID files can
+        // become stale and a recycled PID must never terminate another app.
         if let data = try? Data(contentsOf: pidFile),
            let pidStr = String(data: data, encoding: .utf8),
-           let pid = Int32(pidStr.trimmingCharacters(in: .whitespacesAndNewlines)) {
+           let pid = Int32(pidStr.trimmingCharacters(in: .whitespacesAndNewlines)),
+           isGyrusBackend(pid: pid) {
             kill(pid, SIGTERM)
-            try? FileManager.default.removeItem(at: pidFile)
         }
-        // Also kill any process holding port 8080. A stale PID file can point
-        // to one backend while another old listener still owns the port.
-        killPortHolder(Config.backendPort)
+        try? FileManager.default.removeItem(at: pidFile)
     }
 
-    private func killPortHolder(_ port: Int) {
-        let lsof = Process()
-        lsof.executableURL = URL(fileURLWithPath: "/usr/sbin/lsof")
-        lsof.arguments = ["-ti", "tcp:\(port)"]
-        let pipe = Pipe()
-        lsof.standardOutput = pipe
-        lsof.standardError = Pipe()
-        guard (try? lsof.run()) != nil else { return }
-        lsof.waitUntilExit()
-        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        for line in output.components(separatedBy: .newlines) {
-            if let pid = Int32(line.trimmingCharacters(in: .whitespaces)) {
-                kill(pid, SIGTERM)
-            }
-        }
+    private func isGyrusBackend(pid: Int32) -> Bool {
+        // proc_pidpath recommends a MAXPATHLEN-sized buffer; use generous fixed
+        // storage because the C macro is not imported into Swift.
+        var buffer = [CChar](repeating: 0, count: 4096)
+        let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
+        guard length > 0 else { return false }
+        let path = String(cString: buffer)
+        return path == pythonExecutable.path
+            || path.contains("/Gyrus.app/Contents/Resources/backend/")
+            || path.contains("/Gyrus/backend/venv/")
     }
 
     func start() async {
@@ -119,6 +113,7 @@ final class BackendLauncher {
         defer { isStarting = false }
 
         try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dataDir.path)
         killExistingBackend()
         try? await Task.sleep(nanoseconds: 800_000_000)
 
@@ -161,6 +156,7 @@ final class BackendLauncher {
         proc.environment = environment
         let logURL = dataDir.appendingPathComponent("backend.log")
         FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: logURL.path)
         if let handle = try? FileHandle(forWritingTo: logURL) {
             try? handle.truncate(atOffset: 0)
             proc.standardOutput = handle
@@ -172,6 +168,7 @@ final class BackendLauncher {
             try proc.run()
             self.process = proc
             try? String(proc.processIdentifier).write(to: pidFile, atomically: true, encoding: .utf8)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: pidFile.path)
         } catch {
             self.error = "Failed to start: \(error.localizedDescription)"
             return

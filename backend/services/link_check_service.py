@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from database import SessionLocal
 from models.bookmark import Bookmark
 from services.background_job import BackgroundJob
+from services.outbound_url_security import strict_public_request_guard
 
 
 def is_local_host(url: str) -> bool:
@@ -105,7 +106,8 @@ async def _run_check(job: BackgroundJob) -> None:
     sem = asyncio.Semaphore(CONCURRENCY)
 
     async with httpx.AsyncClient(
-        headers={"User-Agent": "Gyrus/1.0 LinkCheck"}
+        headers={"User-Agent": "Gyrus/1.0 LinkCheck"},
+        event_hooks={"request": [strict_public_request_guard]},
     ) as client:
         async def check_one(bm_id: str, url: str) -> None:
             if job.cancelled:

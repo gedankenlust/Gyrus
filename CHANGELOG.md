@@ -5,7 +5,44 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [1.3.0] – 2026-07-19
+## [1.3.1] – 2026-07-18
+
+### Changed
+- The bookmark workspace and its default-tab setting now use the same four
+  top-level areas: **Page, Design, AI Brain, and Notes**. Legacy preferences
+  such as Info, Reader, Web, and Snapshot migrate automatically.
+- Releases now include a separate `Gyrus-Saver` extension archive and one
+  checksum file covering both downloadable artifacts.
+- The bundled Python runtime is pinned to an exact upstream build and verified
+  by SHA-256 before packaging. Release builds run the full test suites and a
+  real bundled-Chromium smoke test before publishing.
+
+### Security
+- Restricted the localhost API to the fixed Gyrus Saver extension identity.
+  The extension pairs with a process-lifetime token and can only create a
+  bookmark; backup, reset, notes, search, and AI routes are inaccessible to it.
+- Added SSRF protection to scraping, metadata, site-structure crawling, link
+  checks, and Chromium navigation. Public pages cannot redirect or load
+  resources from loopback or private networks; explicitly saved local design
+  URLs remain supported on their original host.
+- Updated FastAPI, Starlette, Pillow, python-multipart, and test dependencies;
+  the dependency audit reports no known vulnerabilities.
+- Added request and import size limits, URL and tag validation, owner-only data
+  permissions, safer backend PID handling, and strict health-response checking.
+- Brain reset now removes only identifiable Gyrus-generated Markdown files and
+  preserves unrelated notes in a selected vault.
+- CI actions are pinned to commit SHAs and CI now runs `pip-audit`.
+
+### Fixed
+- Relaunching Gyrus no longer builds a shell command from the application path.
+- A stale backend PID can no longer terminate an unrelated process, and Gyrus
+  no longer kills whichever application happens to own port 8080.
+- Best-effort vector, import, Brain-sync, and snapshot failures are logged
+  instead of disappearing silently.
+
+---
+
+## [1.3.0] – 2026-07-18
 
 ### Added
 - **Design tab.** Inspect any bookmarked page with a bundled headless Chromium:

@@ -13,33 +13,39 @@
 set -euo pipefail
 cd "$(dirname "$0")"   # backend/
 
-PY_SERIES="3.11"
+PY_VERSION="3.11.15"
+PY_BUILD_TAG="20260623"
+PIP_VERSION="26.1.2"
 RUNTIME_DIR="python-runtime"
 
 ARCH="$(uname -m)"
 case "$ARCH" in
-  arm64)  TRIPLE="aarch64-apple-darwin" ;;
-  x86_64) TRIPLE="x86_64-apple-darwin" ;;
+  arm64)
+    TRIPLE="aarch64-apple-darwin"
+    EXPECTED_SHA256="2318799eaf104f8a29bc09a93b0851b05dbbcb4ce9a5f045ddea169c0c7ff3a5"
+    ;;
+  x86_64)
+    TRIPLE="x86_64-apple-darwin"
+    EXPECTED_SHA256="4925e5aaa9bc77c85302d350b36c1d9def2002996a6bcfa55c88ba6eb318de29"
+    ;;
   *) echo "Unsupported arch: $ARCH" >&2; exit 1 ;;
 esac
 
-echo "→ Finding latest python-build-standalone ($PY_SERIES, $TRIPLE)…"
-API="https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest"
-# Prefer the smaller "install_only_stripped" build. The '+' in the version is
-# URL-encoded as %2B in the asset URL.
-ASSET_URL="$(curl -fsSL "$API" \
-  | grep -oE "https://[^\"]*cpython-${PY_SERIES}\.[0-9]+(%2B|\+)[0-9]+-${TRIPLE}-install_only_stripped\.tar\.gz" \
-  | head -1)"
-
-if [ -z "$ASSET_URL" ]; then
-  echo "Could not find a matching standalone Python asset." >&2
-  exit 1
-fi
+ASSET="cpython-${PY_VERSION}%2B${PY_BUILD_TAG}-${TRIPLE}-install_only_stripped.tar.gz"
+ASSET_URL="https://github.com/astral-sh/python-build-standalone/releases/download/${PY_BUILD_TAG}/${ASSET}"
+echo "→ Using pinned python-build-standalone ($PY_VERSION+$PY_BUILD_TAG, $TRIPLE)…"
 echo "  $ASSET_URL"
 
 echo "→ Downloading…"
 TMP_TGZ="$(mktemp -t pybs).tar.gz"
 curl -fsSL "$ASSET_URL" -o "$TMP_TGZ"
+ACTUAL_SHA256="$(shasum -a 256 "$TMP_TGZ" | awk '{print $1}')"
+if [ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]; then
+  echo "Python runtime checksum mismatch." >&2
+  rm -f "$TMP_TGZ"
+  exit 1
+fi
+echo "  SHA-256 verified"
 
 echo "→ Extracting to $RUNTIME_DIR/…"
 rm -rf "$RUNTIME_DIR"
@@ -50,7 +56,7 @@ rm -f "$TMP_TGZ"
 
 PY="$RUNTIME_DIR/bin/python3"
 echo "→ Installing production dependencies into the runtime…"
-"$PY" -m pip install --upgrade pip >/dev/null
+"$PY" -m pip install "pip==$PIP_VERSION" >/dev/null
 # Install everything except the dev/test tools (kept out of the shipped runtime).
 grep -ivE '^(pytest|pytest-asyncio)' requirements.txt > "$RUNTIME_DIR/.prod-requirements.txt"
 "$PY" -m pip install -r "$RUNTIME_DIR/.prod-requirements.txt"

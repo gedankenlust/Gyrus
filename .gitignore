@@ -28,6 +28,8 @@ backend/python-runtime/
 
 # Build artifacts & local data
 *.dmg
+/Gyrus-Saver-v*.zip
+/SHA256SUMS.txt
 *.db
 *.db-wal
 *.db-shm

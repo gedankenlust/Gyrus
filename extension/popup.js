@@ -26,10 +26,22 @@ async function saveBookmark() {
 
     pageTitle.textContent = tab.title;
 
-    // 2. Send to Gyrus Backend
+    // 2. Pair with the local backend. Only this extension's fixed browser
+    // origin is allowed to obtain the short-lived process token.
+    const tokenResponse = await fetch('http://127.0.0.1:8080/api/auth/extension-token', {
+      signal: controller.signal
+    });
+    if (!tokenResponse.ok) throw new Error(chrome.i18n.getMessage('gyrusError') + tokenResponse.status);
+    const { token } = await tokenResponse.json();
+    if (!token) throw new Error(chrome.i18n.getMessage('gyrusError') + '401');
+
+    // 3. Send to Gyrus Backend
     const response = await fetch('http://127.0.0.1:8080/api/bookmarks', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Gyrus-Token': token
+      },
       body: JSON.stringify({
         title: tab.title,
         url: tab.url,
@@ -47,12 +59,12 @@ async function saveBookmark() {
       throw new Error(chrome.i18n.getMessage('gyrusError') + response.status);
     }
 
-    // 3. Update UI to Success
+    // 4. Update UI to Success
     statusContainer.className = 'status success';
     statusIcon.textContent = '✓';
     statusText.textContent = chrome.i18n.getMessage('savedToInbox');
 
-    // 4. Auto-close after 2s
+    // 5. Auto-close after 2s
     setTimeout(() => window.close(), 2000);
 
   } catch (error) {
