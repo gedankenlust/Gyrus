@@ -77,6 +77,34 @@ struct ContentView: View {
                 onCancel: { uiStateStore.newTagForIds = nil; newTagName = "" }
             )
         }
+        .sheet(isPresented: Binding(
+            get: { uiStateStore.tagAssignmentForIds != nil },
+            set: { if !$0 { uiStateStore.tagAssignmentForIds = nil } }
+        )) {
+            if let ids = uiStateStore.tagAssignmentForIds {
+                BulkTagAssignmentSheet(
+                    bookmarkIds: ids,
+                    bookmarks: bookmarkStore.bookmarks,
+                    tags: tagStore.tags,
+                    onCancel: { uiStateStore.tagAssignmentForIds = nil },
+                    onCreateTag: { suggestedName in
+                        newTagName = suggestedName
+                        uiStateStore.tagAssignmentForIds = nil
+                        uiStateStore.newTagForIds = ids
+                    },
+                    onApply: { addIds, removeIds in
+                        Task {
+                            let applied = await appStore.applyBulkTagChanges(
+                                to: ids,
+                                addTagIds: addIds,
+                                removeTagIds: removeIds
+                            )
+                            if applied { uiStateStore.tagAssignmentForIds = nil }
+                        }
+                    }
+                )
+            }
+        }
         .onAppear {
             // First launch only: offer to set up the optional AI Brain.
             if !AppSettings.shared.didCompleteBrainOnboarding {
@@ -116,6 +144,19 @@ struct ContentView: View {
             }
         } message: {
             Text("This permanently deletes \(uiStateStore.pendingBatchDelete?.count ?? 0) bookmarks. You can undo for 5 seconds afterwards.")
+        }
+        .alert(
+            "Automatic Organization Failed",
+            isPresented: Binding(
+                get: { uiStateStore.batchTagFailure != nil },
+                set: { if !$0 { uiStateStore.batchTagFailure = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                uiStateStore.batchTagFailure = nil
+            }
+        } message: {
+            Text(uiStateStore.batchTagFailure ?? "No tag system could be created.")
         }
         .overlay(alignment: .top) {
             VStack(spacing: 6) {

@@ -281,8 +281,7 @@ struct SelectionStatusBar: View {
 
             Spacer()
 
-            // Bulk tag actions: quick deterministic assignment for everyday use,
-            // plus a slower review-first AI taxonomy when explicitly requested.
+            // Keep one clear entry point: organize automatically or choose tags manually.
             if let status = uiStateStore.batchAutoTagStatus, status.running {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
@@ -299,33 +298,35 @@ struct SelectionStatusBar: View {
                     .help("Stop analysis — no tags are changed before review")
                 }
             } else if !collectionStore.showTrash {
-                Button {
-                    let ids = Array(bookmarkStore.selectedIds)
-                    Task { await appStore.startBatchAutoTag(ids: ids) }
-                } label: {
-                    Label("Assign Tags", systemImage: "tag")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .tint(.purple)
-                .help("Quickly assign 1-3 broad tags to the selected bookmarks")
-
-                if AppSettings.shared.aiBrainConfig.aiEnabled {
+                Menu {
                     Button {
                         let ids = Array(bookmarkStore.selectedIds)
                         Task { await appStore.startTaxonomyReview(ids: ids) }
                     } label: {
-                        Label("Review Tag System", systemImage: "list.bullet.rectangle")
+                        Label("Organize with AI", systemImage: "wand.and.stars")
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    // Needs a collection: every category must be shared by ≥2
-                    // bookmarks, so tiny selections are guaranteed to fail.
-                    .disabled(bookmarkStore.selectedIds.count < AppStore.minTaxonomyBookmarks)
-                    .help(bookmarkStore.selectedIds.count < AppStore.minTaxonomyBookmarks
-                          ? "Select at least 10 bookmarks — a tag system needs categories shared by several bookmarks"
-                          : "Analyze the selection and review one shared tag system before applying it")
+                    .disabled(!AppSettings.shared.aiBrainConfig.aiEnabled
+                              || bookmarkStore.selectedIds.count < AppStore.minTaxonomyBookmarks)
+
+                    if !AppSettings.shared.aiBrainConfig.aiEnabled {
+                        Text("Enable AI in Settings to organize automatically")
+                    } else if bookmarkStore.selectedIds.count < AppStore.minTaxonomyBookmarks {
+                        Text("Select at least 10 bookmarks for AI organization")
+                    }
+
+                    Divider()
+
+                    Button {
+                        uiStateStore.tagAssignmentForIds = bookmarkStore.selectedIds
+                    } label: {
+                        Label("Choose Tags Manually…", systemImage: "tag")
+                    }
+                } label: {
+                    Label("Organize", systemImage: "wand.and.stars")
                 }
+                .controlSize(.small)
+                .tint(.purple)
+                .help("Organize the selected bookmarks automatically or choose tags manually")
             }
 
             if collectionStore.showTrash {

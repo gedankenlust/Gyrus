@@ -24,6 +24,28 @@ extension APIClient {
                        body: TagRestore(name: name, color: color, bookmarkIds: bookmarkIds))
     }
 
+    func assignTags(bookmarkIds: [String], addTagIds: [String], removeTagIds: [String]) async throws -> [Bookmark] {
+        struct Body: Encodable {
+            let bookmarkIds: [String]
+            let addTagIds: [String]
+            let removeTagIds: [String]
+
+            enum CodingKeys: String, CodingKey {
+                case bookmarkIds = "bookmark_ids"
+                case addTagIds = "add_tag_ids"
+                case removeTagIds = "remove_tag_ids"
+            }
+        }
+        return try await post(
+            base.appending(path: "/api/tags/assign"),
+            body: Body(
+                bookmarkIds: bookmarkIds,
+                addTagIds: addTagIds,
+                removeTagIds: removeTagIds
+            )
+        )
+    }
+
     /// Merge tags: bookmarks with any source tag get the target tag instead;
     /// the source tags are deleted.
     @discardableResult

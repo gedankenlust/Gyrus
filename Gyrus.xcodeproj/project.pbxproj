@@ -46,6 +46,7 @@
 		38994CFC60B50ABC20274538 = {isa = PBXBuildFile; fileRef = A4F67018A6851326FE0F211D; };
 		BD23C88FEE242FEE26A076D3 = {isa = PBXBuildFile; fileRef = 8C9A5E82EDDEC497DEE0118B; };
 		28BF163542006289C01DDD64 = {isa = PBXBuildFile; fileRef = A33FE58D20CE41EC31F19DF0; };
+		C0D3B0010000000000000001 = {isa = PBXBuildFile; fileRef = C0D3B0010000000000000002; };
 		5A576202B38E39C4A169AD6D = {isa = PBXBuildFile; fileRef = 830BAFC765F5EA97E40CCBDB; };
 		6C2C2D1BEC3E03425DFE7E41 = {isa = PBXBuildFile; fileRef = 6C06CE61ABE4B37DAEA4CA54; };
 		73A0ED52B1A69A81B3077111 = {isa = PBXBuildFile; fileRef = 138C0D55357EE07126B9444A; };
@@ -114,6 +115,7 @@
 		A4F67018A6851326FE0F211D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BookmarkListView.swift"; sourceTree = "<group>"; };
 		8C9A5E82EDDEC497DEE0118B = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BookmarkTableView.swift"; sourceTree = "<group>"; };
 		A33FE58D20CE41EC31F19DF0 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TagReviewSheet.swift"; sourceTree = "<group>"; };
+		C0D3B0010000000000000002 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "BulkTagAssignmentSheet.swift"; sourceTree = "<group>"; };
 		830BAFC765F5EA97E40CCBDB = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CommandPaletteView.swift"; sourceTree = "<group>"; };
 		6C06CE61ABE4B37DAEA4CA54 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ExportSheet.swift"; sourceTree = "<group>"; };
 		138C0D55357EE07126B9444A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AddBookmarkView.swift"; sourceTree = "<group>"; };
@@ -213,6 +215,7 @@
 				A4F67018A6851326FE0F211D,
 				8C9A5E82EDDEC497DEE0118B,
 				A33FE58D20CE41EC31F19DF0,
+				C0D3B0010000000000000002,
 			);
 			path = "BookmarkList";
 			sourceTree = "<group>";
@@ -534,6 +537,7 @@
 				38994CFC60B50ABC20274538,
 				BD23C88FEE242FEE26A076D3,
 				28BF163542006289C01DDD64,
+				C0D3B0010000000000000001,
 				5A576202B38E39C4A169AD6D,
 				6C2C2D1BEC3E03425DFE7E41,
 				73A0ED52B1A69A81B3077111,

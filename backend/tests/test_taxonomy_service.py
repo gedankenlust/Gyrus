@@ -26,6 +26,8 @@ def test_normalize_tag_names_and_synonyms():
     assert taxonomy_service.canonical_tag_key("developer tools") == taxonomy_service.canonical_tag_key("developer tool")
     assert taxonomy_service.normalize_tag_name("AI assisted development") == "ai-assisted development"
     assert taxonomy_service.normalize_tag_name("far too many words for one useful taxonomy tag") is None
+    assert taxonomy_service.normalize_tag_name("C#") == "c#"
+    assert taxonomy_service.normalize_tag_name(".NET") == ".net"
 
 
 def test_collection_prompt_does_not_claim_there_is_only_one_page():
@@ -34,6 +36,19 @@ def test_collection_prompt_does_not_claim_there_is_only_one_page():
     assert "multiple saved bookmark records" in prompt
     assert "currently viewing this one saved page" not in prompt
     assert "BOOKMARK RECORDS" in prompt
+
+
+def test_classification_parser_accepts_row_list_from_small_local_models():
+    raw = json.dumps([
+        {"id": "B001", "tag_1": "ki", "tag_2": "softwareentwicklung", "tag_3": "__NONE__"},
+        {"id": "B002", "tag_1": "design", "tag_2": "__NONE__", "tag_3": "__NONE__"},
+    ])
+
+    payload = taxonomy_service._classification_payload(raw)
+
+    assert payload["B001_1"] == "ki"
+    assert payload["B001_2"] == "softwareentwicklung"
+    assert payload["B002_1"] == "design"
 
 
 @pytest.mark.asyncio
@@ -76,18 +91,6 @@ def test_semantic_clusters_consolidate_singletons():
     assert sorted(index for group in groups for index in group) == list(range(8))
 
 
-def test_assignment_schema_constrains_every_bookmark_to_known_clusters():
-    schema = taxonomy_service._assignment_schema(
-        ["B001", "B002"], ["C001", "C002", "C003"]
-    )
-
-    assert schema["required"] == ["B001", "B002"]
-    assert schema["properties"]["B001"]["enum"] == [
-        "C001", "C002", "C003", taxonomy_service.UNTAGGED_CATEGORY,
-    ]
-    assert schema["additionalProperties"] is False
-
-
 def test_reusable_labels_reject_generic_and_forced_mixed_topics():
     assert taxonomy_service._is_reusable_label("coworking", "de")
     assert taxonomy_service._is_reusable_label("ki", "de")
@@ -124,11 +127,61 @@ def test_cluster_context_includes_url_and_excerpt_for_wordplay_checks():
     assert "Jacobian lens" in payload["items"][0]["excerpt"]
 
 
-def test_validation_schema_requires_boolean_for_every_proposal():
-    schema = taxonomy_service._validation_schema(["B001", "B004"])
+@pytest.mark.asyncio
+async def test_generate_draft_classifies_in_bounded_batches_with_stable_labels(monkeypatch, db):
+    bookmarks = [
+        Bookmark(
+            title=f"Bookmark {index}",
+            url=f"https://cluster.example/{index}",
+            description=f"Topic evidence {index}",
+            scraped_content="Cached reader text",
+        )
+        for index in range(6)
+    ]
+    db.add_all(bookmarks)
+    db.commit()
 
-    assert schema["required"] == ["B001", "B004"]
-    assert schema["properties"]["B001"] == {"type": "boolean"}
+    async def fake_embeddings(texts, **kwargs):
+        return [[1.0, 0.0] for _ in texts]
+
+    calls = []
+
+    async def fake_stream(prompt, records, config, language, stage, progress, response_schema):
+        calls.append(stage)
+        values = {}
+        for key, tag in (
+            ("B001", "ki"), ("B002", "ki"),
+            ("B003", "softwareentwicklung"), ("B004", "softwareentwicklung"),
+            ("B005", "webdesign"), ("B006", "webdesign"),
+        ):
+            values[key] = tag
+        return json.dumps(values)
+
+    monkeypatch.setattr(taxonomy_service.embedding_service, "get_embeddings", fake_embeddings)
+    monkeypatch.setattr(taxonomy_service, "_classification_catalog", lambda *_: {
+        "ki": "artificial intelligence",
+        "softwareentwicklung": "software development",
+        "webdesign": "web design",
+    })
+    monkeypatch.setattr(taxonomy_service, "_stream_taxonomy", fake_stream)
+
+    draft = await taxonomy_service.generate_draft(
+        db,
+        bookmarks,
+        {"provider": "ollama", "model": "small-local-model"},
+        "de",
+    )
+
+    assert calls == ["assigning"]
+    assert draft["assigned"] == 6
+    assert draft["without_tags"] == 0
+    assert {tag["name"] for tag in draft["tags"]} == {
+        "ki", "softwareentwicklung", "webdesign",
+    }
+    assert all(tag["bookmark_count"] >= 2 for tag in draft["tags"])
+    assert {bookmark_id for tag in draft["tags"] for bookmark_id in tag["bookmark_ids"]} == {
+        bookmark.id for bookmark in bookmarks
+    }
 
 
 @pytest.mark.asyncio
@@ -162,7 +215,7 @@ async def test_taxonomy_embedding_request_releases_model_after_response():
     assert sent["keep_alive"] == 0
 
 
-def test_parse_merges_variants_and_limits_two_tags_per_bookmark():
+def test_parse_merges_variants_and_limits_three_tags_per_bookmark():
     keyed = _stub_bookmarks(4)
     raw = json.dumps({"taxonomy": [
         {"name": "developer_tools", "bookmark_ids": ["B001", "B002"]},
@@ -173,11 +226,11 @@ def test_parse_merges_variants_and_limits_two_tags_per_bookmark():
 
     draft = taxonomy_service.parse_taxonomy(raw, keyed, max_tags=8, singleton_limit=2, language="en")
 
-    assert len(draft["tags"]) == 2
+    assert len(draft["tags"]) == 3
     tools = next(tag for tag in draft["tags"] if tag["name"] == "developer tools")
     assert tools["bookmark_count"] == 3
     assert draft["assigned"] == 4
-    assert all(sum(bookmark_id in tag["bookmark_ids"] for tag in draft["tags"]) <= 2
+    assert all(sum(bookmark_id in tag["bookmark_ids"] for tag in draft["tags"]) <= 3
                for bookmark_id in (item.id for item in keyed.values()))
 
 

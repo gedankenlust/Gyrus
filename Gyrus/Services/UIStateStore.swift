@@ -13,6 +13,7 @@ final class UIStateStore {
     var linkCheckStatus: LinkCheckStatus? = nil
     var metadataRefreshStatus: MetadataRefreshStatus? = nil
     var batchAutoTagStatus: BatchAutoTagStatus? = nil
+    var batchTagFailure: String? = nil
 
     // Batch selection for confirmations
     var pendingBatchDelete: Set<String>? = nil
@@ -20,6 +21,8 @@ final class UIStateStore {
     /// Bookmark ids awaiting a "New Tag" dialog. Presented from a stable parent
     /// (ContentView) because a sheet inside a context menu never shows.
     var newTagForIds: Set<String>? = nil
+    /// Bookmark ids whose existing tags are being edited in the bulk tag sheet.
+    var tagAssignmentForIds: Set<String>? = nil
 
     /// Tags the LLM created during the last batch auto-tag run, awaiting the
     /// keep/discard review sheet. Nil = nothing to review.

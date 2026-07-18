@@ -37,9 +37,9 @@ struct TagReviewSheet: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text("Review Tag System")
+            Text("Review AI Suggestion")
                 .font(.title3.weight(.semibold))
-            Text("Nothing has been changed yet. Rename tags, disable weak suggestions, then apply the system once.")
+            Text("Nothing has been changed yet. Rename or deselect weak suggestions before applying them.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
             HStack(spacing: 14) {
@@ -152,7 +152,7 @@ struct TagReviewSheet: View {
                 .foregroundStyle(.secondary)
             Spacer()
             Button("Cancel", role: .cancel, action: onCancel)
-            Button("Apply Tag System") { onApply(edits) }
+            Button("Apply Suggestions") { onApply(edits) }
                 .keyboardShortcut(.defaultAction)
                 .disabled(!canApply)
         }

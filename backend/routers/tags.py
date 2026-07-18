@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func
@@ -5,10 +7,13 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.tag import Tag, BookmarkTag
 from models.bookmark import Bookmark
+from schemas.bookmark import BookmarkOut
 from schemas.tag import TagCreate, TagUpdate, TagOut
+from services.brain_sync_service import brain_sync_service
 from services.tag_colors import next_color, rebalanced
 
 router = APIRouter(prefix="/api/tags", tags=["tags"])
+logger = logging.getLogger(__name__)
 
 
 class TagRestore(BaseModel):
@@ -20,6 +25,12 @@ class TagRestore(BaseModel):
 class TagMerge(BaseModel):
     source_ids: list[str]
     target_id: str
+
+
+class BulkTagAssignment(BaseModel):
+    bookmark_ids: list[str]
+    add_tag_ids: list[str] = []
+    remove_tag_ids: list[str] = []
 
 
 def _tags_out(db: Session) -> list[TagOut]:
@@ -139,6 +150,75 @@ def merge_tags(data: TagMerge, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(target)
     return target
+
+
+@router.post("/assign", response_model=list[BookmarkOut])
+def assign_tags(data: BulkTagAssignment, db: Session = Depends(get_db)):
+    """Apply explicit tag changes to many bookmarks in one transaction.
+
+    Add/remove lists describe only the choices the user changed in the bulk
+    editor. Unmentioned tags keep their previous state, including mixed states
+    across the selection. Explicit additions are manual and therefore win over
+    earlier AI assignments.
+    """
+    bookmark_ids = list(dict.fromkeys(data.bookmark_ids))
+    add_ids = set(data.add_tag_ids)
+    remove_ids = set(data.remove_tag_ids) - add_ids
+    requested_tag_ids = add_ids | remove_ids
+
+    if not bookmark_ids:
+        raise HTTPException(422, "Select at least one bookmark")
+    if not requested_tag_ids:
+        raise HTTPException(422, "No tag changes requested")
+
+    bookmarks = db.query(Bookmark).filter(
+        Bookmark.id.in_(bookmark_ids),
+        Bookmark.deleted_at.is_(None),
+    ).all()
+    if len(bookmarks) != len(bookmark_ids):
+        raise HTTPException(404, "A selected bookmark was not found")
+
+    valid_tag_ids = {
+        tag_id for (tag_id,) in db.query(Tag.id).filter(Tag.id.in_(requested_tag_ids)).all()
+    }
+    if valid_tag_ids != requested_tag_ids:
+        raise HTTPException(404, "A selected tag was not found")
+
+    links = db.query(BookmarkTag).filter(
+        BookmarkTag.bookmark_id.in_(bookmark_ids),
+        BookmarkTag.tag_id.in_(requested_tag_ids),
+    ).all()
+    by_key = {(link.bookmark_id, link.tag_id): link for link in links}
+
+    for bookmark_id in bookmark_ids:
+        for tag_id in add_ids:
+            existing = by_key.get((bookmark_id, tag_id))
+            if existing:
+                existing.source = "manual"
+            else:
+                db.add(BookmarkTag(
+                    bookmark_id=bookmark_id,
+                    tag_id=tag_id,
+                    source="manual",
+                ))
+
+    if remove_ids:
+        db.query(BookmarkTag).filter(
+            BookmarkTag.bookmark_id.in_(bookmark_ids),
+            BookmarkTag.tag_id.in_(remove_ids),
+        ).delete(synchronize_session=False)
+
+    db.commit()
+    db.expire_all()
+    updated = db.query(Bookmark).filter(Bookmark.id.in_(bookmark_ids)).all()
+    for bookmark in updated:
+        try:
+            brain_sync_service.sync_bookmark(db, bookmark)
+        except Exception as exc:
+            # The Markdown mirror is secondary; tag assignment itself must stay
+            # successful even if its configured folder is temporarily missing.
+            logger.warning("Brain sync skipped after bulk tag assignment: %s", exc)
+    return updated
 
 
 @router.put("/{tag_id}", response_model=TagOut)

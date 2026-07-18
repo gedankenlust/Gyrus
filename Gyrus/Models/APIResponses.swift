@@ -82,13 +82,6 @@ struct TagReviewPayload: Identifiable {
     let draft: TaxonomyDraft
 }
 
-struct FastAutoTagResult: Decodable {
-    let status: String
-    let total: Int
-    let tagged: Int
-    let assignments: Int
-}
-
 struct BatchAutoTagStatus: Decodable, JobStatusReporting {
     let running: Bool
     let processed: Int

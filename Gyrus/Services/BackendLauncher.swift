@@ -13,6 +13,7 @@ final class BackendLauncher {
 
     private var process: Process?
     private var logHandle: FileHandle?
+    private var isStarting = false
 
     private var backendDir: URL {
         let bundled = Bundle.main.resourceURL?.appendingPathComponent("backend")
@@ -105,6 +106,18 @@ final class BackendLauncher {
     }
 
     func start() async {
+        // SwiftUI can restart the scene task when StartupView is replaced by
+        // ContentView. Never let that second call kill the healthy backend that
+        // the first call has just launched.
+        if isRunning, (try? await APIClient.shared.health()) == true {
+            return
+        }
+        guard !isStarting else { return }
+        isStarting = true
+        isRunning = false
+        error = nil
+        defer { isStarting = false }
+
         try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
         killExistingBackend()
         try? await Task.sleep(nanoseconds: 800_000_000)

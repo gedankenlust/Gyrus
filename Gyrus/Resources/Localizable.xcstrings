@@ -9438,6 +9438,262 @@
         }
       }
     },
+    "A dash means the tag is assigned to only some bookmarks.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Strich bedeutet, dass der Tag nur einigen Lesezeichen zugewiesen ist."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A dash means the tag is assigned to only some bookmarks."
+          }
+        }
+      }
+    },
+    "Choose tags for the selected bookmarks": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags für die ausgewählten Lesezeichen auswählen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose tags for the selected bookmarks"
+          }
+        }
+      }
+    },
+    "Create “%@”": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "„%@“ erstellen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create “%@”"
+          }
+        }
+      }
+    },
+    "Search tags": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags durchsuchen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search tags"
+          }
+        }
+      }
+    },
+    "Updated tags for %lld bookmarks.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags für %lld Lesezeichen aktualisiert."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated tags for %lld bookmarks."
+          }
+        }
+      }
+    },
+    "Automatic Organization Failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatische Organisation fehlgeschlagen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic Organization Failed"
+          }
+        }
+      }
+    },
+    "Apply Suggestions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorschläge anwenden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply Suggestions"
+          }
+        }
+      }
+    },
+    "Choose Tags": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags auswählen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Tags"
+          }
+        }
+      }
+    },
+    "Choose Tags Manually…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags manuell auswählen…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose Tags Manually…"
+          }
+        }
+      }
+    },
+    "Enable AI in Settings to organize automatically": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KI in den Einstellungen aktivieren, um automatisch zu organisieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enable AI in Settings to organize automatically"
+          }
+        }
+      }
+    },
+    "Nothing has been changed yet. Rename or deselect weak suggestions before applying them.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch wurde nichts geändert. Benenne schwache Vorschläge um oder wähle sie ab, bevor du sie anwendest."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing has been changed yet. Rename or deselect weak suggestions before applying them."
+          }
+        }
+      }
+    },
+    "Organize": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Organisieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Organize"
+          }
+        }
+      }
+    },
+    "Organize the selected bookmarks automatically or choose tags manually": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgewählte Lesezeichen automatisch organisieren oder Tags manuell auswählen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Organize the selected bookmarks automatically or choose tags manually"
+          }
+        }
+      }
+    },
+    "Organize with AI": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatisch mit KI"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Organize with AI"
+          }
+        }
+      }
+    },
+    "Review AI Suggestion": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KI-Vorschlag prüfen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review AI Suggestion"
+          }
+        }
+      }
+    },
+    "Select at least 10 bookmarks for AI organization": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für die KI-Organisation mindestens 10 Lesezeichen auswählen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select at least 10 bookmarks for AI organization"
+          }
+        }
+      }
+    },
     "⌘N → add a bookmark manually": {
       "localizations": {
         "de": {

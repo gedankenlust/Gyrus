@@ -3,6 +3,30 @@ import Foundation
 // MARK: - Tag operations: delete (with undo), merge, assign, review-discard
 
 extension AppStore {
+    func applyBulkTagChanges(
+        to ids: Set<String>,
+        addTagIds: Set<String>,
+        removeTagIds: Set<String>
+    ) async -> Bool {
+        guard !ids.isEmpty, !addTagIds.isEmpty || !removeTagIds.isEmpty else { return false }
+        do {
+            let updated = try await api.assignTags(
+                bookmarkIds: Array(ids),
+                addTagIds: Array(addTagIds),
+                removeTagIds: Array(removeTagIds)
+            )
+            bookmarksStore.applyUpdated(updated)
+            try? await tagsStore.fetchTags()
+            uiStateStore.showInfo(AppSettings.shared.localized(
+                "Updated tags for \(updated.count) bookmarks."
+            ))
+            return true
+        } catch {
+            surfaceError(error)
+            return false
+        }
+    }
+
     /// Delete one or more tags with a 5s Undo. Tag deletion is permanent on the
     /// server (it drops the bookmark associations), so — unlike the deferred
     /// bookmark delete — we snapshot each tag's bookmarks first and Undo

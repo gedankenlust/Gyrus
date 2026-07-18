@@ -1,7 +1,7 @@
 """Post-save bookmark enrichment.
 
 Extension saves must feel instant. The work that makes a bookmark useful in
-Gyrus (metadata, Reader text, semantic index, first-pass tags, design snapshot)
+Gyrus (metadata, Reader text, semantic index, design snapshot)
 belongs in a bounded background pipeline instead of the request/response path.
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ async def enrich_bookmark(bookmark_id: str, *, include_design_snapshot: bool = F
     """Best-effort post-create enrichment.
 
     Nothing here may break the original bookmark save. Failures are logged and
-    the user can still manually re-run metadata, Reader, tags, or Design later.
+    the user can still manually re-run metadata, Reader, or Design later.
     """
     async with _reader_semaphore:
         db = SessionLocal()
@@ -59,10 +59,6 @@ async def enrich_bookmark(bookmark_id: str, *, include_design_snapshot: bool = F
                 except Exception as exc:
                     logger.info("reader enrichment skipped for %s: %s", bookmark_id, exc)
 
-            try:
-                bookmark_service.apply_fast_auto_tags(db, bm, content=content, limit=3)
-            except Exception as exc:
-                logger.info("fast auto-tagging skipped for %s: %s", bookmark_id, exc)
         finally:
             db.close()
 

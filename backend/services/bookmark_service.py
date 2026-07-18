@@ -413,64 +413,6 @@ _GENERIC_TAG_ALIASES = {
     "web development": "webdevelopment",
 }
 
-_FAST_TAG_RULES: list[tuple[str, tuple[str, ...]]] = [
-    ("ki", (
-        " ai ", " ki ", "llm", "chatgpt", "claude", "anthropic", "ollama",
-        "agentic", "code agent", "machine learning", "künstliche intelligenz",
-    )),
-    ("softwareentwicklung", (
-        "coding", "developer", "development", "entwickl*", "programming",
-        "wordpress", "mcp", "swift", "python", "typescript", "javascript",
-        "native-macos", "source code", "software architecture",
-    )),
-    ("webdesign", (
-        "webdesign", "web design", "frontend", "css", "layout", "typografie",
-        "typography", "design skill", "website", "figma", "hallmark",
-    )),
-    ("creative coding", (
-        "creative coding", "realtime-vfx", "real-time vfx", "metal node",
-        "shader", "generative art", "visual ideas",
-    )),
-    ("videobearbeitung", (
-        "video editing", "videobearbeitung", "video editor",
-        "timeline", "schnittprogramm", "video schneiden",
-    )),
-    ("musikproduktion", (
-        "daw", "audio", "music production", "musikproduktion",
-        "plugin", "synthesizer",
-    )),
-    ("coworking", (
-        "coworking", "co-working", "virtual office", "virtuelles büro",
-        "besprechungsräume", "büros", "office service",
-    )),
-    ("immobilien", (
-        "immobilien", "wohnung", "haus ",
-        "bungalow", "m²", "mieten", "real estate",
-    )),
-    ("bau", (
-        "baustoff", "bau ", "reparieren", "sanierung",
-    )),
-    ("lesen", (
-        "read more books", "flashcards", "book", "books", "bücher", "lesen",
-    )),
-    ("gesundheit", (
-        "health", "gesundheit", "mental health", "medizin", "fitness",
-    )),
-    ("social media", (
-        "social media", "posting", "facebook", "instagram", "tiktok",
-    )),
-    ("detektei", (
-        "detektei", "ermittlung", "wirtschaftskriminalität", "privatdetektiv",
-    )),
-    ("finanzen", (
-        "finance", "finanzen", "bank", "crypto", "stock", "fintech",
-    )),
-    ("open source", (
-        "open source", "open-source", "github.com",
-    )),
-]
-
-
 def _normalized_text(value: str) -> str:
     return re.sub(r"\s+", " ", value.casefold()).strip()
 
@@ -559,85 +501,6 @@ def _validated_tag_names(
     if "software" in accepted and any(name != "software" for name in accepted):
         accepted.remove("software")
     return accepted[:3]
-
-
-def _fast_tag_names(bm: Bookmark, content: str = "", limit: int = 3) -> list[str]:
-    """Cheap local first pass for imports.
-
-    This deliberately trades nuance for speed: no LLM, no global taxonomy, just
-    broad user-facing buckets based on title, URL, description, and cached reader
-    text. The slower review workflow can still refine the system later.
-    """
-    text_haystack = _normalized_text(
-        "\n".join(filter(None, [bm.title, bm.description or "", content[:4000]]))
-    )
-    all_haystack = _normalized_text(
-        "\n".join(filter(None, [bm.title, bm.url, bm.description or "", content[:4000]]))
-    )
-    padded_text = f" {text_haystack} "
-    padded_all = f" {all_haystack} "
-    scored: list[tuple[int, int, str]] = []
-    for order, (tag_name, needles) in enumerate(_FAST_TAG_RULES):
-        score = 0
-        for needle in needles:
-            normalized = _normalized_text(needle)
-            search_space = padded_all if "." in normalized or "/" in normalized else padded_text
-            if not normalized:
-                continue
-            if normalized.endswith("*"):
-                # Explicit prefix stem ("entwickl*" matches Entwicklung/Entwickler).
-                stem = normalized[:-1]
-                if stem and re.search(rf"(?<!\w){re.escape(stem)}", search_space):
-                    score += 1
-            elif normalized.isalpha():
-                # Whole-word only: plain substring matching tagged every
-                # Facebook page as "lesen" because "facebook" contains "book".
-                if re.search(rf"(?<!\w){re.escape(normalized)}(?!\w)", search_space):
-                    score += 1
-            elif normalized in search_space:
-                score += 1
-        if score:
-            scored.append((score, -order, tag_name))
-    scored.sort(reverse=True)
-
-    selected: list[str] = []
-    for _, _, tag_name in scored:
-        if tag_name not in selected:
-            selected.append(tag_name)
-        if len(selected) >= limit:
-            break
-    return selected
-
-
-def apply_fast_auto_tags(db: Session, bm: Bookmark, content: str = "", limit: int = 3) -> Bookmark:
-    suggested = _fast_tag_names(bm, content=content, limit=limit)
-    if not suggested:
-        return bm
-
-    db.query(BookmarkTag).filter(
-        BookmarkTag.bookmark_id == bm.id,
-        BookmarkTag.source == "ai",
-    ).delete(synchronize_session=False)
-    preserved_tag_ids = {
-        row.tag_id
-        for row in db.query(BookmarkTag).filter(
-            BookmarkTag.bookmark_id == bm.id,
-            BookmarkTag.source != "ai",
-        ).all()
-    }
-    for tag_name in suggested:
-        tag = db.query(Tag).filter(Tag.name == tag_name).first()
-        if not tag:
-            tag = Tag(name=tag_name, color=_next_tag_color(db), source="ai")
-            db.add(tag)
-            db.flush()
-        if tag.id not in preserved_tag_ids:
-            db.add(BookmarkTag(bookmark_id=bm.id, tag_id=tag.id, source="ai"))
-    db.commit()
-    db.expire(bm, ["bookmark_tags"])
-    db.refresh(bm)
-    _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm))
-    return bm
 
 
 async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict | None = None,
@@ -758,4 +621,5 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
     db.commit()
     db.expire(bm, ["bookmark_tags"])
     db.refresh(bm)
+    _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm))
     return bm

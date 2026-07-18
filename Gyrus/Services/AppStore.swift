@@ -312,23 +312,6 @@ final class AppStore {
         }
     }
 
-    /// Quickly distribute broad tags across a bookmark selection. This is the
-    /// everyday path: no large LLM, no long-running taxonomy draft.
-    func startBatchAutoTag(ids: [String]) async {
-        guard uiStateStore.batchAutoTagStatus?.running != true else { return }
-        guard !ids.isEmpty else { return }
-        do {
-            let result = try await api.fastAutoTag(ids: ids)
-            try? await tagsStore.fetchTags()
-            await loadBookmarks()
-            uiStateStore.showInfo(AppSettings.shared.localized(
-                "Tagged \(result.tagged) of \(result.total) bookmarks."
-            ))
-        } catch {
-            handleUIError(error)
-        }
-    }
-
     /// A taxonomy needs shared categories (each backed by ≥2 bookmarks);
     /// below this the run is guaranteed to fail. Mirrors the backend's
     /// MIN_TAXONOMY_BOOKMARKS in auto_tag_batch_service.py.
@@ -350,6 +333,7 @@ final class AppStore {
             return
         }
         do {
+            uiStateStore.batchTagFailure = nil
             uiStateStore.batchAutoTagStatus = try await api.startBatchAutoTag(ids: ids, config: config)
             uiStateStore.showInfo(AppSettings.shared.localized("Analyzing \(ids.count) bookmarks…"))
             batchTagPoller.start(
@@ -365,9 +349,11 @@ final class AppStore {
                         self.uiStateStore.batchTagReview = TagReviewPayload(draft: draft)
                     } else if let error = status.error?.trimmingCharacters(in: .whitespacesAndNewlines),
                               !error.isEmpty {
-                        self.uiStateStore.showError(error)
+                        self.uiStateStore.batchTagFailure = error
                     } else if status.phase != "cancelled" {
-                        self.uiStateStore.showError(AppSettings.shared.localized("No tag system could be created."))
+                        self.uiStateStore.batchTagFailure = AppSettings.shared.localized(
+                            "No tag system could be created."
+                        )
                     }
                 }
             )

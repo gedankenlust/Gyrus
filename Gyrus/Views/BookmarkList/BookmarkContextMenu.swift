@@ -28,26 +28,31 @@ struct BookmarkContextMenu: View {
             }
             .disabled(bookmarkStore.bookmarks.isEmpty)
 
-            // Fast broad tag assignment for the whole selection.
-            Button {
-                Task { await appStore.startBatchAutoTag(ids: Array(ids)) }
-            } label: {
-                Label(single ? "Assign Tags" : "Assign Tags (\(count))",
-                      systemImage: "tag")
-            }
-            .disabled(uiStateStore.batchAutoTagStatus?.running == true)
-
-            if AppSettings.shared.aiBrainConfig.aiEnabled {
+            Menu {
                 Button {
                     Task { await appStore.startTaxonomyReview(ids: Array(ids)) }
                 } label: {
-                    Label(single ? "Review Tag System" : "Review Tag System (\(count))",
-                          systemImage: "list.bullet.rectangle")
+                    Label("Organize with AI", systemImage: "wand.and.stars")
                 }
-                // A tag system needs a collection: every category must be shared
-                // by ≥2 bookmarks, so tiny selections are guaranteed to fail.
-                .disabled(uiStateStore.batchAutoTagStatus?.running == true
+                .disabled(!AppSettings.shared.aiBrainConfig.aiEnabled
+                          || uiStateStore.batchAutoTagStatus?.running == true
                           || ids.count < AppStore.minTaxonomyBookmarks)
+
+                if !AppSettings.shared.aiBrainConfig.aiEnabled {
+                    Text("Enable AI in Settings to organize automatically")
+                } else if ids.count < AppStore.minTaxonomyBookmarks {
+                    Text("Select at least 10 bookmarks for AI organization")
+                }
+
+                Divider()
+
+                Button {
+                    uiStateStore.tagAssignmentForIds = ids
+                } label: {
+                    Label("Choose Tags Manually…", systemImage: "tag")
+                }
+            } label: {
+                Label("Organize", systemImage: "wand.and.stars")
             }
 
             Divider()
