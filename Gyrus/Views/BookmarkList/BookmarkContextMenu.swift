@@ -44,7 +44,10 @@ struct BookmarkContextMenu: View {
                     Label(single ? "Review Tag System" : "Review Tag System (\(count))",
                           systemImage: "list.bullet.rectangle")
                 }
-                .disabled(uiStateStore.batchAutoTagStatus?.running == true)
+                // A tag system needs a collection: every category must be shared
+                // by ≥2 bookmarks, so tiny selections are guaranteed to fail.
+                .disabled(uiStateStore.batchAutoTagStatus?.running == true
+                          || ids.count < AppStore.minTaxonomyBookmarks)
             }
 
             Divider()

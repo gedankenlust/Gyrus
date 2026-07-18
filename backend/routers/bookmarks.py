@@ -129,6 +129,18 @@ async def start_auto_tag_batch(request: AutoTagBatchRequest):
     """Auto-tag a list of bookmarks in the background (one run at a time).
     Returns immediately with the initial status; poll /auto-tag-batch/status."""
     from services import auto_tag_batch_service
+    unique_count = len(set(request.bookmark_ids))
+    if unique_count < auto_tag_batch_service.MIN_TAXONOMY_BOOKMARKS:
+        # A taxonomy needs shared categories (each backed by >= 2 bookmarks);
+        # below this the clustering degenerates into singletons and the run is
+        # guaranteed to fail after minutes of LLM work. Reject up front.
+        minimum = auto_tag_batch_service.MIN_TAXONOMY_BOOKMARKS
+        detail = (
+            f"Wähle mindestens {minimum} Lesezeichen, um ein Tag-System zu erstellen."
+            if request.language == "de"
+            else f"Select at least {minimum} bookmarks to build a tag system."
+        )
+        raise HTTPException(status_code=422, detail=detail)
     return await auto_tag_batch_service.start(request.bookmark_ids, request.provider_config, request.language)
 
 

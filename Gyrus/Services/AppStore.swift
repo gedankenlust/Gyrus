@@ -329,11 +329,21 @@ final class AppStore {
         }
     }
 
+    /// A taxonomy needs shared categories (each backed by ≥2 bookmarks);
+    /// below this the run is guaranteed to fail. Mirrors the backend's
+    /// MIN_TAXONOMY_BOOKMARKS in auto_tag_batch_service.py.
+    static let minTaxonomyBookmarks = 10
+
     /// Build one shared, reviewable tag system for a selection. This is the
     /// slower AI path and never writes tags until the user approves the draft.
     func startTaxonomyReview(ids: [String]) async {
         guard uiStateStore.batchAutoTagStatus?.running != true else { return }
-        guard !ids.isEmpty else { return }
+        guard ids.count >= Self.minTaxonomyBookmarks else {
+            uiStateStore.showError(AppSettings.shared.localized(
+                "Select at least \(Self.minTaxonomyBookmarks) bookmarks to build a tag system."
+            ))
+            return
+        }
         let config = AppSettings.shared.aiBrainConfig
         guard config.aiEnabled else {
             uiStateStore.showError(AppSettings.shared.localized("Enable AI to review a tag system."))

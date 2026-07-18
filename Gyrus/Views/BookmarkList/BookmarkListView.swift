@@ -319,7 +319,12 @@ struct SelectionStatusBar: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .help("Analyze the selection and review one shared tag system before applying it")
+                    // Needs a collection: every category must be shared by ≥2
+                    // bookmarks, so tiny selections are guaranteed to fail.
+                    .disabled(bookmarkStore.selectedIds.count < AppStore.minTaxonomyBookmarks)
+                    .help(bookmarkStore.selectedIds.count < AppStore.minTaxonomyBookmarks
+                          ? "Select at least 10 bookmarks — a tag system needs categories shared by several bookmarks"
+                          : "Analyze the selection and review one shared tag system before applying it")
                 }
             }
 

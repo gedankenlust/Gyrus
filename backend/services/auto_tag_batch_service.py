@@ -12,6 +12,12 @@ from services.scraper_service import scraper_service
 # still preparing a larger collection in a reasonable amount of time.
 SCRAPE_CONCURRENCY = 4
 
+# A taxonomy only makes sense for a collection: every category must be shared
+# by at least two bookmarks, and below ~10 items the clustering degenerates
+# into singletons, guaranteeing a quality failure after minutes of LLM work.
+# The UI disables the review button below this; the router rejects it too.
+MIN_TAXONOMY_BOOKMARKS = 10
+
 job = BackgroundJob(
     processed=0,
     total=0,

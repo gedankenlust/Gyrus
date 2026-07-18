@@ -111,3 +111,18 @@ async def test_batch_with_no_ids_finishes_immediately():
     status = await auto_tag_batch_service.start([], None)
     assert status["total"] == 0
     assert status["running"] is False
+
+
+def test_taxonomy_rejects_tiny_selections_before_any_llm_work(client):
+    # One bookmark can never yield shared categories — fail fast, localized.
+    resp = client.post("/api/bookmarks/auto-tag-batch", json={
+        "bookmark_ids": ["only-one"], "language": "de",
+    })
+    assert resp.status_code == 422
+    assert "mindestens 10 Lesezeichen" in resp.json()["detail"]
+
+    resp = client.post("/api/bookmarks/auto-tag-batch", json={
+        "bookmark_ids": [f"bm{i}" for i in range(9)], "language": "en",
+    })
+    assert resp.status_code == 422
+    assert "at least 10 bookmarks" in resp.json()["detail"]
