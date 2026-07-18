@@ -374,7 +374,7 @@ private struct DataPane: View {
 
 private struct AboutPane: View {
     private var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.3.0"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.3.1"
     }
     private var build: String {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
