@@ -11,7 +11,7 @@ No account, no cloud sync, and no telemetry.
 
 [![Platform](https://img.shields.io/badge/platform-macOS%2026%2B-black?logo=apple)](#requirements)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.3.1-brightgreen.svg?style=flat-square)](#project-status)
+[![Version](https://img.shields.io/badge/version-1.3.2-brightgreen.svg?style=flat-square)](#project-status)
 [![Built with Swift](https://img.shields.io/badge/Swift-SwiftUI-fa7343?logo=swift&logoColor=white&style=flat-square)](https://developer.apple.com/swiftui/)
 [![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)](https://fastapi.tiangolo.com/)
 
@@ -136,7 +136,7 @@ Arc, and Edge.
 
 ### Install from a release
 
-1. Download **`Gyrus-Saver-v1.3.1.zip`** from the same GitHub release as the
+1. Download **`Gyrus-Saver-v1.3.2.zip`** from the same GitHub release as the
    DMG and unzip it.
 2. Open `chrome://extensions`, `brave://extensions`, or the equivalent page.
 3. Enable **Developer mode**.

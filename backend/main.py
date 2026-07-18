@@ -8,7 +8,7 @@ from security import API_TOKEN, EXTENSION_ORIGINS, has_valid_api_token, is_trust
 
 logger = logging.getLogger(__name__)
 MAX_REQUEST_BYTES = 100 * 1024 * 1024
-APP_VERSION = "1.3.1"
+APP_VERSION = "1.3.2"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
