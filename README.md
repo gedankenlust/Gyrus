@@ -11,7 +11,7 @@ No accounts required, no cloud sync, and zero telemetry.
 
 [![Platform](https://img.shields.io/badge/platform-macOS%2026%2B-black?logo=apple)](#requirements)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-1.1.0-brightgreen.svg?style=flat-square)](#project-status)
+[![Version](https://img.shields.io/badge/version-1.3.0-brightgreen.svg?style=flat-square)](#project-status)
 [![Built with Swift](https://img.shields.io/badge/Swift-SwiftUI-fa7343?logo=swift&logoColor=white&style=flat-square)](https://developer.apple.com/swiftui/)
 [![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)](https://api.tiangolo.com)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -52,7 +52,9 @@ Download the latest **`Gyrus.dmg`** from the [Releases](https://github.com/gedan
 
 You only need to do this once per install/update. (Gyrus isn't notarized because it ships without a paid Apple Developer account — everything still runs 100% locally on your Mac.)
 
-*Note: Gyrus requires macOS 26 (Tahoe) or newer.*
+*Note: Gyrus requires macOS 26 (Tahoe) or newer. Since v1.3.0 the download is
+larger (~180 MB) because Gyrus bundles a headless Chromium browser for the
+Design tab — everything still runs locally with nothing to install separately.*
 
 ---
 
@@ -84,19 +86,22 @@ on, Gyrus is a plain, fast bookmark manager.
 | | |
 |---|---|
 | 📥 **Import & export** | Netscape HTML format — works with Brave, Arc, Chrome, Firefox and Safari |
-| 🗂️ **Folders & tags** | Native source-list sidebar: drag to reorder/nest folders and color them; colored tags; bulk-assign tags via right-click |
-| 🪄 **AI Auto-Tags** | Magic tagging that automatically categorizes links using local LLMs (via Ollama) |
-| 🔎 **Full-text search** | A search bar (and a ⌘K command palette) over titles, URLs, notes **and tags**, powered by SQLite FTS5 |
+| 🗂️ **Folders & tags** | Native source-list sidebar: drag to reorder/nest folders and color them; colored tags; bulk-assign tags via right-click; merge near-duplicate tags; drag bookmarks onto a tag to assign it |
+| 🪄 **Instant tagging** | One click distributes broad topic tags across a selection immediately — no LLM required |
+| 📋 **Reviewable AI tag system** *(optional)* | Analyze a whole selection (10+ bookmarks) with a local LLM — clustering, naming and validating categories — and review a draft before a single tag is written |
+| 🎨 **Design tab** *(optional)* | Inspect any page with a bundled headless browser: screenshots across desktop/tablet/mobile, colors, typography, components, assets, SEO, accessibility, network and console evidence, plus PDF export |
+| 🔎 **Full-text search** | A search bar (and a ⌘K command palette) over titles, URLs, notes, AI Brain chats **and tags**, powered by SQLite FTS5 |
 | ✨ **Semantic search** | Find bookmarks by *meaning*, not just keywords — local embeddings (`nomic-embed-text` via Ollama). Toggle next to the search bar; falls back to keyword search when Ollama is off |
 | ⌨️ **Global Search** | Access your library from anywhere in macOS with a customizable system-wide hotkey (default `⌥ Space`) |
 | ⚡ **Menu-bar quick-add** | A menu-bar icon and a configurable global shortcut save the URL in your clipboard straight to the Inbox — without opening the main window |
-| 📖 **Reader Mode** | A distraction-free reading experience that extracts article text and images |
+| 📖 **Reader Mode** | A distraction-free reading experience with structured article rendering, full-text copy/selection, optional AI cleanup into Markdown, and translation (German/English) |
 | ✅ **Multi-select & bulk actions** | Rubber-band (marquee), Shift- and ⌘-click, or "Select all" — then drag many bookmarks into a folder, tag or delete them at once |
 | 👁️ **Live preview** | Open any page in an embedded `WKWebView`, read its Open Graph metadata, or choose which tab a bookmark opens to |
 | 💀 **Dead-link detection** | Background check across all bookmarks; flags 404s for easy cleanup |
 | 🖼️ **Metadata refresh** | One click re-fetches favicons, descriptions and preview images for every bookmark |
 | 📝 **Markdown notes** | Per-bookmark notes with auto-save |
-| 🧠 **AI Brain** *(optional)* | Chat about a page with a local LLM that actually **reads the page** (article text, structured data, tables, YouTube). Each bookmark mirrors to a Markdown file that follows your folder structure — all on your machine |
+| 🧠 **AI Brain** *(optional)* | Chat about a page with a local LLM that actually **reads the page** (article text, structured data, tables, YouTube, real site-structure/page-count data, Design-tab evidence). Conversations persist per bookmark and survive restarts. Each bookmark mirrors to a Markdown file that follows your folder structure — all on your machine |
+| 🌐 **Language-aware AI** | Auto-tags, chat replies, summaries and the tag system are generated in your app language (German/English) |
 | 🧩 **Browser extension** | A small "Gyrus Saver" popup saves the current tab straight into your Inbox |
 | 💾 **Backup & restore** | Export/import everything as a portable JSON file |
 | ↕️ **Sorting & pagination** | Sort by date, title, URL or tag; handles tens of thousands of bookmarks smoothly (tested past 100k) |
@@ -189,9 +194,10 @@ Install Ollama, pull a model (e.g. `ollama pull llama3`), then enable the AI
 Brain in **Settings → AI**. If you never enable it, Gyrus stays a plain,
 fast bookmark manager and never loads a model.
 
-> Some sites build their content with JavaScript after loading; plain fetching
-> can't see that. Native "Deep Read" (rendering via WebKit) is on the
-> [roadmap](#roadmap).
+For pages that build their content with JavaScript after loading (which plain
+fetching can't see), the **Design tab** renders the page with a bundled
+headless browser and feeds that as real visual/DOM evidence to the AI Brain —
+see [Features](#features).
 
 ## Architecture
 
