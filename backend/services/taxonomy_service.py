@@ -514,125 +514,122 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
     response_schema = _label_schema(cluster_ids)
     prompt = _label_prompt(cluster_ids, existing_tags, language)
 
-    try:
-        raw = await _stream_taxonomy(
-            prompt, records, config, language, "labeling", progress, response_schema
-        )
+    raw = await _stream_taxonomy(
+        prompt, records, config, language, "labeling", progress, response_schema
+    )
 
-        def parse_label_names(response: str) -> dict[str, str]:
-            payload = _json_payload(response)
-            names: dict[str, str] = {}
-            for cluster_id, group in zip(cluster_ids, groups):
-                raw_name = str(payload.get(cluster_id, ""))
-                if raw_name == SKIP_LABEL or len(group) < 2:
-                    continue
-                name = normalize_tag_name(raw_name)
-                if not name or not _is_reusable_label(name, language):
-                    continue
-                names[cluster_id] = name
-            if len(names) < _minimum_reusable_groups(len(bookmarks), max_tags):
-                raise TaxonomyQualityError(
-                    f"only {len(names)} coherent reusable labels were produced"
-                )
-            return names
-
-        try:
-            label_names = parse_label_names(raw)
-        except TaxonomyQualityError as first_error:
-            repair_prompt = _label_prompt(cluster_ids, existing_tags, language, repair=True)
-            repair_prompt += f" The first labels failed quality checks: {first_error}. Use distinct topic names."
-            repair_context = records + "\n\nFIRST LABELS:\n" + raw[:10_000]
-            repaired = await _stream_taxonomy(
-                repair_prompt, repair_context, config, language, "repairing", progress,
-                response_schema,
+    def parse_label_names(response: str) -> dict[str, str]:
+        payload = _json_payload(response)
+        names: dict[str, str] = {}
+        for cluster_id, group in zip(cluster_ids, groups):
+            raw_name = str(payload.get(cluster_id, ""))
+            if raw_name == SKIP_LABEL or len(group) < 2:
+                continue
+            name = normalize_tag_name(raw_name)
+            if not name or not _is_reusable_label(name, language):
+                continue
+            names[cluster_id] = name
+        if len(names) < _minimum_reusable_groups(len(bookmarks), max_tags):
+            raise TaxonomyQualityError(
+                f"only {len(names)} coherent reusable labels were produced"
             )
-            label_names = parse_label_names(repaired)
+        return names
 
-        categories = [
-            {
-                "id": cluster_id,
-                "label": label_names[cluster_id],
-                "examples": [_flat(bookmarks[index].title, 100) for index in group[:4]],
-            }
-            for cluster_id, group in zip(cluster_ids, groups) if cluster_id in label_names
-        ]
-        assignment_context = (
-            "CATEGORIES\n" + json.dumps(categories, ensure_ascii=False, separators=(",", ":"))
-            + "\n\nBOOKMARKS\n" + bookmark_records
+    try:
+        label_names = parse_label_names(raw)
+    except TaxonomyQualityError as first_error:
+        repair_prompt = _label_prompt(cluster_ids, existing_tags, language, repair=True)
+        repair_prompt += f" The first labels failed quality checks: {first_error}. Use distinct topic names."
+        repair_context = records + "\n\nFIRST LABELS:\n" + raw[:10_000]
+        repaired = await _stream_taxonomy(
+            repair_prompt, repair_context, config, language, "repairing", progress,
+            response_schema,
         )
-        bookmark_keys = list(keyed)
-        category_ids = list(label_names)
-        assignment_schema = _assignment_schema(bookmark_keys, category_ids)
-        assignment_prompt = _assignment_prompt(language)
-        assignments_raw = await _stream_taxonomy(
-            assignment_prompt, assignment_context, config, language, "assigning", progress,
+        label_names = parse_label_names(repaired)
+
+    categories = [
+        {
+            "id": cluster_id,
+            "label": label_names[cluster_id],
+            "examples": [_flat(bookmarks[index].title, 100) for index in group[:4]],
+        }
+        for cluster_id, group in zip(cluster_ids, groups) if cluster_id in label_names
+    ]
+    assignment_context = (
+        "CATEGORIES\n" + json.dumps(categories, ensure_ascii=False, separators=(",", ":"))
+        + "\n\nBOOKMARKS\n" + bookmark_records
+    )
+    bookmark_keys = list(keyed)
+    category_ids = list(label_names)
+    assignment_schema = _assignment_schema(bookmark_keys, category_ids)
+    assignment_prompt = _assignment_prompt(language)
+    assignments_raw = await _stream_taxonomy(
+        assignment_prompt, assignment_context, config, language, "assigning", progress,
+        assignment_schema,
+    )
+
+    def parse_assignments(response: str) -> dict[str, list[str]]:
+        payload = _json_payload(response)
+        grouped_keys: dict[str, list[str]] = defaultdict(list)
+        for key in bookmark_keys:
+            cluster_id = str(payload.get(key, ""))
+            if cluster_id == UNTAGGED_CATEGORY:
+                continue
+            if cluster_id not in label_names:
+                raise TaxonomyQualityError(f"The model did not classify {key}.")
+            grouped_keys[cluster_id].append(key)
+        largest = max((len(keys) for keys in grouped_keys.values()), default=0)
+        if len(bookmark_keys) >= 20 and largest > _max_category_size(len(bookmark_keys)):
+            raise TaxonomyQualityError(f"one category captured {largest} unrelated bookmarks")
+        return grouped_keys
+
+    try:
+        grouped_keys = parse_assignments(assignments_raw)
+    except TaxonomyQualityError as first_error:
+        repair_prompt = _assignment_prompt(language, repair=True)
+        repair_prompt += f" The first classification failed quality checks: {first_error}."
+        repair_context = assignment_context + "\n\nFIRST ASSIGNMENTS\n" + assignments_raw[:20_000]
+        repaired = await _stream_taxonomy(
+            repair_prompt, repair_context, config, language, "repairing", progress,
             assignment_schema,
         )
+        grouped_keys = parse_assignments(repaired)
 
-        def parse_assignments(response: str) -> dict[str, list[str]]:
-            payload = _json_payload(response)
-            grouped_keys: dict[str, list[str]] = defaultdict(list)
-            for key in bookmark_keys:
-                cluster_id = str(payload.get(key, ""))
-                if cluster_id == UNTAGGED_CATEGORY:
-                    continue
-                if cluster_id not in label_names:
-                    raise TaxonomyQualityError(f"The model did not classify {key}.")
-                grouped_keys[cluster_id].append(key)
-            largest = max((len(keys) for keys in grouped_keys.values()), default=0)
-            if len(bookmark_keys) >= 20 and largest > _max_category_size(len(bookmark_keys)):
-                raise TaxonomyQualityError(f"one category captured {largest} unrelated bookmarks")
-            return grouped_keys
-
-        try:
-            grouped_keys = parse_assignments(assignments_raw)
-        except TaxonomyQualityError as first_error:
-            repair_prompt = _assignment_prompt(language, repair=True)
-            repair_prompt += f" The first classification failed quality checks: {first_error}."
-            repair_context = assignment_context + "\n\nFIRST ASSIGNMENTS\n" + assignments_raw[:20_000]
-            repaired = await _stream_taxonomy(
-                repair_prompt, repair_context, config, language, "repairing", progress,
-                assignment_schema,
-            )
-            grouped_keys = parse_assignments(repaired)
-
-        review_keys = [key for keys in grouped_keys.values() for key in keys]
-        review_context = "\n".join(
-            json.dumps({
-                "category_id": cluster_id,
-                "category_label": label_names[cluster_id],
-                "items": [
-                    {
-                        "id": key,
-                        "title": _flat(keyed[key].title, 120),
-                        "url": _flat(keyed[key].url, 140),
-                        "description": _flat(keyed[key].description, 180),
-                        "excerpt": _flat(keyed[key].scraped_content, 260),
-                    }
-                    for key in keys
-                ],
-            }, ensure_ascii=False, separators=(",", ":"))
-            for cluster_id, keys in grouped_keys.items()
-        )
-        validation_raw = await _stream_taxonomy(
-            _validation_prompt(), review_context, config, language, "validating", progress,
-            _validation_schema(review_keys),
-        )
-        validation = _json_payload(validation_raw)
-        approved_groups = {
-            cluster_id: [key for key in keys if validation.get(key) is True]
-            for cluster_id, keys in grouped_keys.items()
-        }
-        taxonomy = [
-            {"name": label_names[cluster_id], "bookmark_ids": keys}
-            for cluster_id, keys in approved_groups.items() if len(keys) >= 2
-        ]
-        draft = parse_taxonomy(
-            json.dumps({"taxonomy": taxonomy}, ensure_ascii=False),
-            keyed, max_tags, singleton_limit, language,
-        )
-    finally:
-        pass
+    review_keys = [key for keys in grouped_keys.values() for key in keys]
+    review_context = "\n".join(
+        json.dumps({
+            "category_id": cluster_id,
+            "category_label": label_names[cluster_id],
+            "items": [
+                {
+                    "id": key,
+                    "title": _flat(keyed[key].title, 120),
+                    "url": _flat(keyed[key].url, 140),
+                    "description": _flat(keyed[key].description, 180),
+                    "excerpt": _flat(keyed[key].scraped_content, 260),
+                }
+                for key in keys
+            ],
+        }, ensure_ascii=False, separators=(",", ":"))
+        for cluster_id, keys in grouped_keys.items()
+    )
+    validation_raw = await _stream_taxonomy(
+        _validation_prompt(), review_context, config, language, "validating", progress,
+        _validation_schema(review_keys),
+    )
+    validation = _json_payload(validation_raw)
+    approved_groups = {
+        cluster_id: [key for key in keys if validation.get(key) is True]
+        for cluster_id, keys in grouped_keys.items()
+    }
+    taxonomy = [
+        {"name": label_names[cluster_id], "bookmark_ids": keys}
+        for cluster_id, keys in approved_groups.items() if len(keys) >= 2
+    ]
+    draft = parse_taxonomy(
+        json.dumps({"taxonomy": taxonomy}, ensure_ascii=False),
+        keyed, max_tags, singleton_limit, language,
+    )
 
     _drafts[draft["id"]] = draft
     while len(_drafts) > 3:

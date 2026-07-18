@@ -137,6 +137,32 @@ def test_fast_auto_tags_assign_multiple_broad_tags(client, db):
     assert {"creative coding", "softwareentwicklung", "ki"}.issubset(tags)
 
 
+def test_fast_auto_tags_match_whole_words_not_substrings(client, db):
+    # "facebook" contains "book" and "booking" starts with it — substring
+    # matching used to tag every such page as "lesen" (reading).
+    from services.bookmark_service import _fast_tag_names
+
+    class _Page:
+        scraped_content = ""
+        def __init__(self, title, url, description):
+            self.title, self.url, self.description = title, url, description
+
+    facebook = _Page("Facebook Marketing Guide", "https://example.com/fb",
+                     "Grow your audience on Facebook")
+    assert "lesen" not in _fast_tag_names(facebook)
+
+    booking = _Page("Booking your next trip", "https://example.com/travel",
+                    "Hotel booking tips")
+    assert "lesen" not in _fast_tag_names(booking)
+
+    # Genuine whole-word and prefix matches still work.
+    reading = _Page("A great book about design systems", "https://example.com/read", "")
+    assert "lesen" in _fast_tag_names(reading)
+    dev = _Page("Moderne Softwareentwicklung", "https://example.com/dev",
+                "Artikel über Entwicklungsprozesse")
+    assert "softwareentwicklung" in _fast_tag_names(dev)
+
+
 def test_fast_auto_tag_does_not_trust_generic_url_words(client, db):
     from unittest.mock import patch
 

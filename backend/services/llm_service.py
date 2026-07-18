@@ -73,36 +73,6 @@ def _get_client() -> httpx.AsyncClient:
 
 class LLMService:
     @staticmethod
-    async def unload_ollama_models(
-        base_url: str = "http://localhost:11434",
-        keep: Optional[set[str]] = None,
-    ) -> None:
-        """Best-effort release of loaded Ollama models.
-
-        Taxonomy generation switches from an embedding model to a text model.
-        Leaving both resident can exhaust memory on larger collections, so the
-        batch pipeline calls this at phase boundaries. Failure to unload must
-        never hide an otherwise valid taxonomy result.
-        """
-        keep = keep or set()
-        try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                response = await client.get(f"{base_url}/api/ps")
-                response.raise_for_status()
-                models = response.json().get("models") or []
-                for loaded in models:
-                    model = loaded.get("model") or loaded.get("name")
-                    if not model or model in keep:
-                        continue
-                    release = await client.post(
-                        f"{base_url}/api/generate",
-                        json={"model": model, "keep_alive": 0},
-                    )
-                    release.raise_for_status()
-        except Exception as exc:
-            logger.warning("Could not release Ollama models: %s", exc)
-
-    @staticmethod
     async def ask_llm(
         prompt: str,
         context: str,

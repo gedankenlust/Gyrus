@@ -419,7 +419,7 @@ _FAST_TAG_RULES: list[tuple[str, tuple[str, ...]]] = [
         "agentic", "code agent", "machine learning", "künstliche intelligenz",
     )),
     ("softwareentwicklung", (
-        "coding", "developer", "development", "entwickl", "programming",
+        "coding", "developer", "development", "entwickl*", "programming",
         "wordpress", "mcp", "swift", "python", "typescript", "javascript",
         "native-macos", "source code", "software architecture",
     )),
@@ -451,7 +451,7 @@ _FAST_TAG_RULES: list[tuple[str, tuple[str, ...]]] = [
         "baustoff", "bau ", "reparieren", "sanierung",
     )),
     ("lesen", (
-        "read more books", "flashcards", "book", "bücher", "lesen",
+        "read more books", "flashcards", "book", "books", "bücher", "lesen",
     )),
     ("gesundheit", (
         "health", "gesundheit", "mental health", "medizin", "fitness",
@@ -584,7 +584,14 @@ def _fast_tag_names(bm: Bookmark, content: str = "", limit: int = 3) -> list[str
             search_space = padded_all if "." in normalized or "/" in normalized else padded_text
             if not normalized:
                 continue
-            if normalized.isalpha() and len(normalized) <= 3:
+            if normalized.endswith("*"):
+                # Explicit prefix stem ("entwickl*" matches Entwicklung/Entwickler).
+                stem = normalized[:-1]
+                if stem and re.search(rf"(?<!\w){re.escape(stem)}", search_space):
+                    score += 1
+            elif normalized.isalpha():
+                # Whole-word only: plain substring matching tagged every
+                # Facebook page as "lesen" because "facebook" contains "book".
                 if re.search(rf"(?<!\w){re.escape(normalized)}(?!\w)", search_space):
                     score += 1
             elif normalized in search_space:
