@@ -5,6 +5,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.2] – 2026-07-18
+
+### Fixed
+- Prevented the bundled Chromium release smoke test from writing Python
+  bytecode into the already signed app. Release packaging now verifies the
+  sealed app again after Chromium launches, so the DMG cannot be published with
+  an invalidated ad-hoc signature.
+- Runtime verification no longer leaves Python cache files in the bundle input.
+
+---
+
 ## [1.3.1] – 2026-07-18
 
 ### Changed

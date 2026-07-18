@@ -2,8 +2,8 @@
 #
 # Gyrus release script — bumps every version location, builds, packages, tags.
 #
-#   ./release.sh 1.3.1            # bump + build + artifacts (no tag/release)
-#   ./release.sh 1.3.1 --publish  # …plus commit, tag, push, GitHub release
+#   ./release.sh 1.3.2            # bump + build + artifacts (no tag/release)
+#   ./release.sh 1.3.2 --publish  # …plus commit, tag, push, GitHub release
 #
 # Version locations kept in sync (previously edited by hand, easy to miss one):
 #   - Gyrus.xcodeproj/project.pbxproj  MARKETING_VERSION (2×) + CURRENT_PROJECT_VERSION (2×)
@@ -19,7 +19,7 @@ cd "$(dirname "$0")"
 VERSION="${1:-}"
 PUBLISH="${2:-}"
 if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Usage: ./release.sh <version> [--publish]   e.g. ./release.sh 1.3.1"
+    echo "Usage: ./release.sh <version> [--publish]   e.g. ./release.sh 1.3.2"
     exit 1
 fi
 
@@ -91,8 +91,10 @@ echo "✓ Hardened ad-hoc signature and sealed resources verified"
 
 PY="$APP/Contents/Resources/backend/python-runtime/bin/python3"
 BROWSERS="$APP/Contents/Resources/backend/python-runtime/playwright-browsers"
-PLAYWRIGHT_BROWSERS_PATH="$BROWSERS" "$PY" -c \
+PYTHONDONTWRITEBYTECODE=1 PLAYWRIGHT_BROWSERS_PATH="$BROWSERS" "$PY" -c \
     "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); b=p.chromium.launch(headless=True); print('Chromium OK', b.version); b.close(); p.stop()"
+codesign --verify --deep --strict "$APP"
+echo "✓ Signature remains valid after Chromium smoke test"
 
 ./package_dmg.sh
 EXTENSION_ARCHIVE="Gyrus-Saver-v$VERSION.zip"
