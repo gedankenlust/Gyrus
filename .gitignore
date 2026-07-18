@@ -5,6 +5,8 @@
 .claude/
 .gstack/
 .claude-flow/
+.agents/
+.codex/
 
 # Secrets — never commit (public repo)
 *.env*
