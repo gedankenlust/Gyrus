@@ -5,6 +5,58 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.0] – 2026-07-19
+
+### Added
+- **Design tab.** Inspect any bookmarked page with a bundled headless Chromium:
+  screenshots across desktop/tablet/mobile viewports, live responsive preview,
+  extracted colors, typography, components, assets, SEO, accessibility,
+  network and console evidence — plus PDF export of the viewport screenshots.
+  The captured data also feeds the AI Brain as real visual evidence.
+- **Reviewable AI tag system.** "Review Tag System" analyzes a selection
+  (10+ bookmarks) as a whole — clustering by meaning, naming, sorting and
+  validating categories with your local model — and presents a draft you can
+  rename, trim and approve before a single tag is written. Progress shows each
+  phase with live token counts.
+- **Instant tagging.** "Assign Tags" distributes broad topic tags across a
+  selection immediately, no LLM required. Automatic runs only ever touch
+  AI-assigned tags — manually added tags are never modified or removed.
+- **Persistent AI chats.** Brain conversations are stored per bookmark,
+  survive restarts, and are found by search.
+- **Tag management.** Merge tags ("Merge Into…"), drag bookmarks onto a tag
+  to assign it, sort the tag list by name or count, and fix duplicate tag
+  colors in one click — new tags always get a distinct color.
+- **Reader improvements.** Structured article rendering, full-text copy and
+  selection, optional AI cleanup into Markdown, and translation (DE/EN).
+- **Site structure awareness.** Page-count and structure questions in the AI
+  Brain are answered from a real same-origin crawl and sitemap instead of a
+  model estimate.
+- **Faster extension saves.** Saving from the browser returns instantly;
+  metadata, reader text, search indexing and first tags are filled in by a
+  background pipeline.
+
+### Changed
+- **AI follows your language.** Auto-tags, chat replies, summaries and the
+  taxonomy are generated in the app language (German/English).
+- **Language switching** now uses the standard macOS mechanism and applies on
+  relaunch — the previous in-place switch could leave mixed languages.
+- Trash sits above Folders/Tags in the sidebar, always visible.
+- Calmer tag chips; the tag color moved into a small dot.
+- **The app is significantly larger** (~200 MB download): it now bundles a
+  headless Chromium for the Design tab so inspection works out of the box.
+
+### Fixed
+- Summarize failed with a 503 unless a model named "llama3" was installed —
+  it now uses your configured model.
+- The main window reliably reopens from the Dock after being closed.
+- Fast tagging matched word fragments ("facebook" was tagged as reading);
+  matching is whole-word now.
+- Reviewing a tag system for fewer than 10 bookmarks is rejected up front
+  with a clear message instead of failing after minutes of analysis.
+- Completed German localization across menus, dialogs and notifications.
+
+---
+
 ## [1.2.1] – 2026-06-28
 
 ### Added

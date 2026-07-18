@@ -44,7 +44,9 @@ echo "▶ $OLD_VERSION (build $OLD_BUILD) → $VERSION (build $NEW_BUILD)"
 sed -i '' "s/MARKETING_VERSION = $OLD_VERSION;/MARKETING_VERSION = $VERSION;/g" "$PBXPROJ"
 sed -i '' "s/CURRENT_PROJECT_VERSION = $OLD_BUILD;/CURRENT_PROJECT_VERSION = $NEW_BUILD;/g" "$PBXPROJ"
 sed -i '' "s/\"version\": \"[0-9.]*\",/\"version\": \"$VERSION\",/" "$MANIFEST"
-sed -i '' "s/?? \"[0-9.]*\"$/?? \"$VERSION\"/" "$SETTINGS"
+# Only the marketing-version fallback line — the About pane also has a
+# CFBundleVersion fallback ('?? "1"') that must not become "1.3.0".
+sed -i '' "/CFBundleShortVersionString/s/?? \"[0-9.]*\"/?? \"$VERSION\"/" "$SETTINGS"
 
 # Verify nothing was missed
 for f in "$PBXPROJ" "$MANIFEST" "$SETTINGS"; do
