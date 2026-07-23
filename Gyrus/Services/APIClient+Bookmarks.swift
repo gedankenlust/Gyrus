@@ -113,6 +113,10 @@ extension APIClient {
         try await post(base.appending(path: "/api/bookmarks/\(id)/fetch-meta"), body: EmptyBody())
     }
 
+    func retryBookmarkAnalysis(id: String) async throws -> Bookmark {
+        try await post(base.appending(path: "/api/bookmarks/\(id)/analysis/retry"), body: EmptyBody())
+    }
+
     func fetchReaderContent(id: String) async throws -> String {
         struct ReaderResponse: Decodable { let content: String }
         let res: ReaderResponse = try await get(base.appending(path: "/api/bookmarks/\(id)/reader"))

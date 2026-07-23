@@ -46,6 +46,16 @@ async def lifespan(app: FastAPI):
     # Routine daily safety net (independent of migrations).
     run_daily_backup()
     command.upgrade(cfg, "head")
+    # Resume only work that was already queued or interrupted. The migration
+    # marks untouched legacy bookmarks as not_requested, so upgrades never
+    # trigger an unexpected full-library crawl.
+    try:
+        from services import bookmark_enrichment_service
+        resumed = bookmark_enrichment_service.resume_pending()
+        if resumed:
+            logger.info("Resumed enrichment for %d bookmarks", resumed)
+    except Exception as exc:
+        logger.warning("Bookmark enrichment resume failed: %s", exc)
     # Permanently remove bookmarks that have sat in the Trash past the
     # retention window (best-effort — must never block startup).
     try:

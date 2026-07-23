@@ -300,6 +300,8 @@ final class BookmarkStore {
     // MARK: - Metadata
 
     func fetchMeta(_ bookmark: Bookmark) async throws {
+        if let status = bookmark.analysis?.metadata,
+           status == "pending" || status == "running" { return }
         let needsMeta = bookmark.ogImageUrl == nil && bookmark.description == nil
         let needsOgCache = bookmark.ogImageUrl != nil && bookmark.ogImagePath == nil
         let needsFavicon = bookmark.faviconPath == nil
@@ -309,6 +311,16 @@ final class BookmarkStore {
         let updated = try await api.fetchMeta(id: bookmark.id)
         if let idx = bookmarks.firstIndex(where: { $0.id == bookmark.id }) { bookmarks[idx] = updated }
         if selectedBookmark?.id == bookmark.id { selectedBookmark = updated }
+    }
+
+    func retryAnalysis(ids: Set<String>) async throws {
+        for id in ids {
+            let updated = try await api.retryBookmarkAnalysis(id: id)
+            if let index = bookmarks.firstIndex(where: { $0.id == id }) {
+                bookmarks[index] = updated
+            }
+            if selectedBookmark?.id == id { selectedBookmark = updated }
+        }
     }
 
     // MARK: - Search

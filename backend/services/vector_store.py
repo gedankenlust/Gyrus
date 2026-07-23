@@ -60,10 +60,10 @@ def reset_table(dim: int) -> None:
     )
 
 
-def upsert(bookmark_id: str, vector: list[float]) -> None:
+def upsert(bookmark_id: str, vector: list[float]) -> bool:
     """Store or replace the embedding for a bookmark."""
     if not vector:
-        return
+        return False
     try:
         import json
         conn = _get_conn()
@@ -75,8 +75,10 @@ def upsert(bookmark_id: str, vector: list[float]) -> None:
             "INSERT INTO bookmarks_vec(bookmark_id, embedding) VALUES (?, ?)",
             (bookmark_id, vec_json),
         )
+        return True
     except Exception as e:
         logger.warning("vector_store.upsert failed for %s: %s", bookmark_id, e)
+        return False
 
 
 def delete(bookmark_id: str) -> None:

@@ -1,3 +1,4 @@
+import asyncio
 import html as html_lib
 import json
 import logging
@@ -8,7 +9,11 @@ import httpx
 from bs4 import BeautifulSoup
 from readability import Document
 from typing import Dict, Any, Optional
-from services.outbound_url_security import request_guard
+from services.outbound_url_security import (
+    explicit_private_hostname,
+    request_guard,
+    validate_outbound_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +30,7 @@ _BROWSER_UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
+_render_semaphore = asyncio.Semaphore(1)
 
 
 def _is_youtube(url: str) -> bool:
@@ -335,6 +341,89 @@ class ScraperService:
             logger.error(f"Error scraping {url}: {e}")
             result["error"] = str(e)
 
+        return result
+
+    async def extract_rendered_content(self, url: str) -> Dict[str, Any]:
+        """Extract visible text from a JavaScript-rendered page on demand.
+
+        This is intentionally separate from ``extract_content``: background
+        imports stay lightweight, while an explicit Reader open may spend the
+        extra Chromium startup cost when the server HTML is only an empty app
+        shell.
+        """
+        result = {
+            "content": "",
+            "structural_summary": "",
+            "title": "",
+            "error": None,
+        }
+        try:
+            from playwright.async_api import async_playwright
+        except Exception as exc:
+            result["error"] = f"Browser reader unavailable: {exc}"
+            return result
+
+        allowed_private_host = explicit_private_hostname(url)
+        dns_cache: dict[tuple[str, int], tuple[str, ...]] = {}
+        try:
+            await validate_outbound_url(url, allowed_private_host=allowed_private_host)
+            async with _render_semaphore:
+                async with async_playwright() as playwright:
+                    browser = await playwright.chromium.launch(headless=True)
+                    context = None
+                    try:
+                        context = await browser.new_context(
+                            viewport={"width": 1200, "height": 900},
+                            service_workers="block",
+                            permissions=[],
+                        )
+
+                        async def guard_route(route):
+                            request_url = route.request.url
+                            if request_url.startswith(("data:", "blob:", "about:")):
+                                await route.continue_()
+                                return
+                            try:
+                                await validate_outbound_url(
+                                    request_url,
+                                    allowed_private_host=allowed_private_host,
+                                    dns_cache=dns_cache,
+                                )
+                            except ValueError:
+                                await route.abort("blockedbyclient")
+                                return
+                            await route.continue_()
+
+                        await context.route("**/*", guard_route)
+                        page = await context.new_page()
+                        await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+                        try:
+                            await page.wait_for_load_state("networkidle", timeout=5_000)
+                        except Exception:
+                            # Long-polling apps often never become idle; their
+                            # visible DOM is still ready after DOMContentLoaded.
+                            pass
+
+                        result["title"] = await page.title()
+                        content = ""
+                        for selector in ("article", "main"):
+                            locator = page.locator(selector).first
+                            if await locator.count():
+                                candidate = (await locator.inner_text()).strip()
+                                if len(candidate) >= 40:
+                                    content = candidate
+                                    break
+                        if not content:
+                            content = (await page.locator("body").inner_text()).strip()
+                        content = re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", content)
+                        result["content"] = content[:12_000]
+                    finally:
+                        if context is not None:
+                            await context.close()
+                        await browser.close()
+        except Exception as exc:
+            logger.warning("Rendered Reader extraction failed for %s: %s", url, exc)
+            result["error"] = str(exc)
         return result
 
     async def _extract_youtube(self, url: str, client: httpx.AsyncClient) -> Dict[str, Any]:

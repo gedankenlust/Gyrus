@@ -297,37 +297,43 @@ def purge_expired(db: Session, days: int = TRASH_RETENTION_DAYS) -> int:
     return n
 
 
-def store_scraped_content(db: Session, bookmark_id: str, content: str) -> None:
+def store_scraped_content(db: Session, bookmark_id: str, content: str) -> bool:
     """Cache extracted page text on the bookmark so full-text search can match
     the article body. Best-effort — never let an indexing write break the
-    caller's main flow (reader, chat, auto-tag)."""
+    caller's main flow (reader, chat, auto-tag). Returns whether the content is
+    durably available after the call."""
     if not content:
-        return
+        return False
     try:
         bm = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
-        if bm is not None and bm.scraped_content != content:
+        if bm is None:
+            return False
+        if bm.scraped_content != content:
             bm.scraped_content = content
             db.commit()
+        return True
     except Exception as e:
         logger.warning("storing scraped content failed: %s", e)
         db.rollback()
+        return False
 
 
-async def index_bookmark_embedding(bookmark_id: str, text: str) -> None:
+async def index_bookmark_embedding(bookmark_id: str, text: str) -> bool:
     """Compute and store an embedding for a bookmark (best-effort, never blocks
     the caller).  Called after page content is scraped so semantic search can
     find this bookmark by meaning, not just keywords."""
     if not text or not text.strip():
-        return
+        return False
     try:
         from services.embedding_service import get_embedding, EmbeddingUnavailableError
         from services import vector_store
         vec = await get_embedding(text)
-        vector_store.upsert(bookmark_id, vec)
+        return vector_store.upsert(bookmark_id, vec)
     except Exception as e:
         # Ollama down, model missing, DB write error — none of these should
         # affect the caller; semantic search simply won't find this bookmark.
         logger.debug("embedding indexing skipped for %s: %s", bookmark_id, e)
+        return False
 
 
 def _set_tags(db: Session, bm: Bookmark, tag_ids: list[str]) -> None:

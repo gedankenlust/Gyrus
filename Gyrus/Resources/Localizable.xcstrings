@@ -5566,6 +5566,22 @@
         }
       }
     },
+    "No readable content could be extracted from this page.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus dieser Seite konnten keine lesbaren Inhalte extrahiert werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No readable content could be extracted from this page."
+          }
+        }
+      }
+    },
     "No responsive problems detected in this viewport.": {
       "localizations": {
         "de": {
@@ -9692,6 +9708,72 @@
             "value": "Select at least 10 bookmarks for AI organization"
           }
         }
+      }
+    },
+    "Design": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Design" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Design" } }
+      }
+    },
+    "Search": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Suche" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Search" } }
+      }
+    },
+    "Metadata": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Metadaten" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Metadata" } }
+      }
+    },
+    "Ready": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Fertig" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Ready" } }
+      }
+    },
+    "Pending": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Ausstehend" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Pending" } }
+      }
+    },
+    "Running": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Läuft" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Running" } }
+      }
+    },
+    "Partial": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Teilweise fertig" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Partial" } }
+      }
+    },
+    "Unavailable": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Nicht verfügbar" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Unavailable" } }
+      }
+    },
+    "Outdated": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Veraltet" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Outdated" } }
+      }
+    },
+    "Not analyzed": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Nicht analysiert" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Not analyzed" } }
+      }
+    },
+    "Retry Analysis": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Analyse wiederholen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Retry Analysis" } }
       }
     },
     "⌘N → add a bookmark manually": {

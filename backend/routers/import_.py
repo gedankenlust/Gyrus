@@ -18,4 +18,8 @@ async def import_html(
         raise HTTPException(status_code=413, detail="Bookmark import is limited to 25 MB")
     html = content.decode("utf-8", errors="replace")
     stats = parse_netscape_html(html, db, root_folder_name=root_folder_name)
+    imported_ids = stats.pop("_imported_ids", [])
+    from services import bookmark_enrichment_service
+    for bookmark_id in imported_ids:
+        bookmark_enrichment_service.schedule_enrichment(bookmark_id)
     return {"status": "ok", **stats}

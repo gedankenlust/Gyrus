@@ -139,6 +139,7 @@ struct BookmarkDetailView: View {
     @State private var isCleaningReader = false
     @State private var isTranslatingReader = false
     @State private var didCopyReader = false
+    @State private var readerHasUsableContent = false
     @State private var readerLoadedBookmarkID: String?
 
     // Edit-mode drafts
@@ -330,7 +331,7 @@ struct BookmarkDetailView: View {
                     .font(.caption.weight(.medium))
                 }
                 .buttonStyle(.borderless)
-                .disabled(readerContent == "Loading..." || readerContent == "Failed to load content.")
+                .disabled(!readerHasUsableContent)
                 .help("Copy the complete Reader text")
 
                 if aiConfig.aiEnabled {
@@ -345,7 +346,7 @@ struct BookmarkDetailView: View {
                         }
                     }
                     .buttonStyle(.borderless)
-                    .disabled(isCleaningReader || isTranslatingReader || readerContent == "Loading..." || readerContent == "Failed to load content.")
+                    .disabled(isCleaningReader || isTranslatingReader || !readerHasUsableContent)
                     .help("Translate the Reader text into the app language")
                 }
             }
@@ -372,9 +373,17 @@ struct BookmarkDetailView: View {
         guard readerLoadedBookmarkID != bookmark.id else { return }
         readerLoadedBookmarkID = bookmark.id
         readerContent = "Loading..."
+        readerHasUsableContent = false
         do {
             let extracted = try await APIClient.shared.fetchReaderContent(id: bookmark.id)
+            guard !extracted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                readerContent = AppSettings.shared.localized(
+                    "No readable content could be extracted from this page."
+                )
+                return
+            }
             readerContent = extracted
+            readerHasUsableContent = true
             guard aiConfig.aiEnabled else { return }
 
             isCleaningReader = true
@@ -386,6 +395,7 @@ struct BookmarkDetailView: View {
         } catch {
             if readerContent == "Loading..." {
                 readerContent = "Failed to load content."
+                readerHasUsableContent = false
             } else {
                 AppStore.shared.uiStateStore.showError(error.localizedDescription)
             }

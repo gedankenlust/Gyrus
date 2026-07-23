@@ -3,7 +3,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from database import get_db, SessionLocal
-from schemas.bookmark import BookmarkCreate, BookmarkUpdate, BookmarkOut, BookmarkNoteCreate, BookmarkNoteOut
+from schemas.bookmark import (
+    BookmarkAnalysisOut,
+    BookmarkCreate,
+    BookmarkUpdate,
+    BookmarkOut,
+    BookmarkNoteCreate,
+    BookmarkNoteOut,
+)
 from models.bookmark import Bookmark
 from services import bookmark_service
 from services import metadata_service
@@ -31,18 +38,14 @@ def _enrich(bm) -> BookmarkOut:
     captured_at, complete = visual_snapshot_service.snapshot_summary(bm.id)
     out.design_snapshot_captured_at = captured_at
     out.design_snapshot_complete = complete
+    out.analysis = BookmarkAnalysisOut(
+        **bookmark_enrichment_service.analysis_summary(
+            bm,
+            design_captured=captured_at is not None,
+            design_complete=complete,
+        )
+    )
     return out
-
-
-async def _fetch_meta(bookmark_id: str, url: str) -> None:
-    meta = await metadata_service.fetch_metadata(url)
-    db = SessionLocal()
-    try:
-        bm = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
-        if bm:
-            bookmark_service.update_bookmark_metadata(db, bm, meta)
-    finally:
-        db.close()
 
 
 
@@ -236,16 +239,9 @@ async def create_bookmark(
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, "Bookmark with this URL already exists")
-    if data.source in {"extension", "menubar"}:
-        background_tasks.add_task(
-            bookmark_enrichment_service.enrich_bookmark,
-            bm.id,
-            # Extension saves should stay lightweight. Chromium-based Design
-            # snapshots are intentionally user-triggered from the Design tab.
-            include_design_snapshot=False,
-        )
-    else:
-        background_tasks.add_task(_fetch_meta, bm.id, bm.url)
+    # Every entry path gets the same lightweight enrichment contract. The
+    # background task only queues durable work and returns immediately.
+    background_tasks.add_task(bookmark_enrichment_service.schedule_enrichment, bm.id)
     return _enrich(bm)
 
 
@@ -305,8 +301,26 @@ async def fetch_meta(bookmark_id: str, db: Session = Depends(get_db)):
     bm = bookmark_service.get_bookmark(db, bookmark_id)
     if not bm:
         raise HTTPException(404, "Bookmark not found")
-    meta = await metadata_service.fetch_metadata(bm.url)
-    bm = bookmark_service.update_bookmark_metadata(db, bm, meta)
+    bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "running", db=db)
+    try:
+        meta = await metadata_service.fetch_metadata(bm.url)
+        bm = bookmark_service.update_bookmark_metadata(db, bm, meta)
+        bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "ready", db=db)
+        db.refresh(bm)
+    except Exception as exc:
+        bookmark_enrichment_service.record_stage(
+            bookmark_id, "metadata", "failed", f"Metadata: {exc}", db=db
+        )
+        raise
+    return _enrich(bm)
+
+
+@router.post("/{bookmark_id}/analysis/retry", response_model=BookmarkOut)
+def retry_analysis(bookmark_id: str, db: Session = Depends(get_db)):
+    if not bookmark_enrichment_service.retry(bookmark_id):
+        raise HTTPException(404, "Bookmark not found")
+    bm = bookmark_service.get_bookmark(db, bookmark_id)
+    db.refresh(bm)
     return _enrich(bm)
 
 
@@ -337,19 +351,55 @@ async def get_reader_content(bookmark_id: str, db: Session = Depends(get_db)):
     if not bm:
         raise HTTPException(404, "Bookmark not found")
 
-    scrape_result = await scraper_service.extract_content(bm.url)
-    content = scrape_result.get("content", "")
+    # Reader text is durable local data. Re-fetching the website on every tab
+    # open made previously successful articles fail later when a site added a
+    # login wall, bot protection, or was temporarily unavailable.
+    cached_content = (bm.scraped_content or "").strip()
+    if cached_content:
+        if bm.reader_status != "ready":
+            bookmark_enrichment_service.record_stage(
+                bookmark_id, "reader", "ready", db=db
+            )
+        if bm.index_status != "ready":
+            bookmark_enrichment_service.schedule_index(bookmark_id, cached_content)
+        return ReaderResponse(content=cached_content)
+
+    bookmark_enrichment_service.record_stage(bookmark_id, "reader", "running", db=db)
+    try:
+        scrape_result = await scraper_service.extract_content(bm.url)
+        content = scrape_result.get("content", "")
+    except Exception as exc:
+        bookmark_enrichment_service.record_stage(
+            bookmark_id, "reader", "failed", f"Reader: {exc}", db=db
+        )
+        raise
+
+    # Vite/React and similar sites often ship an empty <div id="root"> in the
+    # HTML and render all visible text with JavaScript. Chromium is already
+    # bundled for Design; use it only for this explicit Reader request.
+    if not content:
+        rendered = await scraper_service.extract_rendered_content(bm.url)
+        content = rendered.get("content", "")
 
     if content:
-        bookmark_service.store_scraped_content(db, bookmark_id, content)
-        # Index embedding in the background — semantic search can then find
-        # this bookmark by meaning.  Fire-and-forget; never blocks the reader.
-        from services import background
-        background.schedule(
-            bookmark_service.index_bookmark_embedding(bookmark_id, content)
+        stored = bookmark_service.store_scraped_content(db, bookmark_id, content)
+        bookmark_enrichment_service.record_stage(
+            bookmark_id,
+            "reader",
+            "ready" if stored else "failed",
+            None if stored else "Reader: Extracted text could not be stored",
+            db=db,
         )
+        bookmark_enrichment_service.schedule_index(bookmark_id, content)
     else:
-        content = "Could not extract readable content from this page."
+        bookmark_enrichment_service.record_stage(
+            bookmark_id,
+            "reader",
+            "failed",
+            "Reader: No readable page text found",
+            db=db,
+        )
+        content = ""
 
     return ReaderResponse(content=content)
 
@@ -381,8 +431,19 @@ async def cleanup_reader_content(
     if not content:
         scrape_result = await scraper_service.extract_content(bm.url)
         content = scrape_result.get("content", "")
+        if not content:
+            rendered = await scraper_service.extract_rendered_content(bm.url)
+            content = rendered.get("content", "")
         if content:
-            bookmark_service.store_scraped_content(db, bookmark_id, content)
+            stored = bookmark_service.store_scraped_content(db, bookmark_id, content)
+            bookmark_enrichment_service.record_stage(
+                bookmark_id,
+                "reader",
+                "ready" if stored else "failed",
+                None if stored else "Reader: Extracted text could not be stored",
+                db=db,
+            )
+            bookmark_enrichment_service.schedule_index(bookmark_id, content)
     if not content:
         raise HTTPException(422, "No readable content to clean up")
 

@@ -43,6 +43,47 @@ final class ModelEncodingTests: XCTestCase {
         XCTAssertTrue(json.isEmpty)
     }
 
+    func testBookmarkDecodesPersistentAnalysisStatus() throws {
+        let data = """
+        {
+          "id":"b1","title":"Example","url":"https://example.com",
+          "description":null,"notes":null,"bookmark_notes":[],
+          "favicon_path":null,"og_image_url":null,"og_image_path":null,
+          "source":"manual","is_dead":false,"is_read":false,
+          "collection_id":null,"tags":[],
+          "created_at":"2026-07-22T10:00:00Z",
+          "updated_at":"2026-07-22T10:00:00Z",
+          "analysis":{
+            "overall":"partial","metadata":"ready","reader":"failed",
+            "index":"not_requested","design":"not_requested",
+            "last_error":"Reader failed","attempts":2,
+            "updated_at":"2026-07-22T10:01:00Z"
+          }
+        }
+        """.data(using: .utf8)!
+
+        let bookmark = try isoDecoder.decode(Bookmark.self, from: data)
+        XCTAssertEqual(bookmark.analysis?.overall, "partial")
+        XCTAssertEqual(bookmark.analysis?.lastError, "Reader failed")
+        XCTAssertEqual(bookmark.analysis?.attempts, 2)
+    }
+
+    func testPendingSemanticIndexKeepsAnalysisPollingActive() {
+        let analysis = BookmarkAnalysis(
+            overall: "ready",
+            metadata: "ready",
+            reader: "ready",
+            index: "pending",
+            design: "not_requested",
+            lastError: nil,
+            attempts: 1,
+            updatedAt: nil
+        )
+
+        XCTAssertTrue(analysis.isActive)
+        XCTAssertFalse(analysis.needsAttention)
+    }
+
     // MARK: - CollectionUpdate
 
     func testCollectionUpdateEncodesOnlySetFields() throws {

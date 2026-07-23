@@ -266,7 +266,7 @@ archive, and writes SHA-256 checksums.
 
 ## Project status
 
-**Current release: v1.3.1.** Gyrus is used as a real local bookmark and web
+**Current release: v1.3.2.** Gyrus is used as a real local bookmark and web
 research tool, with automated tests for both the backend and macOS app.
 
 The release is ad-hoc signed but not notarized. This keeps distribution possible
