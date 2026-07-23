@@ -6,9 +6,12 @@ set -euo pipefail
 
 # 1. Setup paths
 APP_NAME="Gyrus"
-APP_PATH="build/Build/Products/Release/${APP_NAME}.app"
-DMG_NAME="${APP_NAME}.dmg"
+BUILD_ROOT="${GYRUS_BUILD_ROOT:-$HOME/Builds/Gyrus}"
+APP_PATH="${GYRUS_APP_PATH:-$BUILD_ROOT/DerivedData/Build/Products/Release/${APP_NAME}.app}"
+ARTIFACT_DIR="${GYRUS_ARTIFACT_DIR:-$BUILD_ROOT/artifacts}"
+DMG_PATH="$ARTIFACT_DIR/${APP_NAME}.dmg"
 VOL_NAME="${APP_NAME} Installer"
+mkdir -p "$ARTIFACT_DIR"
 
 # 2. Check if the app exists
 if [ ! -d "$APP_PATH" ]; then
@@ -17,8 +20,8 @@ if [ ! -d "$APP_PATH" ]; then
 fi
 
 # 3. Clean up old DMG
-if [ -f "$DMG_NAME" ]; then
-    rm "$DMG_NAME"
+if [ -f "$DMG_PATH" ]; then
+    rm "$DMG_PATH"
 fi
 
 echo "🔨 Creating DMG for ${APP_NAME}..."
@@ -33,7 +36,7 @@ create-dmg \
   --icon "${APP_NAME}.app" 150 180 \
   --hide-extension "${APP_NAME}.app" \
   --app-drop-link 450 180 \
-  "${DMG_NAME}" \
+  "${DMG_PATH}" \
   "${APP_PATH}"
 
-echo "✅ DMG created: ${DMG_NAME}"
+echo "✅ DMG created: ${DMG_PATH}"
