@@ -23,7 +23,7 @@ PRODUCT_NAME = "Gyrus"
 SWIFT_VERSION = "5.9"
 MACOS_MIN = "26.0"
 MARKETING_VERSION = "1.4.0"
-BUILD_VERSION = "8"
+BUILD_VERSION = "9"
 
 # 1. Collect all Swift files and their directories
 swift_files = []
