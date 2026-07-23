@@ -146,6 +146,109 @@ def test_auto_tag_uses_cached_reader_content_without_scraping(client, db):
     mock_ask.assert_called_once()
 
 
+def test_reader_returns_cached_content_without_refetching_site(client, db):
+    from unittest.mock import patch
+    from models.bookmark import Bookmark
+
+    created = client.post("/api/bookmarks", json={
+        "title": "Cached article",
+        "url": "https://reader-cache.example/article",
+        "source": "manual",
+    }).json()
+    bookmark = db.query(Bookmark).filter(Bookmark.id == created["id"]).one()
+    bookmark.scraped_content = "# Saved heading\n\nLocally stored reader text."
+    bookmark.reader_status = "failed"
+    db.commit()
+
+    scheduled = []
+    with (
+        patch("services.scraper_service.scraper_service.extract_content") as scrape,
+        patch(
+            "routers.bookmarks.bookmark_enrichment_service.schedule_index",
+            side_effect=lambda bookmark_id, content: scheduled.append((bookmark_id, content)),
+        ),
+    ):
+        response = client.get(f"/api/bookmarks/{created['id']}/reader")
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "# Saved heading\n\nLocally stored reader text."
+    scrape.assert_not_called()
+    db.refresh(bookmark)
+    assert bookmark.reader_status == "ready"
+    assert bookmark.index_status == "pending"
+    assert scheduled == [(created["id"], "# Saved heading\n\nLocally stored reader text.")]
+
+
+def test_reader_uses_browser_fallback_for_javascript_page(client, db):
+    from unittest.mock import AsyncMock, patch
+    from models.bookmark import Bookmark
+
+    created = client.post("/api/bookmarks", json={
+        "title": "JavaScript app",
+        "url": "https://javascript-reader.example",
+        "source": "manual",
+    }).json()
+
+    scheduled = []
+    with (
+        patch(
+            "routers.bookmarks.scraper_service.extract_content",
+            new=AsyncMock(return_value={"content": "", "error": None}),
+        ),
+        patch(
+            "routers.bookmarks.scraper_service.extract_rendered_content",
+            new=AsyncMock(return_value={
+                "content": "Rendered heading\n\nVisible application text.",
+                "error": None,
+            }),
+        ) as rendered,
+        patch(
+            "routers.bookmarks.bookmark_enrichment_service.schedule_index",
+            side_effect=lambda bookmark_id, content: scheduled.append((bookmark_id, content)),
+        ),
+    ):
+        response = client.get(f"/api/bookmarks/{created['id']}/reader")
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "Rendered heading\n\nVisible application text."
+    rendered.assert_awaited_once()
+    bookmark = db.query(Bookmark).filter(Bookmark.id == created["id"]).one()
+    assert bookmark.scraped_content == "Rendered heading\n\nVisible application text."
+    assert bookmark.reader_status == "ready"
+    assert scheduled == [
+        (created["id"], "Rendered heading\n\nVisible application text.")
+    ]
+
+
+def test_reader_returns_empty_content_when_page_is_not_readable(client):
+    from unittest.mock import AsyncMock, patch
+
+    created = client.post("/api/bookmarks", json={
+        "title": "Unreadable page",
+        "url": "https://unreadable-reader.example",
+        "source": "manual",
+    }).json()
+
+    with (
+        patch(
+            "routers.bookmarks.scraper_service.extract_content",
+            new=AsyncMock(return_value={"content": "", "error": None}),
+        ),
+        patch(
+            "routers.bookmarks.scraper_service.extract_rendered_content",
+            new=AsyncMock(return_value={"content": "", "error": "No visible text"}),
+        ),
+        patch(
+            "routers.bookmarks.bookmark_enrichment_service.schedule_index"
+        ) as schedule_index,
+    ):
+        response = client.get(f"/api/bookmarks/{created['id']}/reader")
+
+    assert response.status_code == 200
+    assert response.json() == {"content": ""}
+    schedule_index.assert_not_called()
+
+
 def test_translate_reader_preserves_current_content_and_language(client, db):
     from unittest.mock import patch
 

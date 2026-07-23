@@ -39,11 +39,11 @@ def test_extension_bookmark_goes_to_inbox(client, db):
 def test_extension_bookmark_does_not_auto_start_design_snapshot(client, monkeypatch):
     calls = []
 
-    async def fake_enrich(bookmark_id: str, *, include_design_snapshot: bool = False):
+    def fake_enrich(bookmark_id: str, *, include_design_snapshot: bool = False):
         calls.append((bookmark_id, include_design_snapshot))
 
     monkeypatch.setattr(
-        "routers.bookmarks.bookmark_enrichment_service.enrich_bookmark",
+        "routers.bookmarks.bookmark_enrichment_service.schedule_enrichment",
         fake_enrich,
     )
 

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 def parse_netscape_html(html_content: str, db: Session,
                         root_folder_name: str | None = None) -> dict:
     soup = BeautifulSoup(html_content, "html.parser")
-    stats = {"imported": 0, "skipped": 0, "collections_created": 0}
+    stats = {"imported": 0, "skipped": 0, "collections_created": 0, "_imported_bookmarks": []}
 
     existing: set[str] = {normalize_url(url) for (url,) in db.query(Bookmark.url).all()}
     seen: set[str] = set()
@@ -46,6 +46,7 @@ def parse_netscape_html(html_content: str, db: Session,
         brain_sync_service.rebuild_index(db)
     except Exception as exc:
         logger.warning("AI Brain index refresh after import failed: %s", exc)
+    stats["_imported_ids"] = [bookmark.id for bookmark in stats.pop("_imported_bookmarks")]
     return stats
 
 
@@ -154,10 +155,12 @@ def _import_anchor(a: Tag, parent_id, db: Session, stats: dict,
         stats["skipped"] += 1
         return
     seen.add(url)
-    db.add(Bookmark(
+    bookmark = Bookmark(
         title=a.get_text(strip=True) or url,
         url=url,
         collection_id=parent_id,
         source="import",
-    ))
+    )
+    db.add(bookmark)
+    stats["_imported_bookmarks"].append(bookmark)
     stats["imported"] += 1

@@ -86,6 +86,12 @@ final class AppStore {
                       uiStateStore.linkCheckStatus?.running != true else { continue }
                 
                 do {
+                    // Active enrichment changes no bookmark count, so refresh
+                    // the visible rows while work is pending to keep their
+                    // durable status indicators current.
+                    if bookmarksStore.bookmarks.contains(where: { $0.analysis?.isActive == true }) {
+                        await loadBookmarks()
+                    }
                     let serverCount = try await api.bookmarkCount()
                     let localTotal = bookmarksStore.totalBookmarkCount + bookmarksStore.pendingDeletionIds.count
 
@@ -166,6 +172,14 @@ final class AppStore {
                 showTrash: collectionsStore.showTrash,
                 query: bookmarksStore.searchQuery
             )
+        } catch {
+            handleUIError(error)
+        }
+    }
+
+    func retryAnalysis(ids: Set<String>) async {
+        do {
+            try await bookmarksStore.retryAnalysis(ids: ids)
         } catch {
             handleUIError(error)
         }

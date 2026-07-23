@@ -62,6 +62,17 @@ class BrainMessageOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class BookmarkAnalysisOut(BaseModel):
+    overall: str
+    metadata: str
+    reader: str
+    index: str
+    design: str
+    last_error: str | None = None
+    attempts: int = 0
+    updated_at: datetime | None = None
+
+
 class BookmarkOut(BaseModel):
     id: str
     title: str
@@ -77,6 +88,7 @@ class BookmarkOut(BaseModel):
     is_read: bool = False
     design_snapshot_captured_at: datetime | None = None
     design_snapshot_complete: bool = False
+    analysis: BookmarkAnalysisOut | None = None
     collection_id: str | None
     tags: list[TagOut] = []
     created_at: datetime

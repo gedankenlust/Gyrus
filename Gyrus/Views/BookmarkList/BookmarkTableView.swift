@@ -60,7 +60,7 @@ struct BookmarkTableView: View {
                 TableColumn("Captured") { bm in
                     HStack {
                         Spacer(minLength: 0)
-                        snapshotStatusIcon(for: bm)
+                        analysisStatusIcon(for: bm)
                         Spacer(minLength: 0)
                     }
                 }
@@ -102,8 +102,35 @@ struct BookmarkTableView: View {
     // MARK: - Helpers
 
     @ViewBuilder
-    private func snapshotStatusIcon(for bookmark: Bookmark) -> some View {
-        if bookmark.designSnapshotCapturedAt == nil {
+    private func analysisStatusIcon(for bookmark: Bookmark) -> some View {
+        if let analysis = bookmark.analysis {
+            switch analysis.overall {
+            case "running":
+                ProgressView()
+                    .controlSize(.small)
+                    .help(analysisHelp(analysis))
+            case "pending":
+                Image(systemName: "clock.fill")
+                    .foregroundStyle(.secondary)
+                    .help(analysisHelp(analysis))
+            case "ready":
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .help(analysisHelp(analysis))
+            case "partial":
+                Image(systemName: "exclamationmark.circle.fill")
+                    .foregroundStyle(.orange)
+                    .help(analysisHelp(analysis))
+            case "failed":
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+                    .help(analysisHelp(analysis))
+            default:
+                Image(systemName: "minus.circle")
+                    .foregroundStyle(.tertiary)
+                    .help(analysisHelp(analysis))
+            }
+        } else if bookmark.designSnapshotCapturedAt == nil {
             Image(systemName: "minus.circle")
                 .foregroundStyle(.tertiary)
                 .help("Not captured")
@@ -115,6 +142,33 @@ struct BookmarkTableView: View {
             Image(systemName: "arrow.clockwise.circle.fill")
                 .foregroundStyle(.orange)
                 .help("Reinspection required")
+        }
+    }
+
+    private func analysisHelp(_ analysis: BookmarkAnalysis) -> String {
+        let settings = AppSettings.shared
+        let detail = [
+            "\(settings.localized("Metadata")): \(localizedStage(analysis.metadata))",
+            "\(settings.localized("Reader")): \(localizedStage(analysis.reader))",
+            "\(settings.localized("Search")): \(localizedStage(analysis.index))",
+            "\(settings.localized("Design")): \(localizedStage(analysis.design))",
+        ].joined(separator: " · ")
+        if let error = analysis.lastError, !error.isEmpty {
+            return "\(detail)\n\(error)"
+        }
+        return detail
+    }
+
+    private func localizedStage(_ value: String) -> String {
+        switch value {
+        case "ready": return AppSettings.shared.localized("Ready")
+        case "pending": return AppSettings.shared.localized("Pending")
+        case "running": return AppSettings.shared.localized("Running")
+        case "failed": return AppSettings.shared.localized("Failed")
+        case "partial": return AppSettings.shared.localized("Partial")
+        case "unavailable": return AppSettings.shared.localized("Unavailable")
+        case "stale": return AppSettings.shared.localized("Outdated")
+        default: return AppSettings.shared.localized("Not analyzed")
         }
     }
 

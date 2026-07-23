@@ -14,6 +14,31 @@ struct BookmarkNote: Identifiable, Codable, Hashable {
     }
 }
 
+struct BookmarkAnalysis: Codable, Hashable {
+    var overall: String
+    var metadata: String
+    var reader: String
+    var index: String
+    var design: String
+    var lastError: String?
+    var attempts: Int
+    var updatedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case overall, metadata, reader, index, design, attempts
+        case lastError = "last_error"
+        case updatedAt = "updated_at"
+    }
+
+    var isActive: Bool {
+        overall == "pending"
+            || overall == "running"
+            || index == "pending"
+            || index == "running"
+    }
+    var needsAttention: Bool { overall == "failed" || overall == "partial" }
+}
+
 struct Bookmark: Identifiable, Codable, Hashable {
     let id: String
     var title: String
@@ -29,6 +54,7 @@ struct Bookmark: Identifiable, Codable, Hashable {
     var isRead: Bool
     var designSnapshotCapturedAt: Date?
     var designSnapshotComplete: Bool
+    var analysis: BookmarkAnalysis?
     var collectionId: String?
     var tags: [Tag]
     let createdAt: Date
@@ -41,7 +67,7 @@ struct Bookmark: Identifiable, Codable, Hashable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, title, url, description, notes, source, tags
+        case id, title, url, description, notes, source, tags, analysis
         case bookmarkNotes = "bookmark_notes"
         case faviconPath = "favicon_path"
         case ogImageUrl = "og_image_url"
@@ -72,6 +98,7 @@ struct Bookmark: Identifiable, Codable, Hashable {
         isRead = try c.decodeIfPresent(Bool.self, forKey: .isRead) ?? false
         designSnapshotCapturedAt = try c.decodeIfPresent(Date.self, forKey: .designSnapshotCapturedAt)
         designSnapshotComplete = try c.decodeIfPresent(Bool.self, forKey: .designSnapshotComplete) ?? false
+        analysis = try c.decodeIfPresent(BookmarkAnalysis.self, forKey: .analysis)
         collectionId = try c.decodeIfPresent(String.self, forKey: .collectionId)
         tags = try c.decodeIfPresent([Tag].self, forKey: .tags) ?? []
         createdAt = try c.decode(Date.self, forKey: .createdAt)
@@ -83,13 +110,15 @@ struct Bookmark: Identifiable, Codable, Hashable {
          bookmarkNotes: [BookmarkNote], faviconPath: String?, ogImageUrl: String?,
          ogImagePath: String?, source: String, isDead: Bool, isRead: Bool = false,
          collectionId: String?, tags: [Tag], createdAt: Date, updatedAt: Date,
-         designSnapshotCapturedAt: Date? = nil, designSnapshotComplete: Bool = false) {
+         designSnapshotCapturedAt: Date? = nil, designSnapshotComplete: Bool = false,
+         analysis: BookmarkAnalysis? = nil) {
         self.id = id; self.title = title; self.url = url
         self.description = description; self.notes = notes; self.bookmarkNotes = bookmarkNotes
         self.faviconPath = faviconPath; self.ogImageUrl = ogImageUrl; self.ogImagePath = ogImagePath
         self.source = source; self.isDead = isDead; self.isRead = isRead
         self.designSnapshotCapturedAt = designSnapshotCapturedAt
         self.designSnapshotComplete = designSnapshotComplete
+        self.analysis = analysis
         self.collectionId = collectionId; self.tags = tags
         self.createdAt = createdAt; self.updatedAt = updatedAt
     }

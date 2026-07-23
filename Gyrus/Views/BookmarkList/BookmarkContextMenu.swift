@@ -55,6 +55,14 @@ struct BookmarkContextMenu: View {
                 Label("Organize", systemImage: "wand.and.stars")
             }
 
+            if bookmarks.contains(where: { ids.contains($0.id) && ($0.analysis?.needsAttention == true || $0.analysis?.overall == "not_requested") }) {
+                Button {
+                    Task { await appStore.retryAnalysis(ids: ids) }
+                } label: {
+                    Label("Retry Analysis", systemImage: "arrow.clockwise")
+                }
+            }
+
             Divider()
 
             // Open

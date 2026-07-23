@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, Text, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 
@@ -22,6 +22,13 @@ class Bookmark(Base):
     source: Mapped[str] = mapped_column(String, default="manual")
     is_dead: Mapped[bool] = mapped_column(Boolean, default=False)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="0")
+    # Durable enrichment state lets interrupted work resume after app restarts.
+    metadata_status: Mapped[str] = mapped_column(String, default="pending", nullable=False, server_default="pending")
+    reader_status: Mapped[str] = mapped_column(String, default="pending", nullable=False, server_default="pending")
+    index_status: Mapped[str] = mapped_column(String, default="not_requested", nullable=False, server_default="not_requested")
+    analysis_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    analysis_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
+    analysis_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     collection_id: Mapped[str | None] = mapped_column(String, ForeignKey("collections.id"), nullable=True)
 
     # Soft-delete: when set, the bookmark is in the Trash (hidden from all normal
