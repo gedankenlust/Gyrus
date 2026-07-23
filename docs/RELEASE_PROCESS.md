@@ -80,8 +80,9 @@ git ls-files | rg '(^|/)(\.agents|\.claude|\.codex|\.gstack)(/|$)'
    ./release.sh 1.4.0-beta.1 --publish
    ```
 
-The publish path increments the build number, reruns backend and Swift tests,
-builds and signs the app,
-launches bundled Chromium as a smoke test, packages the DMG and extension,
-creates checksums, commits the version bump, pushes the tag, and creates the
-GitHub prerelease.
+The preparation path increments the build number and places every version
+change in the pull request. The publish path verifies that clean `main` already
+contains those exact values, reruns backend and Swift tests, builds and signs
+the app, launches bundled Chromium as a smoke test, packages the DMG and
+extension, creates checksums, pushes only the tag, and creates the GitHub
+prerelease. It never bypasses branch protection with a post-merge commit.
