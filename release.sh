@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
-# Gyrus release script — bumps every version location, builds, packages, tags.
+# Gyrus release script — prepares versions, builds, packages, and publishes.
 #
-#   ./release.sh 1.4.0-beta.1            # bump + build + artifacts
-#   ./release.sh 1.4.0-beta.1 --publish  # …plus commit, tag, push, prerelease
+#   ./release.sh 1.4.0-beta.2            # bump + build for a release PR
+#   ./release.sh 1.4.0-beta.2 --publish  # build prepared main + tag + upload
 #
 # macOS and Chrome require a numeric app version. A prerelease therefore uses
 # 1.4.0 inside the app and extension, while Git/GitHub use v1.4.0-beta.1.
@@ -66,14 +66,20 @@ fi
 
 OLD_VERSION=$(sed -n 's/.*MARKETING_VERSION = \(.*\);/\1/p' "$PBXPROJ" | head -1)
 OLD_BUILD=$(sed -n 's/.*CURRENT_PROJECT_VERSION = \(.*\);/\1/p' "$PBXPROJ" | head -1)
-NEW_BUILD=$((OLD_BUILD + 1))
-echo "▶ $OLD_VERSION (build $OLD_BUILD) → $APP_VERSION ${RELEASE_CHANNEL:-stable} (build $NEW_BUILD)"
+if [[ "$PUBLISH" == "--publish" ]]; then
+    NEW_BUILD="$OLD_BUILD"
+    echo "▶ Publishing prepared $APP_VERSION ${RELEASE_CHANNEL:-stable} (build $NEW_BUILD)"
+else
+    NEW_BUILD=$((OLD_BUILD + 1))
+    echo "▶ $OLD_VERSION (build $OLD_BUILD) → $APP_VERSION ${RELEASE_CHANNEL:-stable} (build $NEW_BUILD)"
+fi
 echo "▶ Build output: $BUILD_ROOT"
 
 # --- Bump every version location -------------------------------------------
-sed -i '' "s/MARKETING_VERSION = $OLD_VERSION;/MARKETING_VERSION = $APP_VERSION;/g" "$PBXPROJ"
-sed -i '' "s/CURRENT_PROJECT_VERSION = $OLD_BUILD;/CURRENT_PROJECT_VERSION = $NEW_BUILD;/g" "$PBXPROJ"
-python3 - "$MANIFEST" "$APP_VERSION" "$RELEASE_CHANNEL" <<'PY'
+if [[ "$PUBLISH" != "--publish" ]]; then
+    sed -i '' "s/MARKETING_VERSION = $OLD_VERSION;/MARKETING_VERSION = $APP_VERSION;/g" "$PBXPROJ"
+    sed -i '' "s/CURRENT_PROJECT_VERSION = $OLD_BUILD;/CURRENT_PROJECT_VERSION = $NEW_BUILD;/g" "$PBXPROJ"
+    python3 - "$MANIFEST" "$APP_VERSION" "$RELEASE_CHANNEL" <<'PY'
 import json
 import sys
 
@@ -89,34 +95,52 @@ with open(path, "w", encoding="utf-8") as handle:
     json.dump(manifest, handle, ensure_ascii=True, indent=2)
     handle.write("\n")
 PY
-if [[ -n "$RELEASE_CHANNEL" ]]; then
-    if /usr/libexec/PlistBuddy -c "Print :GyrusReleaseChannel" "$INFO_PLIST" >/dev/null 2>&1; then
-        /usr/libexec/PlistBuddy -c "Set :GyrusReleaseChannel $RELEASE_CHANNEL" "$INFO_PLIST"
+    if [[ -n "$RELEASE_CHANNEL" ]]; then
+        if /usr/libexec/PlistBuddy -c "Print :GyrusReleaseChannel" "$INFO_PLIST" >/dev/null 2>&1; then
+            /usr/libexec/PlistBuddy -c "Set :GyrusReleaseChannel $RELEASE_CHANNEL" "$INFO_PLIST"
+        else
+            /usr/libexec/PlistBuddy -c "Add :GyrusReleaseChannel string $RELEASE_CHANNEL" "$INFO_PLIST"
+        fi
     else
-        /usr/libexec/PlistBuddy -c "Add :GyrusReleaseChannel string $RELEASE_CHANNEL" "$INFO_PLIST"
+        /usr/libexec/PlistBuddy -c "Delete :GyrusReleaseChannel" "$INFO_PLIST" >/dev/null 2>&1 || true
     fi
-else
-    /usr/libexec/PlistBuddy -c "Delete :GyrusReleaseChannel" "$INFO_PLIST" >/dev/null 2>&1 || true
+    # Only the marketing-version fallback line — the About pane also has a
+    # CFBundleVersion fallback ('?? "1"') that must remain numeric.
+    sed -i '' "/CFBundleShortVersionString/s/?? \"[0-9.]*\"/?? \"$APP_VERSION\"/" "$SETTINGS"
+    sed -i '' -E "s/^MARKETING_VERSION = \"[0-9.]+\"/MARKETING_VERSION = \"$APP_VERSION\"/" "$GENERATOR"
+    sed -i '' -E "s/^BUILD_VERSION = \"[0-9]+\"/BUILD_VERSION = \"$NEW_BUILD\"/" "$GENERATOR"
+    sed -i '' -E "s/^APP_VERSION = \"[^\"]+\"/APP_VERSION = \"$RELEASE_VERSION\"/" "$BACKEND_MAIN"
+    BADGE_VERSION="${RELEASE_VERSION/-/--}"
+    sed -i '' -E "s/version-[0-9]+\.[0-9]+\.[0-9]+(--(beta|rc)\.[0-9]+)?-f59e0b/version-$BADGE_VERSION-f59e0b/" "$README"
+    sed -i '' -E "s/Gyrus-Saver-v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?\.zip/Gyrus-Saver-v$RELEASE_VERSION.zip/g" "$README"
+    sed -i '' -E "s#/releases/tag/v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?#/releases/tag/$TAG#g" "$README"
+    sed -i '' -E "s/Current preview: v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?/Current preview: $TAG/" "$README"
 fi
-# Only the marketing-version fallback line — the About pane also has a
-# CFBundleVersion fallback ('?? "1"') that must not become "1.3.0".
-sed -i '' "/CFBundleShortVersionString/s/?? \"[0-9.]*\"/?? \"$APP_VERSION\"/" "$SETTINGS"
-sed -i '' -E "s/^MARKETING_VERSION = \"[0-9.]+\"/MARKETING_VERSION = \"$APP_VERSION\"/" "$GENERATOR"
-sed -i '' -E "s/^BUILD_VERSION = \"[0-9]+\"/BUILD_VERSION = \"$NEW_BUILD\"/" "$GENERATOR"
-sed -i '' -E "s/^APP_VERSION = \"[^\"]+\"/APP_VERSION = \"$RELEASE_VERSION\"/" "$BACKEND_MAIN"
-BADGE_VERSION="${RELEASE_VERSION/-/--}"
-sed -i '' -E "s/version-[0-9]+\.[0-9]+\.[0-9]+(--(beta|rc)\.[0-9]+)?-f59e0b/version-$BADGE_VERSION-f59e0b/" "$README"
-sed -i '' -E "s/Gyrus-Saver-v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?\.zip/Gyrus-Saver-v$RELEASE_VERSION.zip/g" "$README"
-sed -i '' -E "s#/releases/tag/v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?#/releases/tag/$TAG#g" "$README"
-sed -i '' -E "s/Current preview: v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?/Current preview: $TAG/" "$README"
 
 # Verify nothing was missed
 for f in "$PBXPROJ" "$MANIFEST" "$SETTINGS" "$GENERATOR"; do
-    if ! grep -q "$APP_VERSION" "$f"; then echo "❌ App-version bump failed in $f"; exit 1; fi
+    if ! grep -q "$APP_VERSION" "$f"; then echo "❌ App version is not prepared in $f"; exit 1; fi
 done
-grep -q "$RELEASE_VERSION" "$BACKEND_MAIN" || { echo "❌ Release-version bump failed in $BACKEND_MAIN"; exit 1; }
-grep -q "$RELEASE_VERSION" "$README" || { echo "❌ Release-version bump failed in $README"; exit 1; }
-echo "✓ App, backend, extension, generator, and README versions synchronized"
+grep -q "CURRENT_PROJECT_VERSION = $NEW_BUILD;" "$PBXPROJ" || { echo "❌ Build number is not prepared in $PBXPROJ"; exit 1; }
+grep -q "BUILD_VERSION = \"$NEW_BUILD\"" "$GENERATOR" || { echo "❌ Build number is not prepared in $GENERATOR"; exit 1; }
+grep -q "$RELEASE_VERSION" "$BACKEND_MAIN" || { echo "❌ Release version is not prepared in $BACKEND_MAIN"; exit 1; }
+grep -q "$RELEASE_VERSION" "$README" || { echo "❌ Release version is not prepared in $README"; exit 1; }
+ACTUAL_CHANNEL=$(/usr/libexec/PlistBuddy -c "Print :GyrusReleaseChannel" "$INFO_PLIST" 2>/dev/null || true)
+if [[ "$ACTUAL_CHANNEL" != "$RELEASE_CHANNEL" ]]; then
+    echo "❌ Release channel '$ACTUAL_CHANNEL' does not match '$RELEASE_CHANNEL' in $INFO_PLIST"; exit 1
+fi
+python3 - "$MANIFEST" "$APP_VERSION" "$RELEASE_CHANNEL" <<'PY'
+import json
+import sys
+
+path, app_version, channel = sys.argv[1:]
+with open(path, encoding="utf-8") as handle:
+    manifest = json.load(handle)
+expected_name = f"{app_version} {channel.replace('.', ' ')}" if channel else None
+if manifest.get("version") != app_version or manifest.get("version_name") != expected_name:
+    raise SystemExit("Extension version is not prepared")
+PY
+echo "✓ Prepared app, backend, extension, generator, and README versions verified"
 
 # --- Build + package --------------------------------------------------------
 echo "▶ Security and regression tests…"
@@ -162,10 +186,7 @@ cat "$CHECKSUMS"
 
 # --- Optional publish -------------------------------------------------------
 if [[ "$PUBLISH" == "--publish" ]]; then
-    git add "$PBXPROJ" "$MANIFEST" "$INFO_PLIST" "$SETTINGS" "$GENERATOR" "$BACKEND_MAIN" "$README" CHANGELOG.md
-    git commit -m "chore: release $TAG"
     git tag "$TAG"
-    git push origin main
     git push origin "$TAG"
     # Release notes = the CHANGELOG section for this version (English by convention).
     NOTES_FILE="$ARTIFACT_DIR/release-notes.md"
@@ -182,5 +203,5 @@ if [[ "$PUBLISH" == "--publish" ]]; then
     echo "✓ Published: $(gh release view "$TAG" --json url -q .url)"
 else
     echo "▶ Dry run done. Review the app and artifacts."
-    echo "  Commit or restore the version changes before publishing from clean main."
+    echo "  Commit these prepared version changes through a pull request."
 fi
