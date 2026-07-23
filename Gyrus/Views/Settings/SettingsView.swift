@@ -374,10 +374,17 @@ private struct DataPane: View {
 
 private struct AboutPane: View {
     private var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.3.2"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.4.0"
     }
     private var build: String {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    }
+    private var releaseChannel: String? {
+        guard let channel = Bundle.main.infoDictionary?["GyrusReleaseChannel"] as? String,
+              !channel.isEmpty else {
+            return nil
+        }
+        return channel
     }
 
     var body: some View {
@@ -390,7 +397,10 @@ private struct AboutPane: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Gyrus")
                             .font(.title2.bold())
-                        Text("Version \(version) (\(build))")
+                        Text(
+                            releaseChannel.map { "Version \(version) \($0) (\(build))" }
+                                ?? "Version \(version) (\(build))"
+                        )
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                         Text("Local-first bookmark manager for macOS")

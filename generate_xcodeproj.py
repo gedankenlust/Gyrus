@@ -22,8 +22,8 @@ BUNDLE_ID = "com.gyrus.app"
 PRODUCT_NAME = "Gyrus"
 SWIFT_VERSION = "5.9"
 MACOS_MIN = "26.0"
-MARKETING_VERSION = "1.3.2"
-BUILD_VERSION = "7"
+MARKETING_VERSION = "1.4.0"
+BUILD_VERSION = "8"
 
 # 1. Collect all Swift files and their directories
 swift_files = []

@@ -5,6 +5,34 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.0-beta.1] – 2026-07-23
+
+### Added
+- Persistent analysis state for metadata, Reader extraction, semantic indexing,
+  and Design capture, including restart-safe background enrichment and retry.
+- Chromium-backed Reader fallback for JavaScript-rendered pages when the normal
+  extractor cannot find readable content.
+
+### Changed
+- Gyrus is now labeled **Early Preview** so the public release channel matches
+  the product's current maturity.
+- Release builds and downloadable artifacts are written to
+  `~/Builds/Gyrus/` instead of cluttering the Git checkout.
+- Release tooling now separates the numeric app version (`1.4.0`) from the
+  GitHub prerelease identifier (`v1.4.0-beta.1`).
+- Repository ignore rules now cover only shared project artifacts; personal AI
+  tools and private planning paths use global or repository-local excludes.
+
+### Fixed
+- Reader content and semantic indexing survive restarts and correctly resume
+  interrupted work.
+- Failed or empty Reader extraction no longer enters AI cleanup as if usable
+  text had been found.
+- Analysis errors are cleared after a successful retry and cache failures are
+  no longer reported as completed work.
+
+---
+
 ## [1.3.2] – 2026-07-18
 
 ### Fixed

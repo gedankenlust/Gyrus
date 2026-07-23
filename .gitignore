@@ -1,13 +1,6 @@
 # macOS
 .DS_Store
 
-# Agent / local tooling
-.claude/
-.gstack/
-.claude-flow/
-.agents/
-.codex/
-
 # Secrets — never commit (public repo)
 *.env*
 
@@ -15,12 +8,17 @@
 xcuserdata/
 *.xcuserstate
 build/
+DerivedData/
 
 # Python backend
 backend/venv/
+.venv/
+venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+.coverage
+htmlcov/
 
 # Bundled self-contained Python runtime (~140 MB, rebuilt locally by
 # build_python_runtime.sh — never committed)
@@ -28,13 +26,8 @@ backend/python-runtime/
 
 # Build artifacts & local data
 *.dmg
-/Gyrus-Saver-v*.zip
-/SHA256SUMS.txt
+*.zip
+SHA256SUMS.txt
 *.db
 *.db-wal
 *.db-shm
-Gyrus Brain/
-
-# Local planning material
-bauplan/
-docs/superpowers/

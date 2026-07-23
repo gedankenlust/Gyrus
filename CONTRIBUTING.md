@@ -1,5 +1,8 @@
 # Contributing to Gyrus
 
+Gyrus is currently an Early Preview. Small, focused changes with tests are
+preferred over broad feature additions while the core workflows stabilize.
+
 Thanks for your interest! Gyrus is a SwiftUI macOS app with a local FastAPI
 backend. This guide covers how to build, run and test it, plus the one
 project-specific quirk you need to know.
