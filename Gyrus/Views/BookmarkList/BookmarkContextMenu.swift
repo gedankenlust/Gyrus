@@ -16,6 +16,11 @@ struct BookmarkContextMenu: View {
     private var firstBookmark: Bookmark? {
         ids.first.flatMap { id in bookmarks.first { $0.id == id } }
     }
+    private var assignedTags: [Tag] {
+        tagStore.tags.filter { tag in
+            tagStore.tagPresence(tagId: tag.id, in: bookmarks, forIds: ids) != .none
+        }
+    }
 
     var body: some View {
         Group {
@@ -129,6 +134,42 @@ struct BookmarkContextMenu: View {
                         } icon: {
                             Image(nsImage: tagDotImage(color: color, presence: presence))
                         }
+                    }
+                }
+                if !assignedTags.isEmpty {
+                    Divider()
+                    Menu {
+                        ForEach(assignedTags) { tag in
+                            Button {
+                                Task {
+                                    _ = await appStore.applyBulkTagChanges(
+                                        to: ids,
+                                        addTagIds: [],
+                                        removeTagIds: [tag.id]
+                                    )
+                                }
+                            } label: {
+                                Label(tag.name, systemImage: "tag.slash")
+                            }
+                        }
+
+                        if assignedTags.count > 1 {
+                            Divider()
+                            Button(role: .destructive) {
+                                let tagIds = Set(assignedTags.map(\.id))
+                                Task {
+                                    _ = await appStore.applyBulkTagChanges(
+                                        to: ids,
+                                        addTagIds: [],
+                                        removeTagIds: tagIds
+                                    )
+                                }
+                            } label: {
+                                Label("Remove All Assigned Tags", systemImage: "tag.slash")
+                            }
+                        }
+                    } label: {
+                        Label("Remove Assigned Tags", systemImage: "tag.slash")
                     }
                 }
                 if !tagStore.tags.isEmpty { Divider() }
