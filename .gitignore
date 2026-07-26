@@ -4,6 +4,16 @@
 # Secrets — never commit (public repo)
 *.env*
 
+# Personal data — NEVER commit (this is a public repo).
+# "Gyrus Brain" is the user-facing AI Brain mirror: one Markdown file per
+# bookmark. If the app's brain folder is created inside a checkout, these
+# entries are the only thing standing between private bookmarks and a public
+# push. Do not remove them when tidying this file.
+Gyrus Brain/
+*.pem
+*.p12
+*.key
+
 # Xcode
 xcuserdata/
 *.xcuserstate
@@ -31,3 +41,12 @@ SHA256SUMS.txt
 *.db
 *.db-wal
 *.db-shm
+
+# Local planning material and agent tooling (never part of the product)
+bauplan/
+docs/superpowers/
+.claude/
+.gstack/
+.claude-flow/
+.agents/
+.codex/
