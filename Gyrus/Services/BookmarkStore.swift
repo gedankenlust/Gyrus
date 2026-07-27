@@ -30,6 +30,23 @@ final class BookmarkStore {
     private let pageSize = 100
     private let api = APIClient.shared
     private var searchTask: Task<Void, Never>?
+    private var loadGeneration = 0
+    private struct LoadContext {
+        let collectionId: String?
+        let tagName: String?
+        let showDeadOnly: Bool
+        let unreadOnly: Bool
+        let showTrash: Bool
+        let query: String
+    }
+    private var loadContext = LoadContext(
+        collectionId: nil,
+        tagName: nil,
+        showDeadOnly: false,
+        unreadOnly: false,
+        showTrash: false,
+        query: ""
+    )
 
     /// Bookmark IDs we've already tried to fetch metadata for this session, so
     /// scrolling a card in and out of view doesn't re-hit the network for a
@@ -38,10 +55,31 @@ final class BookmarkStore {
 
     // MARK: - Fetching
 
-    func loadBookmarks(collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "") async throws {
+    func loadBookmarks(collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "", refreshCount: Bool = true) async throws {
+        let context = LoadContext(
+            collectionId: collectionId,
+            tagName: tagName,
+            showDeadOnly: showDeadOnly,
+            unreadOnly: unreadOnly,
+            showTrash: showTrash,
+            query: query
+        )
+        loadContext = context
+        loadGeneration += 1
+        let generation = loadGeneration
         searchQuery = query
         currentOffset = 0
-        let page = try await fetchPage(offset: 0, collectionId: collectionId, tagName: tagName, showDeadOnly: showDeadOnly, unreadOnly: unreadOnly, showTrash: showTrash, query: query)
+        isLoadingMore = false
+        let page = try await fetchPage(
+            offset: 0,
+            collectionId: context.collectionId,
+            tagName: context.tagName,
+            showDeadOnly: context.showDeadOnly,
+            unreadOnly: context.unreadOnly,
+            showTrash: context.showTrash,
+            query: context.query
+        )
+        guard generation == loadGeneration else { return }
 
         // Exclude pending deletions
         bookmarks = page.filter { !pendingDeletionIds.contains($0.id) }
@@ -49,23 +87,51 @@ final class BookmarkStore {
         currentOffset = page.count
         hasMore = page.count == pageSize
 
-        if showTrash {
+        if !refreshCount {
+            return
+        } else if context.showTrash {
             // In the Trash view the "total" shown is the trash count.
             let n = try await api.trashCount()
-            trashCount = n
+            if generation == loadGeneration {
+                trashCount = n
+            }
         } else {
             let total = try await api.bookmarkCount()
-            totalBookmarkCount = max(0, total - pendingDeletionIds.count)
+            if generation == loadGeneration {
+                totalBookmarkCount = max(0, total - pendingDeletionIds.count)
+            }
         }
     }
 
-    func loadMoreBookmarks(collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "") async throws {
+    func loadDetails(id: String) async throws {
+        let trashed = loadContext.showTrash
+        let details = try await api.bookmark(id: id, trashed: trashed)
+        guard selectedBookmark?.id == id else { return }
+        applyUpdated([details])
+    }
+
+    func loadMoreBookmarks() async throws {
         guard hasMore && !isLoadingMore else { return }
+        let context = loadContext
+        let generation = loadGeneration
         isLoadingMore = true
-        defer { isLoadingMore = false }
+        defer {
+            if generation == loadGeneration {
+                isLoadingMore = false
+            }
+        }
 
         do {
-            let page = try await fetchPage(offset: currentOffset, collectionId: collectionId, tagName: tagName, showDeadOnly: showDeadOnly, unreadOnly: unreadOnly, showTrash: showTrash, query: query)
+            let page = try await fetchPage(
+                offset: currentOffset,
+                collectionId: context.collectionId,
+                tagName: context.tagName,
+                showDeadOnly: context.showDeadOnly,
+                unreadOnly: context.unreadOnly,
+                showTrash: context.showTrash,
+                query: context.query
+            )
+            guard generation == loadGeneration else { return }
 
             // Exclude pending deletions
             let filtered = page.filter { !pendingDeletionIds.contains($0.id) }
@@ -74,7 +140,9 @@ final class BookmarkStore {
             currentOffset += page.count
             hasMore = page.count == pageSize
         } catch {
-            hasMore = false
+            if generation == loadGeneration {
+                hasMore = false
+            }
             throw error
         }
     }
@@ -204,9 +272,11 @@ final class BookmarkStore {
     /// Replace local copies of the given bookmarks (e.g. after a tag change),
     /// so the list and preview reflect the change immediately without a reload.
     func applyUpdated(_ updated: [Bookmark]) {
-        for bm in updated {
-            if let idx = bookmarks.firstIndex(where: { $0.id == bm.id }) { bookmarks[idx] = bm }
-            if selectedBookmark?.id == bm.id { selectedBookmark = bm }
+        let replacements = Dictionary(uniqueKeysWithValues: updated.map { ($0.id, $0) })
+        bookmarks = bookmarks.map { replacements[$0.id] ?? $0 }
+        if let selected = selectedBookmark,
+           let replacement = replacements[selected.id] {
+            selectedBookmark = replacement
         }
     }
 
@@ -224,19 +294,24 @@ final class BookmarkStore {
     /// Remove a deleted tag from every local bookmark so its chip disappears
     /// immediately, without waiting for a reload.
     func removeTagLocally(_ tagId: String) {
-        for i in bookmarks.indices {
-            bookmarks[i].tags.removeAll { $0.id == tagId }
+        var changed = bookmarks
+        for index in changed.indices {
+            changed[index].tags.removeAll { $0.id == tagId }
         }
+        bookmarks = changed
         selectedBookmark?.tags.removeAll { $0.id == tagId }
     }
 
     /// Reflect a renamed/recolored tag across every local bookmark immediately.
     func updateTagLocally(_ tag: Tag) {
-        for i in bookmarks.indices {
-            for j in bookmarks[i].tags.indices where bookmarks[i].tags[j].id == tag.id {
-                bookmarks[i].tags[j] = tag
+        var changed = bookmarks
+        for bookmarkIndex in changed.indices {
+            for tagIndex in changed[bookmarkIndex].tags.indices
+            where changed[bookmarkIndex].tags[tagIndex].id == tag.id {
+                changed[bookmarkIndex].tags[tagIndex] = tag
             }
         }
+        bookmarks = changed
         if var sel = selectedBookmark {
             for j in sel.tags.indices where sel.tags[j].id == tag.id { sel.tags[j] = tag }
             selectedBookmark = sel

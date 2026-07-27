@@ -3,6 +3,13 @@ import Foundation
 // Response models for backend endpoints, shared across stores.
 // (Moved out of APIClient.swift when it was split by domain.)
 
+struct BookmarkCounts: Decodable {
+    let total: Int
+    let dead: Int
+    let unread: Int
+    let trash: Int
+}
+
 struct LinkCheckStatus: Decodable, JobStatusReporting {
     let running: Bool
     let checked: Int

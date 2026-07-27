@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from database import get_db, SessionLocal
+from database import get_db
 from schemas.bookmark import (
-    BookmarkAnalysisOut,
     BookmarkCreate,
     BookmarkUpdate,
     BookmarkOut,
+    BookmarkSummaryOut,
     BookmarkNoteCreate,
     BookmarkNoteOut,
 )
@@ -16,8 +17,8 @@ from services import bookmark_service
 from services import metadata_service
 from services import link_check_service
 from services import metadata_refresh_service
-from services import visual_snapshot_service
 from services import bookmark_enrichment_service
+from services import bookmark_response_service
 from services.scraper_service import scraper_service
 
 router = APIRouter(prefix="/api/bookmarks", tags=["bookmarks"])
@@ -31,21 +32,18 @@ class AutoTagRequest(BaseModel):
 
 
 def _enrich(bm) -> BookmarkOut:
-    out = BookmarkOut.model_validate(bm)
-    # Sort tags alphabetically by name for deterministic responses
-    tags = [bt.tag for bt in bm.bookmark_tags]
-    out.tags = sorted(tags, key=lambda t: t.name)
-    captured_at, complete = visual_snapshot_service.snapshot_summary(bm.id)
-    out.design_snapshot_captured_at = captured_at
-    out.design_snapshot_complete = complete
-    out.analysis = BookmarkAnalysisOut(
-        **bookmark_enrichment_service.analysis_summary(
-            bm,
-            design_captured=captured_at is not None,
-            design_complete=complete,
-        )
-    )
-    return out
+    return bookmark_response_service.enrich_bookmark(bm)
+
+
+def _enrich_summary(bm) -> BookmarkSummaryOut:
+    return bookmark_response_service.enrich_bookmark_summary(bm)
+
+
+class BookmarkCountsOut(BaseModel):
+    total: int
+    dead: int
+    unread: int
+    trash: int
 
 
 
@@ -68,16 +66,48 @@ def unread_count(db: Session = Depends(get_db)):
     ).count()
 
 
+@router.get("/counts", response_model=BookmarkCountsOut)
+def bookmark_counts(db: Session = Depends(get_db)):
+    active = Bookmark.deleted_at.is_(None)
+    total, dead, unread, trash = db.query(
+        func.sum(case((active, 1), else_=0)),
+        func.sum(case((active & Bookmark.is_dead.is_(True), 1), else_=0)),
+        func.sum(case((active & Bookmark.is_read.is_(False), 1), else_=0)),
+        func.sum(case((Bookmark.deleted_at.is_not(None), 1), else_=0)),
+    ).one()
+    return BookmarkCountsOut(
+        total=total or 0,
+        dead=dead or 0,
+        unread=unread or 0,
+        trash=trash or 0,
+    )
+
+
 # NOTE: these literal /trash routes MUST be declared before GET /{bookmark_id},
 # otherwise "trash" would be captured as a bookmark id.
-@router.get("/trash", response_model=list[BookmarkOut])
-def list_trash(limit: int = 200, offset: int = 0, db: Session = Depends(get_db)):
-    return [_enrich(bm) for bm in bookmark_service.get_trashed(db, limit=limit, offset=offset)]
+@router.get("/trash", response_model=list[BookmarkSummaryOut])
+def list_trash(
+    limit: int = Query(default=200, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
+    return [
+        _enrich_summary(bm)
+        for bm in bookmark_service.get_trashed(db, limit=limit, offset=offset)
+    ]
 
 
 @router.get("/trash/count", response_model=int)
 def trash_count(db: Session = Depends(get_db)):
     return bookmark_service.count_trashed(db)
+
+
+@router.get("/trash/{bookmark_id}", response_model=BookmarkOut)
+def get_trashed_bookmark(bookmark_id: str, db: Session = Depends(get_db)):
+    bm = bookmark_service.get_bookmark(db, bookmark_id, include_deleted=True)
+    if not bm or bm.deleted_at is None:
+        raise HTTPException(404, "Trashed bookmark not found")
+    return _enrich(bm)
 
 
 @router.post("/check-links")
@@ -202,14 +232,14 @@ def list_bookmark_ids(
     return [row.id for row in query.all()]
 
 
-@router.get("", response_model=list[BookmarkOut])
+@router.get("", response_model=list[BookmarkSummaryOut])
 def list_bookmarks(
     collection_id: str | None = None,
     tag: str | None = None,
     dead_only: bool = False,
     unread_only: bool = False,
-    limit: int = 100,
-    offset: int = 0,
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     sort_by: str = "created_at",
     order: str = "desc",
     db: Session = Depends(get_db),
@@ -225,7 +255,7 @@ def list_bookmarks(
         sort_by=sort_by,
         order=order,
     )
-    return [_enrich(bm) for bm in bms]
+    return [_enrich_summary(bm) for bm in bms]
 
 
 @router.post("", response_model=BookmarkOut, status_code=201)

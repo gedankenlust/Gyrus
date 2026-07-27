@@ -1,8 +1,7 @@
-import asyncio
 import logging
 
 from sqlalchemy import text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from models.bookmark import Bookmark, BookmarkNote, BrainMessage
 from models.tag import Tag, BookmarkTag
 
@@ -37,6 +36,7 @@ async def search_bookmarks_semantic(
     bm_map = {
         bm.id: bm
         for bm in db.query(Bookmark)
+        .options(selectinload(Bookmark.bookmark_tags).selectinload(BookmarkTag.tag))
         .filter(Bookmark.id.in_(ids), Bookmark.deleted_at.is_(None))
         .all()
     }
@@ -124,6 +124,7 @@ def search_bookmarks(db: Session, query: str, limit: int = 50, offset: int = 0) 
     bookmarks_map = {
         bm.id: bm
         for bm in db.query(Bookmark)
+        .options(selectinload(Bookmark.bookmark_tags).selectinload(BookmarkTag.tag))
         .filter(Bookmark.id.in_(page_ids), Bookmark.deleted_at.is_(None))
         .all()
     }

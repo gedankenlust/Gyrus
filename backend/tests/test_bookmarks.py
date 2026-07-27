@@ -50,6 +50,49 @@ def test_list_bookmarks(client):
     assert len(resp.json()) >= 1
 
 
+def test_list_omits_large_note_details_but_detail_includes_them(client):
+    created = client.post(
+        "/api/bookmarks",
+        json={**BOOKMARK, "notes": "legacy detail"},
+    ).json()
+    client.post(
+        f"/api/bookmarks/{created['id']}/notes",
+        json={"content": "structured detail"},
+    )
+
+    listed = client.get("/api/bookmarks").json()
+    item = next(bookmark for bookmark in listed if bookmark["id"] == created["id"])
+    assert "notes" not in item
+    assert "bookmark_notes" not in item
+
+    detail = client.get(f"/api/bookmarks/{created['id']}").json()
+    assert detail["notes"] == "legacy detail"
+    assert detail["bookmark_notes"][0]["content"] == "structured detail"
+
+
+def test_list_pagination_parameters_are_bounded(client):
+    assert client.get("/api/bookmarks", params={"limit": 0}).status_code == 422
+    assert client.get("/api/bookmarks", params={"limit": 201}).status_code == 422
+    assert client.get("/api/bookmarks", params={"offset": -1}).status_code == 422
+
+
+def test_bookmark_counts_are_returned_together(client):
+    unread = client.post(
+        "/api/bookmarks",
+        json={**BOOKMARK, "url": "https://unread-count.example"},
+    ).json()
+    read = client.post(
+        "/api/bookmarks",
+        json={**BOOKMARK, "url": "https://read-count.example"},
+    ).json()
+    client.put(f"/api/bookmarks/{read['id']}", json={"is_read": True, "is_dead": True})
+    client.delete(f"/api/bookmarks/{unread['id']}")
+
+    counts = client.get("/api/bookmarks/counts")
+    assert counts.status_code == 200
+    assert counts.json() == {"total": 1, "dead": 1, "unread": 0, "trash": 1}
+
+
 def test_bookmark_ids(client):
     created = client.post("/api/bookmarks", json=BOOKMARK).json()
     resp = client.get("/api/bookmarks/ids")

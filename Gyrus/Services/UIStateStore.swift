@@ -7,7 +7,8 @@ final class UIStateStore {
     var errorMessage: String? = nil
     var infoMessage: String? = nil
     var undoMessage: String? = nil
-    var isLoading: Bool = false
+    private(set) var isLoading: Bool = false
+    private(set) var isRefreshingBookmarks: Bool = false
     var undoAction: (() -> Void)? = nil
     var undoGeneration: Int = 0
     var linkCheckStatus: LinkCheckStatus? = nil
@@ -31,11 +32,33 @@ final class UIStateStore {
     private var errorTask: Task<Void, Never>?
     private var infoTask: Task<Void, Never>?
     private var undoTimerTask: Task<Void, Never>?
+    @ObservationIgnored private var loadingOperations = 0
+    @ObservationIgnored private var bookmarkRefreshOperations = 0
 
     /// While the app is returning from sleep / regaining focus, in-flight
     /// requests can briefly fail (404/5xx/connection) before the backend has
     /// reconnected. Error toasts are swallowed until this moment passes.
     private var suppressErrorsUntil: Date = .distantPast
+
+    func beginLoading() {
+        loadingOperations += 1
+        isLoading = true
+    }
+
+    func endLoading() {
+        loadingOperations = max(0, loadingOperations - 1)
+        isLoading = loadingOperations > 0
+    }
+
+    func beginBookmarkRefresh() {
+        bookmarkRefreshOperations += 1
+        isRefreshingBookmarks = true
+    }
+
+    func endBookmarkRefresh() {
+        bookmarkRefreshOperations = max(0, bookmarkRefreshOperations - 1)
+        isRefreshingBookmarks = bookmarkRefreshOperations > 0
+    }
 
     /// Start a short window during which transient error toasts are suppressed.
     /// Called when the app becomes active or the Mac wakes.

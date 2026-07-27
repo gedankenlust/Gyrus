@@ -17,6 +17,26 @@ final class AppStoreLogicTests: XCTestCase {
         tagStore = appStore.tagsStore
     }
 
+    func testOverlappingLoadingOperationsKeepIndicatorVisible() {
+        let state = appStore.uiStateStore
+        state.beginLoading()
+        state.beginLoading()
+        state.endLoading()
+        XCTAssertTrue(state.isLoading)
+        state.endLoading()
+        XCTAssertFalse(state.isLoading)
+    }
+
+    func testOverlappingBookmarkRefreshesKeepIndicatorVisible() {
+        let state = appStore.uiStateStore
+        state.beginBookmarkRefresh()
+        state.beginBookmarkRefresh()
+        state.endBookmarkRefresh()
+        XCTAssertTrue(state.isRefreshingBookmarks)
+        state.endBookmarkRefresh()
+        XCTAssertFalse(state.isRefreshingBookmarks)
+    }
+
     // MARK: - tagPresence
 
     func testTagPresenceNone() {

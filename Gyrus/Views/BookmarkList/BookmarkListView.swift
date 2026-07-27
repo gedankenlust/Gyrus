@@ -54,6 +54,15 @@ struct BookmarkListView: View {
                 )
                 .frame(maxWidth: 360)
 
+                ZStack {
+                    if uiStateStore.isRefreshingBookmarks {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+                }
+                .frame(width: 16, height: 16)
+                .help("Refreshing bookmarks")
+
                 Spacer()
 
                 Button {

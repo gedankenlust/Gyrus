@@ -68,6 +68,24 @@ final class ModelEncodingTests: XCTestCase {
         XCTAssertEqual(bookmark.analysis?.attempts, 2)
     }
 
+    func testBookmarkSummaryDecodesWithoutNoteDetails() throws {
+        let data = """
+        {
+          "id":"b1","title":"Example","url":"https://example.com",
+          "description":"Summary",
+          "favicon_path":null,"og_image_url":null,"og_image_path":null,
+          "source":"manual","is_dead":false,"is_read":false,
+          "collection_id":null,"tags":[],
+          "created_at":"2026-07-22T10:00:00Z",
+          "updated_at":"2026-07-22T10:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let bookmark = try isoDecoder.decode(Bookmark.self, from: data)
+        XCTAssertNil(bookmark.notes)
+        XCTAssertTrue(bookmark.bookmarkNotes.isEmpty)
+    }
+
     func testPendingSemanticIndexKeepsAnalysisPollingActive() {
         let analysis = BookmarkAnalysis(
             overall: "ready",

@@ -25,6 +25,18 @@ def test_delete_moves_to_trash_not_gone(client):
     assert client.get("/api/bookmarks/trash/count").json() == 1
 
 
+def test_trashed_bookmark_details_remain_available(client):
+    bm = client.post(
+        "/api/bookmarks",
+        json={**BOOKMARK, "url": "https://trashed-details.example", "notes": "keep me"},
+    ).json()
+    client.delete(f"/api/bookmarks/{bm['id']}")
+
+    response = client.get(f"/api/bookmarks/trash/{bm['id']}")
+    assert response.status_code == 200
+    assert response.json()["notes"] == "keep me"
+
+
 def test_restore_brings_it_back(client):
     bm = _create(client)
     client.delete(f"/api/bookmarks/{bm['id']}")

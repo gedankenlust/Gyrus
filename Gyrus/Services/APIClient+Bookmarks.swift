@@ -50,6 +50,13 @@ extension APIClient {
         try await post(base.appending(path: "/api/bookmarks"), body: body)
     }
 
+    func bookmark(id: String, trashed: Bool = false) async throws -> Bookmark {
+        let path = trashed
+            ? "/api/bookmarks/trash/\(id)"
+            : "/api/bookmarks/\(id)"
+        return try await get(base.appending(path: path))
+    }
+
     func updateBookmark(id: String, body: BookmarkUpdate) async throws -> Bookmark {
         try await put(base.appending(path: "/api/bookmarks/\(id)"), body: body)
     }
@@ -73,6 +80,10 @@ extension APIClient {
 
     func unreadBookmarkCount() async throws -> Int {
         try await get(base.appending(path: "/api/bookmarks/count-unread"))
+    }
+
+    func bookmarkCounts() async throws -> BookmarkCounts {
+        try await get(base.appending(path: "/api/bookmarks/counts"))
     }
 
     // MARK: Trash

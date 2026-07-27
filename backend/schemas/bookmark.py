@@ -73,13 +73,11 @@ class BookmarkAnalysisOut(BaseModel):
     updated_at: datetime | None = None
 
 
-class BookmarkOut(BaseModel):
+class BookmarkSummaryOut(BaseModel):
     id: str
     title: str
     url: str
     description: str | None
-    notes: str | None # Legacy, keeping for compatibility
-    bookmark_notes: list[BookmarkNoteOut] = []
     favicon_path: str | None
     og_image_url: str | None
     og_image_path: str | None
@@ -95,3 +93,8 @@ class BookmarkOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class BookmarkOut(BookmarkSummaryOut):
+    notes: str | None  # Legacy, keeping for compatibility
+    bookmark_notes: list[BookmarkNoteOut] = Field(default_factory=list)

@@ -141,6 +141,7 @@ struct BookmarkDetailView: View {
     @State private var didCopyReader = false
     @State private var readerHasUsableContent = false
     @State private var readerLoadedBookmarkID: String?
+    @State private var isLoadingDetails = false
 
     // Edit-mode drafts
     @State private var editTitle    = ""
@@ -186,7 +187,6 @@ struct BookmarkDetailView: View {
         .onAppear {
             selectedTab = preferredTab
             pageMode = PageMode.fromPreference(AppSettings.shared.defaultPreviewTab)
-            Task { try? await bookmarkStore.fetchMeta(bookmark) }
         }
         .onChange(of: bookmark.id) {
             selectedTab = preferredTab
@@ -194,7 +194,19 @@ struct BookmarkDetailView: View {
             isEditing   = false
             readerContent = "Loading..."
             readerLoadedBookmarkID = nil
-            Task { try? await bookmarkStore.fetchMeta(bookmark) }
+        }
+        .task(id: bookmark.id) {
+            isLoadingDetails = true
+            defer { isLoadingDetails = false }
+            do {
+                try await bookmarkStore.loadDetails(id: bookmark.id)
+                if let current = bookmarkStore.selectedBookmark,
+                   current.id == bookmark.id {
+                    try await bookmarkStore.fetchMeta(current)
+                }
+            } catch {
+                AppStore.shared.surfaceError(error)
+            }
         }
     }
 
@@ -211,6 +223,10 @@ struct BookmarkDetailView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
+            if isLoadingDetails {
+                ProgressView()
+                    .controlSize(.small)
+            }
             Button {
                 bookmarkStore.safeBrowserOpen(bookmark.url)
             } label: {

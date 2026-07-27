@@ -2,7 +2,7 @@ import json
 import logging
 import re
 from datetime import datetime, timezone, timedelta
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
 from models.bookmark import Bookmark
 from models.collection import Collection
@@ -49,7 +49,11 @@ def get_bookmarks(
     sort_by: str = "created_at",
     order: str = "desc",
 ) -> list[Bookmark]:
-    q = db.query(Bookmark).filter(Bookmark.deleted_at.is_(None))
+    q = (
+        db.query(Bookmark)
+        .options(selectinload(Bookmark.bookmark_tags).selectinload(BookmarkTag.tag))
+        .filter(Bookmark.deleted_at.is_(None))
+    )
     if collection_id is not None:
         q = q.filter(Bookmark.collection_id == collection_id)
     if tag:
@@ -100,7 +104,14 @@ def get_bookmarks(
 
 
 def get_bookmark(db: Session, bookmark_id: str, include_deleted: bool = False) -> Bookmark | None:
-    q = db.query(Bookmark).filter(Bookmark.id == bookmark_id)
+    q = (
+        db.query(Bookmark)
+        .options(
+            selectinload(Bookmark.bookmark_tags).selectinload(BookmarkTag.tag),
+            selectinload(Bookmark.bookmark_notes),
+        )
+        .filter(Bookmark.id == bookmark_id)
+    )
     if not include_deleted:
         q = q.filter(Bookmark.deleted_at.is_(None))
     return q.first()
@@ -237,6 +248,7 @@ def get_trashed(db: Session, limit: int = 200, offset: int = 0) -> list[Bookmark
     """List bookmarks currently in the Trash, most recently deleted first."""
     return (
         db.query(Bookmark)
+        .options(selectinload(Bookmark.bookmark_tags).selectinload(BookmarkTag.tag))
         .filter(Bookmark.deleted_at.is_not(None))
         .order_by(Bookmark.deleted_at.desc())
         .offset(offset)

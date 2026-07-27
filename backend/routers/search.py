@@ -1,34 +1,34 @@
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from database import get_db
-from schemas.bookmark import BookmarkOut
+from schemas.bookmark import BookmarkSummaryOut
 from services.search_service import search_bookmarks, search_bookmarks_semantic
-from services import visual_snapshot_service
+from services.bookmark_response_service import enrich_bookmark_summary
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/search", tags=["search"])
 
 
-def _enrich(bm) -> BookmarkOut:
-    item = BookmarkOut.model_validate(bm)
-    item.tags = [bt.tag for bt in bm.bookmark_tags]
-    captured_at, complete = visual_snapshot_service.snapshot_summary(bm.id)
-    item.design_snapshot_captured_at = captured_at
-    item.design_snapshot_complete = complete
-    return item
-
-
-@router.get("", response_model=list[BookmarkOut])
-def search(q: str = "", limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
+@router.get("", response_model=list[BookmarkSummaryOut])
+def search(
+    q: str = "",
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+):
     results = search_bookmarks(db, q, limit=limit, offset=offset)
-    return [_enrich(bm) for bm in results]
+    return [enrich_bookmark_summary(bm) for bm in results]
 
 
-@router.get("/semantic", response_model=list[BookmarkOut])
-async def search_semantic(q: str = "", limit: int = 20, db: Session = Depends(get_db)):
+@router.get("/semantic", response_model=list[BookmarkSummaryOut])
+async def search_semantic(
+    q: str = "",
+    limit: int = Query(default=20, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
     """Semantic / meaning-based search via local embeddings.
 
     Returns bookmarks ranked by vector similarity to the query — finds related
@@ -39,7 +39,7 @@ async def search_semantic(q: str = "", limit: int = 20, db: Session = Depends(ge
     if not q.strip():
         return []
     results = await search_bookmarks_semantic(db, q, limit=limit)
-    return [_enrich(bm) for bm in results]
+    return [enrich_bookmark_summary(bm) for bm in results]
 
 
 @router.get("/status")

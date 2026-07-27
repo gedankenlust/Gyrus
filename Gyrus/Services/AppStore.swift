@@ -18,21 +18,27 @@ final class AppStore {
     private let linkCheckPoller = JobPoller<LinkCheckStatus>()
     private let metadataPoller = JobPoller<MetadataRefreshStatus>()
     private let batchTagPoller = JobPoller<BatchAutoTagStatus>()
+    @ObservationIgnored private var bookmarksMovedObserver: AnyCancellable?
     static let undoWindow: TimeInterval = 5
 
+    private func installBookmarksMovedObserver() {
+        guard bookmarksMovedObserver == nil else { return }
+        bookmarksMovedObserver = NotificationCenter.default.publisher(for: .bookmarksMoved)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    try? await self?.collectionsStore.fetchCollections()
+                }
+            }
+    }
+
     func loadAll() async {
-        uiStateStore.isLoading = true
-        defer { uiStateStore.isLoading = false }
-        
-        // Refresh counts when bookmarks are moved
-        NotificationCenter.default.removeObserver(self, name: .bookmarksMoved, object: nil)
-        NotificationCenter.default.addObserver(
-            forName: .bookmarksMoved,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { try? await self?.collectionsStore.fetchCollections() }
-        }
+        uiStateStore.beginLoading()
+        defer { uiStateStore.endLoading() }
+
+        // Install the block observer exactly once. AnyCancellable owns its
+        // lifetime, unlike NotificationCenter's separate observer token.
+        installBookmarksMovedObserver()
 
         async let bmsResult: Void? = try? await bookmarksStore.loadBookmarks(
             collectionId: collectionsStore.selectedCollectionId,
@@ -40,21 +46,21 @@ final class AppStore {
             showDeadOnly: collectionsStore.showDeadOnly,
             unreadOnly: collectionsStore.showUnreadOnly,
             showTrash: collectionsStore.showTrash,
-            query: bookmarksStore.searchQuery
+            query: bookmarksStore.searchQuery,
+            refreshCount: false
         )
         async let colsResult: Void? = try? await collectionsStore.fetchCollections()
         async let tagsResult: Void? = try? await tagsStore.fetchTags()
-        async let totalResult: Int? = try? await api.bookmarkCount()
-        async let deadResult: Int? = try? await api.deadBookmarkCount()
-        async let unreadResult: Int? = try? await api.unreadBookmarkCount()
-        async let trashResult: Int? = try? await api.trashCount()
+        async let countsResult: BookmarkCounts? = try? await api.bookmarkCounts()
 
-        let _ = await (bmsResult, colsResult, tagsResult, totalResult, deadResult, unreadResult, trashResult)
+        let _ = await (bmsResult, colsResult, tagsResult, countsResult)
 
-        if let n = await totalResult { bookmarksStore.totalBookmarkCount = n }
-        if let d = await deadResult { bookmarksStore.deadBookmarkCount = d }
-        if let u = await unreadResult { bookmarksStore.unreadBookmarkCount = u }
-        if let tr = await trashResult { bookmarksStore.trashCount = tr }
+        if let counts = await countsResult {
+            bookmarksStore.totalBookmarkCount = counts.total
+            bookmarksStore.deadBookmarkCount = counts.dead
+            bookmarksStore.unreadBookmarkCount = counts.unread
+            bookmarksStore.trashCount = counts.trash
+        }
 
         startAutoRefreshPolling()
 
@@ -90,7 +96,7 @@ final class AppStore {
                     // the visible rows while work is pending to keep their
                     // durable status indicators current.
                     if bookmarksStore.bookmarks.contains(where: { $0.analysis?.isActive == true }) {
-                        await loadBookmarks()
+                        await loadBookmarks(showsLoadingIndicator: false)
                     }
                     let serverCount = try await api.bookmarkCount()
                     let localTotal = bookmarksStore.totalBookmarkCount + bookmarksStore.pendingDeletionIds.count
@@ -162,7 +168,15 @@ final class AppStore {
         }
     }
 
-    func loadBookmarks() async {
+    func loadBookmarks(showsLoadingIndicator: Bool = true) async {
+        if showsLoadingIndicator {
+            uiStateStore.beginBookmarkRefresh()
+        }
+        defer {
+            if showsLoadingIndicator {
+                uiStateStore.endBookmarkRefresh()
+            }
+        }
         do {
             try await bookmarksStore.loadBookmarks(
                 collectionId: collectionsStore.selectedCollectionId,
@@ -532,10 +546,11 @@ final class AppStore {
     }
 
     private func refreshCounts() async {
-        if let t = try? await api.bookmarkCount() { bookmarksStore.totalBookmarkCount = t }
-        if let d = try? await api.deadBookmarkCount() { bookmarksStore.deadBookmarkCount = d }
-        if let u = try? await api.unreadBookmarkCount() { bookmarksStore.unreadBookmarkCount = u }
-        if let tr = try? await api.trashCount() { bookmarksStore.trashCount = tr }
+        guard let counts = try? await api.bookmarkCounts() else { return }
+        bookmarksStore.totalBookmarkCount = counts.total
+        bookmarksStore.deadBookmarkCount = counts.dead
+        bookmarksStore.unreadBookmarkCount = counts.unread
+        bookmarksStore.trashCount = counts.trash
     }
 
     func requestDeleteAll(deadOnly: Bool) async {
