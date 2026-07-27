@@ -6,12 +6,17 @@ so the API can poll it. One run at a time — if already running, /start is a no
 """
 import asyncio
 import ipaddress
+import logging
+import ssl
 import httpx
 from urllib.parse import urlparse
 from database import SessionLocal
 from models.bookmark import Bookmark
 from services.background_job import BackgroundJob
-from services.outbound_url_security import strict_public_request_guard
+from services.outbound_url_security import OutboundURLBlocked, strict_public_request_guard
+
+
+logger = logging.getLogger(__name__)
 
 
 def is_local_host(url: str) -> bool:
@@ -50,13 +55,24 @@ is_running = job.is_running
 cancel = job.cancel
 
 
-async def _check_url(client: httpx.AsyncClient, url: str) -> bool:
+def _caused_by_ssl_error(exc: BaseException) -> bool:
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        if isinstance(current, ssl.SSLError):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return False
+
+
+async def _check_url(client: httpx.AsyncClient, url: str) -> bool | None:
     """Returns True only when the URL is reliably dead.
 
     Dead means a definitive 404/410, or a connection failure (DNS /
     refused) that persists across every retry. Timeouts and other
-    transient network errors are retried and never mark a link dead on
-    their own — a slow or briefly unreachable server is not a dead link.
+    transient network errors return None after retries, leaving the
+    bookmark's previous status unchanged.
     Marking dead on a single timeout produces different results on every
     run and causes healthy bookmarks to be flagged and deleted.
     """
@@ -76,9 +92,12 @@ async def _check_url(client: httpx.AsyncClient, url: str) -> bool:
                 if r.status_code in (404, 410):
                     return True
             return False  # got a response → the link is alive
-        except httpx.ConnectError:
+        except httpx.ConnectError as exc:
             # DNS failure / connection refused — can be transient under load.
             # Retry; only count as dead if it never connects.
+            if _caused_by_ssl_error(exc):
+                logger.info("TLS validation failed for %s; keeping prior status", url)
+                return None
             if attempt == RETRIES - 1:
                 return True
             await asyncio.sleep(RETRY_DELAY)
@@ -86,66 +105,119 @@ async def _check_url(client: httpx.AsyncClient, url: str) -> bool:
             # Timeout or other transient network error — retry, but never
             # mark dead on this alone. A slow server is not a dead link.
             if attempt == RETRIES - 1:
-                return False
+                return None
             await asyncio.sleep(RETRY_DELAY)
-    return False
+        except OutboundURLBlocked as exc:
+            logger.warning("Link check skipped blocked URL %s: %s", url, exc)
+            return None
+    return None
 
 
-async def _run_check(job: BackgroundJob) -> None:
-    # 1) Snapshot id+url once (avoids session-lifetime issues during long check)
+def _load_rows() -> list[tuple[str, str]]:
     db = SessionLocal()
     try:
-        rows = [(b.id, b.url) for b in db.query(Bookmark).all()]
+        return [
+            (bookmark.id, bookmark.url)
+            for bookmark in db.query(Bookmark)
+            .filter(Bookmark.deleted_at.is_(None))
+            .all()
+        ]
     finally:
         db.close()
 
-    async with job.lock:
-        job.state["total"] = len(rows)
 
-    results: list[tuple[str, bool]] = []  # (bookmark_id, is_dead)
-    sem = asyncio.Semaphore(CONCURRENCY)
-
-    async with httpx.AsyncClient(
-        headers={"User-Agent": "Gyrus/1.0 LinkCheck"},
-        event_hooks={"request": [strict_public_request_guard]},
-    ) as client:
-        async def check_one(bm_id: str, url: str) -> None:
-            if job.cancelled:
-                return
-            async with sem:
-                if job.cancelled:
-                    return
-                is_dead = await _check_url(client, url)
-            results.append((bm_id, is_dead))
-            async with job.lock:
-                job.state["checked"] += 1
-                if is_dead:
-                    job.state["dead_found"] += 1
-
-        tasks = [asyncio.create_task(check_one(i, u)) for i, u in rows]
-        try:
-            await asyncio.gather(*tasks, return_exceptions=True)
-        except asyncio.CancelledError:
-            pass  # cancelled mid-run: still commit what finished
-
-    # 2) Batch-commit all results at the end (single short DB transaction;
-    # synchronous, so it completes even after a swallowed cancellation)
+def _bookmark_count() -> int:
     db = SessionLocal()
     try:
-        for bm_id, is_dead in results:
-            bm = db.query(Bookmark).filter(Bookmark.id == bm_id).first()
-            if bm is not None and bm.is_dead != is_dead:
-                bm.is_dead = is_dead
+        return db.query(Bookmark).filter(Bookmark.deleted_at.is_(None)).count()
+    finally:
+        db.close()
+
+
+def _persist_results(results: list[tuple[str, bool]]) -> None:
+    """Persist completed checks in bounded batches without N+1 queries."""
+    if not results:
+        return
+    values = dict(results)
+    ids = list(values)
+    db = SessionLocal()
+    try:
+        # SQLite commonly limits bound parameters to 999.
+        for start in range(0, len(ids), 500):
+            chunk = ids[start:start + 500]
+            bookmarks = db.query(Bookmark).filter(Bookmark.id.in_(chunk)).all()
+            for bookmark in bookmarks:
+                is_dead = values[bookmark.id]
+                if bookmark.is_dead != is_dead:
+                    bookmark.is_dead = is_dead
         db.commit()
     finally:
         db.close()
 
 
+async def _run_check(job: BackgroundJob) -> None:
+    # Snapshot id+url off the event loop and close the session immediately.
+    rows = await asyncio.to_thread(_load_rows)
+
+    async with job.lock:
+        job.state["total"] = len(rows)
+
+    results: list[tuple[str, bool]] = []
+    queue: asyncio.Queue[tuple[str, str] | None] = asyncio.Queue(
+        maxsize=CONCURRENCY * 2
+    )
+
+    async with httpx.AsyncClient(
+        headers={"User-Agent": "Gyrus/1.0 LinkCheck"},
+        event_hooks={"request": [strict_public_request_guard]},
+    ) as client:
+        async def worker() -> None:
+            while True:
+                item = await queue.get()
+                try:
+                    if item is None:
+                        return
+                    bm_id, url = item
+                    if job.cancelled:
+                        continue
+                    try:
+                        outcome = await _check_url(client, url)
+                    except Exception:
+                        logger.exception("Unexpected link-check failure for %s", url)
+                        outcome = None
+                    if outcome is not None:
+                        results.append((bm_id, outcome))
+                    async with job.lock:
+                        job.state["checked"] += 1
+                        if outcome is True:
+                            job.state["dead_found"] += 1
+                finally:
+                    queue.task_done()
+
+        workers = [asyncio.create_task(worker()) for _ in range(CONCURRENCY)]
+        was_cancelled = False
+        try:
+            for row in rows:
+                if job.cancelled:
+                    break
+                await queue.put(row)
+            await queue.join()
+        except asyncio.CancelledError:
+            was_cancelled = True
+        finally:
+            if was_cancelled:
+                for worker_task in workers:
+                    worker_task.cancel()
+            else:
+                for _ in workers:
+                    await queue.put(None)
+            await asyncio.gather(*workers, return_exceptions=True)
+
+    # Keep completed work even if the user stopped the remaining checks.
+    await asyncio.to_thread(_persist_results, results)
+
+
 async def start() -> dict:
-    db = SessionLocal()
-    try:
-        total = db.query(Bookmark).count()
-    finally:
-        db.close()
+    total = await asyncio.to_thread(_bookmark_count)
     # Pre-load total so the UI shows a real number immediately.
     return await job.start(_run_check, reset={"total": total})

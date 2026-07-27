@@ -7,6 +7,7 @@ different results on every run and deleted healthy bookmarks.
 """
 import httpx
 import pytest
+import ssl
 
 from services import link_check_service
 from services.link_check_service import _check_url, is_local_host
@@ -50,7 +51,7 @@ async def test_timeout_is_not_dead(monkeypatch):
 
     async with _client(handler) as c:
         # A slow / timing-out server is not a dead link.
-        assert await _check_url(c, "https://slow.example.com/") is False
+        assert await _check_url(c, "https://slow.example.com/") is None
 
 
 @pytest.mark.asyncio
@@ -62,6 +63,20 @@ async def test_persistent_connect_error_is_dead(monkeypatch):
 
     async with _client(handler) as c:
         assert await _check_url(c, "https://gone.invalid/") is True
+
+
+@pytest.mark.asyncio
+async def test_invalid_tls_keeps_previous_status(monkeypatch):
+    monkeypatch.setattr(link_check_service, "RETRY_DELAY", 0)
+
+    def handler(request):
+        try:
+            raise ssl.SSLCertVerificationError("certificate verify failed")
+        except ssl.SSLCertVerificationError as cause:
+            raise httpx.ConnectError("TLS failed", request=request) from cause
+
+    async with _client(handler) as c:
+        assert await _check_url(c, "https://expired.example/") is None
 
 
 @pytest.mark.parametrize("url", [

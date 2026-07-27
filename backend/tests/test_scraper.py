@@ -1,8 +1,15 @@
+import json
+
 import pytest
 import httpx
 from bs4 import BeautifulSoup
-from unittest.mock import AsyncMock, patch, MagicMock
-from services.scraper_service import _extract_jsonld_facts, scraper_service
+from unittest.mock import AsyncMock, patch
+from services.scraper_service import (
+    ScraperRequestError,
+    _extract_jsonld_facts,
+    _fetch_text,
+    scraper_service,
+)
 
 @pytest.mark.asyncio
 async def test_extract_content_success():
@@ -20,13 +27,11 @@ async def test_extract_content_success():
     </html>
     """
     
-    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.text = html_content
-        mock_response.raise_for_status = lambda: None
-        mock_get.return_value = mock_response
-        
+    with patch(
+        "services.scraper_service._fetch_text",
+        new_callable=AsyncMock,
+        return_value=html_content,
+    ):
         result = await scraper_service.extract_content("https://example.com")
         
         assert result["error"] is None
@@ -38,13 +43,43 @@ async def test_extract_content_success():
 
 @pytest.mark.asyncio
 async def test_extract_content_failure():
-    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-        mock_get.side_effect = httpx.HTTPStatusError("404 Not Found", request=None, response=MagicMock(status_code=404))
-        
+    with patch(
+        "services.scraper_service._fetch_text",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError("Website returned HTTP 404"),
+    ):
         result = await scraper_service.extract_content("https://example.com/404")
         
         assert result["error"] is not None
         assert result["content"] == ""
+
+@pytest.mark.asyncio
+async def test_fetch_text_rejects_non_text_payload():
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            headers={"content-type": "application/pdf"},
+            content=b"%PDF",
+        )
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(ScraperRequestError, match="Unsupported content type"):
+            await _fetch_text(client, "https://example.com/file.pdf")
+
+
+@pytest.mark.asyncio
+async def test_fetch_text_enforces_decoded_size_limit():
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            headers={"content-type": "text/html; charset=utf-8"},
+            content=b"01234567890",
+        )
+    )
+    async with httpx.AsyncClient(transport=transport) as client:
+        with pytest.raises(ScraperRequestError, match="safety limit"):
+            await _fetch_text(client, "https://example.com", max_bytes=10)
+
 
 @pytest.mark.asyncio
 async def test_get_pagespeed_metrics_success():
@@ -63,12 +98,11 @@ async def test_get_pagespeed_metrics_success():
         }
     }
     
-    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = mock_data
-        mock_get.return_value = mock_response
-        
+    with patch(
+        "services.scraper_service._fetch_text",
+        new_callable=AsyncMock,
+        return_value=json.dumps(mock_data),
+    ):
         result = await scraper_service.get_pagespeed_metrics("https://example.com")
         
         assert result["error"] is None
@@ -79,15 +113,30 @@ async def test_get_pagespeed_metrics_success():
 
 @pytest.mark.asyncio
 async def test_get_pagespeed_metrics_failure():
-    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_get.return_value = mock_response
-        
+    with patch(
+        "services.scraper_service._fetch_text",
+        new_callable=AsyncMock,
+        side_effect=ScraperRequestError("Website returned HTTP 500"),
+    ):
         result = await scraper_service.get_pagespeed_metrics("https://example.com")
         
-        assert result["error"] == "API returned 500"
+        assert result["error"] == "Website returned HTTP 500"
         assert result["score"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_pagespeed_metrics_rejects_unexpected_payload():
+    with patch(
+        "services.scraper_service._fetch_text",
+        new_callable=AsyncMock,
+        return_value="[]",
+    ):
+        result = await scraper_service.get_pagespeed_metrics("https://example.com")
+
+    assert result["error"] == "PageSpeed returned an unexpected payload"
+    assert result["score"] is None
+
+
 def test_jsonld_reader_facts_skip_breadcrumb_and_article_metadata():
     soup = BeautifulSoup(
         """

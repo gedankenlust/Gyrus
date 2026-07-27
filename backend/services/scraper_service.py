@@ -3,6 +3,7 @@ import html as html_lib
 import json
 import logging
 import re
+import ssl
 from urllib.parse import urlparse
 
 import httpx
@@ -10,6 +11,7 @@ from bs4 import BeautifulSoup
 from readability import Document
 from typing import Dict, Any, Optional
 from services.outbound_url_security import (
+    OutboundURLBlocked,
     explicit_private_hostname,
     request_guard,
     validate_outbound_url,
@@ -31,6 +33,76 @@ _BROWSER_UA = (
     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 _render_semaphore = asyncio.Semaphore(1)
+_MAX_HTML_BYTES = 5_000_000
+_MAX_TRANSCRIPT_BYTES = 2_000_000
+_MAX_JSON_BYTES = 2_000_000
+_TEXT_CONTENT_TYPES = {
+    "application/json",
+    "application/xhtml+xml",
+    "application/xml",
+    "text/html",
+    "text/plain",
+    "text/xml",
+}
+
+
+class ScraperRequestError(RuntimeError):
+    """A stable, user-readable failure raised by outbound scraper requests."""
+
+
+def _caused_by_ssl_error(exc: BaseException) -> bool:
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        if isinstance(current, ssl.SSLError):
+            return True
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return False
+
+
+async def _fetch_text(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    max_bytes: int = _MAX_HTML_BYTES,
+    params: dict[str, Any] | None = None,
+) -> str:
+    """Download a bounded textual response without buffering arbitrary payloads."""
+    try:
+        async with client.stream("GET", url, params=params) as response:
+            response.raise_for_status()
+            media_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            if media_type and media_type not in _TEXT_CONTENT_TYPES:
+                raise ScraperRequestError(f"Unsupported content type: {media_type}")
+
+            chunks: list[bytes] = []
+            size = 0
+            async for chunk in response.aiter_bytes():
+                size += len(chunk)
+                if size > max_bytes:
+                    raise ScraperRequestError(
+                        f"Response exceeds the {max_bytes // 1_000_000} MB safety limit"
+                    )
+                chunks.append(chunk)
+
+            encoding = response.charset_encoding or "utf-8"
+            return b"".join(chunks).decode(encoding, errors="replace")
+    except OutboundURLBlocked as exc:
+        raise ScraperRequestError(str(exc)) from exc
+    except httpx.TimeoutException as exc:
+        raise ScraperRequestError("Website request timed out") from exc
+    except httpx.HTTPStatusError as exc:
+        raise ScraperRequestError(f"Website returned HTTP {exc.response.status_code}") from exc
+    except httpx.ConnectError as exc:
+        message = (
+            "Website TLS certificate could not be validated"
+            if _caused_by_ssl_error(exc)
+            else "Website could not be reached"
+        )
+        raise ScraperRequestError(message) from exc
+    except httpx.RequestError as exc:
+        raise ScraperRequestError(f"Website request failed: {type(exc).__name__}") from exc
 
 
 def _is_youtube(url: str) -> bool:
@@ -248,6 +320,53 @@ def _structured_text(soup: BeautifulSoup) -> str:
     return "\n\n".join(lines)
 
 
+def _parse_reader_document(html: str) -> Dict[str, str]:
+    """CPU-bound Reader parsing, designed to run outside the event loop."""
+    full_soup = BeautifulSoup(html, "html.parser")
+    doc = Document(html)
+    title = doc.short_title()
+    summary_html = doc.summary()
+
+    clean_soup = BeautifulSoup(summary_html, "html.parser")
+    for table in clean_soup.find_all("table"):
+        links = table.find_all("a")
+        rows = table.find_all("tr")
+        if len(links) > 10 or len(rows) > 20:
+            table.decompose()
+
+    body_text = _structured_text(clean_soup)
+    parts = []
+    meta_desc = (
+        full_soup.find("meta", attrs={"name": "description"})
+        or full_soup.find("meta", property="og:description")
+    )
+    if meta_desc and meta_desc.get("content"):
+        parts.append(f"Summary: {meta_desc['content'].strip()}")
+
+    facts = _extract_jsonld_facts(full_soup)
+    if facts:
+        parts.append(f"Key facts:\n{facts}")
+
+    next_data = _next_data(html)
+    if next_data:
+        career = _extract_career_history(next_data)
+        if career:
+            parts.append(f"Career history:\n{career}")
+
+    if body_text:
+        parts.append(body_text)
+
+    headings = [
+        f"{heading.name}: {heading.get_text(strip=True)}"
+        for heading in full_soup.find_all(["h1", "h2", "h3"])[:20]
+    ]
+    return {
+        "content": "\n\n".join(parts)[:12_000],
+        "structural_summary": "\n".join(headings),
+        "title": title,
+    }
+
+
 class ScraperService:
     def __init__(self):
         self.timeout = httpx.Timeout(15.0)
@@ -282,63 +401,11 @@ class ScraperService:
                     # Fall through to generic scraping if YouTube extraction
                     # produced nothing useful.
 
-                response = await client.get(url)
-                response.raise_for_status()
-                html = response.text
-
-                full_soup = BeautifulSoup(html, "html.parser")
-
-                # Use readability to extract the main article text
-                doc = Document(html)
-                result["title"] = doc.short_title()
-                summary_html = doc.summary()
-                
-                # Filter out likely navigational/noisy tables from the readability summary
-                clean_soup = BeautifulSoup(summary_html, "html.parser")
-                for table in clean_soup.find_all("table"):
-                    # Heuristic: large tables or tables with many links are often navigational
-                    links = table.find_all("a")
-                    rows = table.find_all("tr")
-                    if len(links) > 10 or len(rows) > 20:
-                        table.decompose()
-                
-                # Preserve paragraph/heading/list structure instead of flattening
-                # every inline node onto its own line (which looked shredded).
-                body_text = _structured_text(clean_soup)
-
-                # Prepend facts ONLY if they aren't already dominant in the body
-                parts = []
-                meta_desc = (full_soup.find("meta", attrs={"name": "description"})
-                             or full_soup.find("meta", property="og:description"))
-                if meta_desc and meta_desc.get("content"):
-                    parts.append(f"Summary: {meta_desc['content'].strip()}")
-                
-                # For Wikipedia and similar, 'Key facts' often duplicates the body
-                # or adds noise. We keep them but cap them strictly.
-                facts = _extract_jsonld_facts(full_soup)
-                if facts:
-                    parts.append(f"Key facts:\n{facts}")
-
-                next_data = _next_data(html)
-                if next_data:
-                    career = _extract_career_history(next_data)
-                    if career:
-                        parts.append(f"Career history:\n{career}")
-
-                if body_text:
-                    parts.append(body_text)
-
-                result["content"] = "\n\n".join(parts)[:12000]
-
-                # Extract structural summary (headings)
-                headings = []
-                for h in full_soup.find_all(["h1", "h2", "h3"]):
-                    headings.append(f"{h.name}: {h.get_text(strip=True)}")
-
-                result["structural_summary"] = "\n".join(headings[:20]) # Limit to top 20 headings
+                html = await _fetch_text(client, url)
+                result.update(await asyncio.to_thread(_parse_reader_document, html))
 
         except Exception as e:
-            logger.error(f"Error scraping {url}: {e}")
+            logger.warning("Error scraping %s: %s", url, e)
             result["error"] = str(e)
 
         return result
@@ -418,9 +485,11 @@ class ScraperService:
                         content = re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", content)
                         result["content"] = content[:12_000]
                     finally:
-                        if context is not None:
-                            await context.close()
-                        await browser.close()
+                        try:
+                            if context is not None:
+                                await context.close()
+                        finally:
+                            await browser.close()
         except Exception as exc:
             logger.warning("Rendered Reader extraction failed for %s: %s", url, exc)
             result["error"] = str(exc)
@@ -432,9 +501,7 @@ class ScraperService:
         caption transcript, which is what actually lets the LLM summarize it."""
         result = {"content": "", "structural_summary": "", "title": "", "error": None}
         try:
-            response = await client.get(url)
-            response.raise_for_status()
-            html = response.text
+            html = await _fetch_text(client, url)
 
             soup = BeautifulSoup(html, "html.parser")
             og_title = soup.find("meta", property="og:title")
@@ -488,11 +555,15 @@ class ScraperService:
             base_url = chosen.get("baseUrl")
             if not base_url:
                 return ""
-            resp = await client.get(base_url)
-            if resp.status_code != 200 or not resp.text:
+            transcript_xml = await _fetch_text(
+                client,
+                base_url,
+                max_bytes=_MAX_TRANSCRIPT_BYTES,
+            )
+            if not transcript_xml:
                 return ""
             # The timedtext response is XML: <text start=...>line</text> ...
-            segments = re.findall(r"<text[^>]*>(.*?)</text>", resp.text, re.DOTALL)
+            segments = re.findall(r"<text[^>]*>(.*?)</text>", transcript_xml, re.DOTALL)
             # Captions are double-escaped (e.g. &amp;#39;), so unescape twice.
             lines = [html_lib.unescape(html_lib.unescape(s)).strip() for s in segments]
             transcript = " ".join(line for line in lines if line)
@@ -522,24 +593,27 @@ class ScraperService:
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(api_url, params=params)
-                if response.status_code == 200:
-                    data = response.json()
-                    
-                    # Core Web Vitals (Loading Experience)
-                    loading_exp = data.get("loadingExperience", {}).get("metrics", {})
-                    result["lcp"] = loading_exp.get("LARGEST_CONTENTFUL_PAINT_MS", {}).get("percentile")
-                    result["cls"] = loading_exp.get("CUMULATIVE_LAYOUT_SHIFT_SCORE", {}).get("percentile")
-                    result["fid"] = loading_exp.get("FIRST_INPUT_DELAY_MS", {}).get("percentile")
-                    
-                    # Performance Score
-                    result["score"] = data.get("lighthouseResult", {}).get("categories", {}).get("performance", {}).get("score")
-                else:
-                    logger.warning(f"PageSpeed API returned status {response.status_code} for {url}")
-                    result["error"] = f"API returned {response.status_code}"
-        except Exception as e:
-            logger.error(f"Error fetching PageSpeed metrics for {url}: {e}")
-            result["error"] = str(e)
+                payload = await _fetch_text(
+                    client,
+                    api_url,
+                    max_bytes=_MAX_JSON_BYTES,
+                    params=params,
+                )
+            data = json.loads(payload)
+            if not isinstance(data, dict):
+                raise ScraperRequestError("PageSpeed returned an unexpected payload")
+
+            # Core Web Vitals (Loading Experience)
+            loading_exp = data.get("loadingExperience", {}).get("metrics", {})
+            result["lcp"] = loading_exp.get("LARGEST_CONTENTFUL_PAINT_MS", {}).get("percentile")
+            result["cls"] = loading_exp.get("CUMULATIVE_LAYOUT_SHIFT_SCORE", {}).get("percentile")
+            result["fid"] = loading_exp.get("FIRST_INPUT_DELAY_MS", {}).get("percentile")
+
+            # Performance Score
+            result["score"] = data.get("lighthouseResult", {}).get("categories", {}).get("performance", {}).get("score")
+        except (ScraperRequestError, json.JSONDecodeError, AttributeError) as exc:
+            logger.warning("PageSpeed metrics unavailable for %s: %s", url, exc)
+            result["error"] = str(exc)
             
         return result
 
