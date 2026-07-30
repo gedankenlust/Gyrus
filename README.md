@@ -73,9 +73,9 @@ DMG is smaller.
 - **Useful for web design.** Compare real desktop, tablet, and mobile renders;
   inspect colors, type, components, assets, layout, SEO, accessibility,
   network requests, and console output.
-- **Grounded local AI.** Gyrus supplies the model with extracted article text,
-  structured data, site structure, and captured design evidence instead of
-  asking it to guess.
+- **Page-grounded local AI.** For the bookmark you have open, Gyrus supplies
+  the model with that page’s extracted text, structured data, site structure,
+  and captured design evidence — not a search across your whole library.
 - **Open source.** The Swift app, Python backend, browser companion, migrations,
   tests, and release scripts are all in this repository.
 
@@ -85,14 +85,14 @@ DMG is smaller.
 |---|---|
 | **Library** | List or grid view, folders, colored tags, Trash, sorting, pagination, resizable columns, and multi-selection |
 | **Import and export** | Netscape bookmark HTML for Brave, Arc, Chrome, Firefox, and Safari; portable JSON backup and restore |
-| **Search** | SQLite FTS5 over titles, URLs, tags, notes, and AI chats; global `⌥ Space` command palette |
+| **Search** | SQLite FTS5 over titles, URLs, tags, notes, and AI chats; optional meaning-based semantic search via local embeddings; global `⌥ Space` command palette |
 | **Tag assignment** | Assign existing tags to one or many bookmarks and preserve every manually assigned tag |
 | **Reviewable tag system** | With AI enabled, analyze 10 or more bookmarks together, review a proposed taxonomy, rename or remove categories, then apply it |
 | **Page workspace** | Overview, structured Reader, translation, complete text copy, and a live `WKWebView` |
 | **Design workspace** | Bundled Chromium captures desktop `1440×1200`, tablet `834×1112`, and mobile `390×844` views |
 | **Design evidence** | Colors, typography, components, layout, assets, SEO, accessibility, network, console, raw DOM/CSS evidence, and viewport PDF export |
 | **Notes** | Per-bookmark notes with auto-save |
-| **AI Brain** | Persistent page-grounded conversations, summaries, site-structure awareness, and optional Markdown mirroring |
+| **AI Brain** | Chat and summaries about the selected bookmark’s page (not library-wide Q&A), plus site-structure awareness and optional Markdown mirroring |
 | **Link maintenance** | Background dead-link checks, manual status correction, metadata refresh, favicons, descriptions, and preview images |
 | **Browser extension** | Gyrus Saver sends the active browser tab to the Inbox and enriches it in the background |
 | **Quick add** | Menu-bar command and configurable global shortcut save a URL without opening the main window |
@@ -159,12 +159,21 @@ not send data to a Gyrus cloud service because no such service exists.
 Enable AI under **Settings → AI**, connect Ollama, and choose separate text and
 embedding models. Gyrus then gains:
 
-- chat grounded in the selected page rather than model memory alone;
+- **Page-grounded chat** on the bookmark you selected — the model sees that
+  page’s extracted content (and, when relevant, site structure or design
+  evidence), not an automatic retrieval pass over your entire library;
 - persistent conversation history per bookmark;
-- article, JSON-LD, table, YouTube, site-structure, and design context;
-- local summaries, Reader translation, semantic search, and tag-system review;
+- article, JSON-LD, table, YouTube, site-structure, and design context for
+  that page;
+- local summaries, Reader translation, and tag-system review;
+- **semantic search** in the library (find bookmarks by meaning via local
+  embeddings) — separate from chat;
 - an optional Markdown mirror that follows the folder structure and can be
   opened in Obsidian, Logseq, or any editor.
+
+This is page-grounded local AI plus optional semantic library search. It is
+not classic RAG-style “ask once, retrieve relevant chunks from the whole
+corpus, then answer.” Multi-bookmark Q&A is on the roadmap.
 
 The database remains authoritative. The Markdown mirror is portable output,
 not a second hidden database. Clearing the Brain removes only files that Gyrus
@@ -283,6 +292,7 @@ important bookmark data before testing a new preview.
 ## Roadmap
 
 - Multi-bookmark AI questions across a selected set or the full library
+  (retrieve relevant pages, then answer — closer to classic RAG)
 - Related-bookmark suggestions backed by local embeddings
 - A richer optional knowledge graph for the Markdown mirror
 - A signed and notarized build if the project later adopts the Apple Developer
@@ -295,6 +305,13 @@ important bookmark data before testing a new preview.
 
 No. Gyrus has no account system, sync backend, telemetry endpoint, or hosted AI
 provider. Website requests and local Ollama requests originate on your Mac.
+
+**Is this RAG?**
+
+Not in the usual sense. Chat is grounded in the **currently selected** page.
+Embeddings power optional **semantic search** over your bookmarks. Asking one
+question that automatically pulls evidence from many bookmarks is not shipped
+yet; see the roadmap.
 
 **Is AI required?**
 

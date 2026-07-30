@@ -135,10 +135,13 @@ Read articles without the clutter.
 
 ### 6. AI Brain (optional)
 
-The AI Brain reads the page (article text, structured data, tables, YouTube) and
-lets you chat about it using a **local** language model — nothing is sent to the
-cloud. Each bookmark mirrors to a Markdown file whose folder matches your Gyrus
-structure.
+The AI Brain chats about the **bookmark you have open**: it feeds that page’s
+article text (plus structured data, tables, YouTube, and similar context when
+available) into a **local** language model — nothing is sent to the cloud. It
+does not search your whole library for an answer. Separately, with an embedding
+model installed, library search can use meaning-based (semantic) ranking.
+Each bookmark can also mirror to a Markdown file whose folder matches your
+Gyrus structure.
 
 To use it:
 
@@ -326,10 +329,13 @@ Artikel ohne Ablenkung lesen.
 
 ### 6. AI Brain (optional)
 
-Das AI Brain liest die Seite (Artikeltext, strukturierte Daten, Tabellen,
-YouTube) und lässt dich darüber mit einem **lokalen** Sprachmodell chatten —
-nichts geht in die Cloud. Jedes Lesezeichen wird als Markdown-Datei gespiegelt,
-deren Ordner deiner Gyrus-Struktur folgt.
+Das AI Brain chattet über das **gerade geöffnete Lesezeichen**: Es gibt den
+Artikeltext dieser Seite (plus strukturierte Daten, Tabellen, YouTube u. ä.,
+wenn vorhanden) an ein **lokales** Sprachmodell — nichts geht in die Cloud.
+Es durchsucht nicht deine ganze Bibliothek nach einer Antwort. Separat kannst
+du mit einem Embedding-Modell die Bibliothek nach Bedeutung (semantisch)
+durchsuchen. Jedes Lesezeichen kann zusätzlich als Markdown-Datei gespiegelt
+werden, deren Ordner deiner Gyrus-Struktur folgt.
 
 So nutzt du es:
 
