@@ -3,7 +3,6 @@ import AppKit
 import WebKit
 import UniformTypeIdentifiers
 
-private let designSectionColumns = [GridItem(.adaptive(minimum: 92), spacing: 6)]
 private let designSections = DesignInspectorSection.allCases
 
 enum DesignInspectorSection: String, CaseIterable, Identifiable {
@@ -277,16 +276,13 @@ struct VisualSnapshotTabView: View {
     }
 
     private var sectionPicker: some View {
-        LazyVGrid(columns: designSectionColumns, alignment: .leading, spacing: 6) {
+        Picker("Section", selection: $selectedSection) {
             ForEach(designSections) { section in
-                DesignSectionButton(
-                    section: section,
-                    isSelected: selectedSection == section
-                ) {
-                    selectedSection = section
-                }
+                Text(section.title).tag(section)
             }
         }
+        .pickerStyle(.segmented)
+        .labelsHidden()
     }
 
     @ViewBuilder

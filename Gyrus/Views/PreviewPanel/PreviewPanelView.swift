@@ -262,36 +262,15 @@ struct BookmarkDetailView: View {
     }
 
     private var tabPicker: some View {
-        HStack(spacing: 0) {
+        Picker("Preview Tab", selection: $selectedTab) {
             ForEach(availableTabs) { tab in
-                Button {
-                    selectedTab = tab
-                } label: {
-                    Text(LocalizedStringKey(tab.rawValue))
-                        .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .medium))
-                        .foregroundStyle(selectedTab == tab ? .white : .primary)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 30)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .background {
-                    if selectedTab == tab {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.accentColor)
-                    }
-                }
-
-                if tab.id != availableTabs.last?.id {
-                    Divider()
-                        .frame(height: 18)
-                        .padding(.horizontal, 6)
-                }
+                Text(LocalizedStringKey(tab.rawValue)).tag(tab)
             }
         }
-        .padding(3)
-        .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 9))
-        .padding(10)
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
         .background(.bar)
     }
 

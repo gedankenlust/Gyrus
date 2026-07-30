@@ -2,30 +2,6 @@ import SwiftUI
 import AppKit
 import WebKit
 
-struct DesignSectionButton: View {
-    let section: DesignInspectorSection
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Label(section.title, systemImage: section.icon)
-                .labelStyle(.titleAndIcon)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(isSelected ? .white : .primary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, minHeight: 32, alignment: .center)
-                .background(
-                    isSelected ? Color.accentColor : Color.secondary.opacity(0.14),
-                    in: RoundedRectangle(cornerRadius: 7)
-                )
-        }
-        .buttonStyle(.plain)
-        .help(Text(section.title))
-    }
-}
-
 struct SnapshotSection<Content: View>: View {
     let title: LocalizedStringKey
     let icon: String
