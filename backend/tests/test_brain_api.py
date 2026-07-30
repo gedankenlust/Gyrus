@@ -266,3 +266,99 @@ def test_visual_snapshot_run_history_is_exposed(client, monkeypatch):
 
     assert resp.status_code == 200
     assert resp.json() == history
+
+
+def test_get_available_models_success(client, monkeypatch):
+    class MockResponse:
+        def __init__(self, json_data, status_code=200):
+            self._json = json_data
+            self.status_code = status_code
+
+        def json(self):
+            return self._json
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                import httpx
+                raise httpx.HTTPError(f"HTTP {self.status_code}")
+
+    class MockAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        async def get(self, url, **kwargs):
+            if "/api/tags" in url:
+                return MockResponse({"models": [{"name": "llama3"}, {"name": "bge-m3"}, {"name": "empty-model"}]})
+            return MockResponse({})
+
+        async def post(self, url, json=None, **kwargs):
+            if "/api/show" in url:
+                model = json.get("model")
+                if model == "bge-m3":
+                    return MockResponse({"capabilities": ["embedding"]})
+                elif model == "llama3":
+                    return MockResponse({"capabilities": ["completion", "chat"]})
+                else:
+                    return MockResponse({})
+            return MockResponse({})
+
+    monkeypatch.setattr("routers.brain.httpx.AsyncClient", MockAsyncClient)
+
+    resp = client.get("/api/brain/available-models")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["error"] is None
+    assert set(data["models"]) == {"llama3", "bge-m3", "empty-model"}
+    assert set(data["embedding_models"]) == {"bge-m3"}
+    assert set(data["text_models"]) == {"llama3", "empty-model"}
+
+
+def test_get_available_models_unreachable(client, monkeypatch):
+    class MockAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        async def get(self, url, **kwargs):
+            import httpx
+            raise httpx.HTTPError("unreachable")
+
+    monkeypatch.setattr("routers.brain.httpx.AsyncClient", MockAsyncClient)
+
+    resp = client.get("/api/brain/available-models")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "Ollama unreachable" in data["error"]
+
+
+def test_get_available_models_generic_error(client, monkeypatch):
+    class MockAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+        async def get(self, url, **kwargs):
+            raise Exception("something weird")
+
+    monkeypatch.setattr("routers.brain.httpx.AsyncClient", MockAsyncClient)
+
+    resp = client.get("/api/brain/available-models")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "Failed to list models: something weird" in data["error"]
