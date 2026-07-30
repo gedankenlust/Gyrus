@@ -10,6 +10,50 @@ final class ModelEncodingTests: XCTestCase {
         return d
     }()
 
+    // MARK: - BookmarkCreate
+
+    func testBookmarkCreateEncodesAllFields() throws {
+        let create = BookmarkCreate(
+            title: "Test Title",
+            url: "https://example.com",
+            description: "Test description",
+            notes: "Test notes",
+            collectionId: "col-123",
+            tagIds: ["tag-1", "tag-2"],
+            source: "manual"
+        )
+        let json = try decode(create)
+
+        XCTAssertEqual(json["title"] as? String, "Test Title")
+        XCTAssertEqual(json["url"] as? String, "https://example.com")
+        XCTAssertEqual(json["description"] as? String, "Test description")
+        XCTAssertEqual(json["notes"] as? String, "Test notes")
+        XCTAssertEqual(json["collection_id"] as? String, "col-123")
+        XCTAssertEqual(json["tag_ids"] as? [String], ["tag-1", "tag-2"])
+        XCTAssertEqual(json["source"] as? String, "manual")
+    }
+
+    func testBookmarkCreateEncodesNilOptionals() throws {
+        let create = BookmarkCreate(
+            title: "Minimal Title",
+            url: "https://example.com/minimal",
+            description: nil,
+            notes: nil,
+            collectionId: nil,
+            tagIds: [],
+            source: "extension"
+        )
+        let json = try decode(create)
+
+        XCTAssertEqual(json["title"] as? String, "Minimal Title")
+        XCTAssertEqual(json["url"] as? String, "https://example.com/minimal")
+        XCTAssertNil(json["description"])
+        XCTAssertNil(json["notes"])
+        XCTAssertNil(json["collection_id"])
+        XCTAssertEqual(json["tag_ids"] as? [String], [])
+        XCTAssertEqual(json["source"] as? String, "extension")
+    }
+
     // MARK: - BookmarkUpdate
 
     func testBookmarkUpdateEncodesOnlySetFields() throws {
@@ -100,6 +144,24 @@ final class ModelEncodingTests: XCTestCase {
 
         XCTAssertTrue(analysis.isActive)
         XCTAssertFalse(analysis.needsAttention)
+    }
+
+    // MARK: - TagCreate
+
+    func testTagCreateEncodesAllFields() throws {
+        let create = TagCreate(name: "swift", color: "#FF5733")
+        let json = try decode(create)
+
+        XCTAssertEqual(json["name"] as? String, "swift")
+        XCTAssertEqual(json["color"] as? String, "#FF5733")
+    }
+
+    func testTagCreateEncodesNilColor() throws {
+        let create = TagCreate(name: "design", color: nil)
+        let json = try decode(create)
+
+        XCTAssertEqual(json["name"] as? String, "design")
+        XCTAssertNil(json["color"])
     }
 
     // MARK: - CollectionUpdate
