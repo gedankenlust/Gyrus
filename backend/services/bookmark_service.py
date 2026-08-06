@@ -238,8 +238,7 @@ def _drop_vectors(ids: list[str]) -> None:
         return
     try:
         from services import vector_store
-        for bm_id in ids:
-            vector_store.delete(bm_id)
+        vector_store.delete_many(ids)
     except Exception as exc:
         logger.warning("Bulk vector removal failed: %s", exc)
 

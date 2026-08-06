@@ -91,6 +91,27 @@ def delete(bookmark_id: str) -> None:
         logger.warning("vector_store.delete failed for %s: %s", bookmark_id, e)
 
 
+def delete_many(bookmark_ids: list[str]) -> None:
+    """Remove embeddings in bulk when bookmarks are trashed or deleted.
+
+    Batches the deletes using an IN clause to avoid excessive transaction overhead.
+    """
+    if not bookmark_ids:
+        return
+    try:
+        conn = _get_conn()
+        # Use chunks of 900 to stay well under SQLite's parameter limits
+        chunk_size = 900
+        for i in range(0, len(bookmark_ids), chunk_size):
+            chunk = bookmark_ids[i:i + chunk_size]
+            placeholders = ",".join(["?"] * len(chunk))
+            conn.execute(
+                f"DELETE FROM bookmarks_vec WHERE bookmark_id IN ({placeholders})", chunk
+            )
+    except Exception as e:
+        logger.warning("vector_store.delete_many failed: %s", e)
+
+
 def search(query_vec: list[float], k: int = 20) -> list[tuple[str, float]]:
     """Return up to k (bookmark_id, distance) pairs, closest first."""
     import json
