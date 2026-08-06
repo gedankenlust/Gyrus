@@ -88,6 +88,52 @@ def test_purge_expired_only_removes_old(client, db):
     assert purged == 1
     assert client.get("/api/bookmarks/trash/count").json() == 1  # only the fresh one remains
 
+def test_count_trashed_service(client, db):
+    # Verify that bookmark_service.count_trashed accurately returns the count of deleted items
+    b1 = _create(client, "https://count1.com")
+    b2 = _create(client, "https://count2.com")
+    b3 = _create(client, "https://count3.com")
+
+    assert bookmark_service.count_trashed(db) == 0
+
+    client.delete(f"/api/bookmarks/{b1['id']}")
+    assert bookmark_service.count_trashed(db) == 1
+
+    client.delete(f"/api/bookmarks/{b2['id']}")
+    assert bookmark_service.count_trashed(db) == 2
+
+    # b3 remains not deleted
+    assert bookmark_service.count_trashed(db) == 2
+
+
+def test_restore_bookmarks_service(client, db):
+    # Verify that bookmark_service.restore_bookmarks restores specific trashed bookmarks
+    b1 = _create(client, "https://restore1.com")
+    b2 = _create(client, "https://restore2.com")
+    b3 = _create(client, "https://restore3.com")
+
+    client.delete(f"/api/bookmarks/{b1['id']}")
+    client.delete(f"/api/bookmarks/{b2['id']}")
+    client.delete(f"/api/bookmarks/{b3['id']}")
+
+    assert bookmark_service.count_trashed(db) == 3
+
+    # Restore a single bookmark
+    restored_count = bookmark_service.restore_bookmarks(db, [b2['id']])
+    assert restored_count == 1
+
+    assert bookmark_service.count_trashed(db) == 2
+
+    # Verify that it is no longer marked as deleted
+    restored_bm = db.query(Bookmark).filter(Bookmark.id == b2['id']).first()
+    assert restored_bm.deleted_at is None
+
+    # Restore multiple remaining bookmarks
+    restored_count_multi = bookmark_service.restore_bookmarks(db, [b1['id'], b3['id']])
+    assert restored_count_multi == 2
+    assert bookmark_service.count_trashed(db) == 0
+
+
 def test_purge_bookmarks_drops_vectors_and_deletes(client, db):
     from unittest.mock import patch
 

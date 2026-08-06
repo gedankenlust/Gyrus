@@ -1,6 +1,3 @@
-"""Summarize must use the caller's actual provider_config (model/URL), not a
-hardcoded "llama3" — that bug made the button 503 for anyone running a
-different model (which is the common case, e.g. qwen3:8b)."""
 import pytest
 
 from services import llm_service as llm_module

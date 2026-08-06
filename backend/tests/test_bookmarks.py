@@ -1,5 +1,8 @@
 import pytest
 
+from models import Bookmark
+from services import bookmark_service
+
 
 BOOKMARK = {"title": "Example", "url": "https://example.com", "source": "manual"}
 
@@ -315,3 +318,27 @@ def test_translate_reader_preserves_current_content_and_language(client, db):
     assert mock_ask.call_args.kwargs["context"].startswith("# English heading")
     assert mock_ask.call_args.kwargs["language"] == "de"
     assert mock_ask.call_args.kwargs["think"] is False
+
+
+def test_store_scraped_content(client, db):
+    # 1. Create a bookmark
+    bm = client.post("/api/bookmarks", json={"title": "Test Bookmark", "url": "https://example.com/test", "source": "manual"}).json()
+    bookmark_id = bm["id"]
+
+    # 2. Empty content -> False
+    assert bookmark_service.store_scraped_content(db, bookmark_id, "") is False
+    assert bookmark_service.store_scraped_content(db, bookmark_id, None) is False
+
+    # 3. Valid content -> True
+    content = "Some extracted text content"
+    assert bookmark_service.store_scraped_content(db, bookmark_id, content) is True
+
+    # Verify in DB
+    db_bm = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    assert db_bm.scraped_content == content
+
+    # 4. Same content again -> True (no-op)
+    assert bookmark_service.store_scraped_content(db, bookmark_id, content) is True
+
+    # 5. Invalid bookmark ID -> False
+    assert bookmark_service.store_scraped_content(db, "invalid-id", content) is False

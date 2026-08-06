@@ -340,3 +340,54 @@ def test_apply_draft_is_transactional_and_preserves_manual_assignments(db):
         BookmarkTag.tag_id == manual.id,
     ).one()
     assert manual_link.source == "manual"
+
+
+def test_compact_records_creates_json_lines_and_lookup_dictionary():
+    bookmarks = [
+        SimpleNamespace(id="bookmark-1", title="First Bookmark", description="Desc 1", scraped_content="Content 1"),
+        SimpleNamespace(id="bookmark-2", title="Second Bookmark", description="Desc 2", scraped_content="Content 2")
+    ]
+
+    lines, keyed = taxonomy_service.compact_records(bookmarks)
+
+    assert list(keyed.keys()) == ["B001", "B002"]
+    assert keyed["B001"] == bookmarks[0]
+    assert keyed["B002"] == bookmarks[1]
+
+    json_lines = lines.split("\n")
+    assert len(json_lines) == 2
+
+    obj1 = json.loads(json_lines[0])
+    assert obj1 == {"id": "B001", "title": "First Bookmark", "description": "Desc 1", "excerpt": "Content 1"}
+
+    obj2 = json.loads(json_lines[1])
+    assert obj2 == {"id": "B002", "title": "Second Bookmark", "description": "Desc 2", "excerpt": "Content 2"}
+
+
+def test_compact_records_truncates_long_fields():
+    bookmarks = [
+        SimpleNamespace(
+            id="bookmark-long",
+            title="A" * 150,
+            description="B" * 200,
+            scraped_content="C" * 350
+        )
+    ]
+
+    lines, keyed = taxonomy_service.compact_records(bookmarks)
+
+    assert "B001" in keyed
+
+    obj = json.loads(lines)
+    assert len(obj["title"]) == 120
+    assert obj["title"] == "A" * 120
+    assert len(obj["description"]) == 180
+    assert obj["description"] == "B" * 180
+    assert len(obj["excerpt"]) == taxonomy_service.MAX_EXCERPT_CHARS
+    assert obj["excerpt"] == "C" * taxonomy_service.MAX_EXCERPT_CHARS
+
+
+def test_compact_records_handles_empty_list():
+    lines, keyed = taxonomy_service.compact_records([])
+    assert lines == ""
+    assert keyed == {}
