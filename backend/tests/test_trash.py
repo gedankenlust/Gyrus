@@ -87,3 +87,42 @@ def test_purge_expired_only_removes_old(client, db):
     purged = bookmark_service.purge_expired(db, days=30)
     assert purged == 1
     assert client.get("/api/bookmarks/trash/count").json() == 1  # only the fresh one remains
+
+def test_purge_bookmarks_drops_vectors_and_deletes(client, db):
+    from unittest.mock import patch
+
+    # Create two bookmarks
+    bm1 = _create(client, "https://to-trash.com")
+    bm2 = _create(client, "https://to-keep.com")
+    bm3 = _create(client, "https://to-trash-2.com")
+
+    # Trash bm1 and bm3
+    client.delete(f"/api/bookmarks/{bm1['id']}")
+    client.delete(f"/api/bookmarks/{bm3['id']}")
+
+    with patch("services.bookmark_service._drop_vectors") as mock_drop:
+        # Purge specifically bm1
+        purged = bookmark_service.purge_bookmarks(db, ids=[bm1["id"]])
+        assert purged == 1
+        mock_drop.assert_called_once_with([bm1["id"]])
+
+        # Verify bm1 is completely gone
+        assert db.query(Bookmark).filter(Bookmark.id == bm1["id"]).count() == 0
+
+        # Verify bm3 is still in trash
+        assert db.query(Bookmark).filter(Bookmark.id == bm3["id"]).count() == 1
+
+        # Verify bm2 is unaffected
+        assert db.query(Bookmark).filter(Bookmark.id == bm2["id"]).count() == 1
+
+    with patch("services.bookmark_service._drop_vectors") as mock_drop_all:
+        # Purge all remaining trashed bookmarks (just bm3)
+        purged_all = bookmark_service.purge_bookmarks(db, ids=None)
+        assert purged_all == 1
+        mock_drop_all.assert_called_once_with([bm3["id"]])
+
+        # Verify bm3 is gone
+        assert db.query(Bookmark).filter(Bookmark.id == bm3["id"]).count() == 0
+
+        # Verify bm2 is still unaffected (it was not in trash)
+        assert db.query(Bookmark).filter(Bookmark.id == bm2["id"]).count() == 1
