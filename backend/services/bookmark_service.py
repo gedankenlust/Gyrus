@@ -627,8 +627,10 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
             BookmarkTag.source != "ai",
         ).all()
     }
+    existing_tags_query = db.query(Tag).filter(Tag.name.in_(suggested)).all()
+    tag_by_name = {t.name: t for t in existing_tags_query}
     for tag_name in suggested:
-        tag = db.query(Tag).filter(Tag.name == tag_name).first()
+        tag = tag_by_name.get(tag_name)
         if not tag:
             tag = Tag(name=tag_name, color=_next_tag_color(db), source="ai")
             db.add(tag)
