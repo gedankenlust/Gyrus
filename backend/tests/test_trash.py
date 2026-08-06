@@ -25,6 +25,71 @@ def test_delete_moves_to_trash_not_gone(client):
     assert client.get("/api/bookmarks/trash/count").json() == 1
 
 
+def test_delete_batch_moves_to_trash(client, db):
+    from unittest.mock import patch
+
+    a = _create(client, "https://a.com")
+    b = _create(client, "https://b.com")
+    c = _create(client, "https://c.com")
+    d = _create(client, "https://d.com")
+
+    # Pre-trash c so we can verify it doesn't trigger side effects again
+    client.delete(f"/api/bookmarks/{c['id']}")
+
+    with patch("services.bookmark_service.brain_sync_service.delete_bookmark_file") as mock_delete_file, \
+         patch("services.bookmark_service.brain_sync_service.rebuild_index") as mock_rebuild_index, \
+         patch("services.vector_store.delete") as mock_vector_delete:
+
+        response = client.post("/api/bookmarks/delete-batch", json={"ids": [a["id"], b["id"], c["id"]]})
+        assert response.status_code == 204
+
+        # Only 'a' and 'b' should have their files deleted, since 'c' was already trashed
+        assert mock_delete_file.call_count == 2
+
+        # Only 'a' and 'b' should be removed from vector store
+        assert mock_vector_delete.call_count == 2
+        vector_calls = [call.args[0] for call in mock_vector_delete.call_args_list]
+        assert a["id"] in vector_calls
+        assert b["id"] in vector_calls
+        assert c["id"] not in vector_calls
+
+        mock_rebuild_index.assert_called_once()
+
+    # Verify db state
+    assert client.get(f"/api/bookmarks/{a['id']}").status_code == 404
+    assert client.get(f"/api/bookmarks/{b['id']}").status_code == 404
+    assert client.get(f"/api/bookmarks/{c['id']}").status_code == 404
+    assert client.get(f"/api/bookmarks/{d['id']}").status_code == 200
+
+    trash = client.get("/api/bookmarks/trash").json()
+    trashed_ids = {bm["id"] for bm in trash}
+    assert a["id"] in trashed_ids
+    assert b["id"] in trashed_ids
+    assert c["id"] in trashed_ids
+    assert d["id"] not in trashed_ids
+    assert client.get("/api/bookmarks/trash/count").json() == 3
+
+
+def test_delete_batch_empty_list(client):
+    from unittest.mock import patch
+
+    a = _create(client, "https://a.com")
+
+    with patch("services.bookmark_service.brain_sync_service.delete_bookmark_file") as mock_delete_file, \
+         patch("services.bookmark_service.brain_sync_service.rebuild_index") as mock_rebuild_index, \
+         patch("services.vector_store.delete") as mock_vector_delete:
+
+        response = client.post("/api/bookmarks/delete-batch", json={"ids": []})
+        assert response.status_code == 204
+
+        mock_delete_file.assert_not_called()
+        mock_vector_delete.assert_not_called()
+        mock_rebuild_index.assert_called_once()
+
+    assert client.get(f"/api/bookmarks/{a['id']}").status_code == 200
+    assert client.get("/api/bookmarks/trash/count").json() == 0
+
+
 def test_trashed_bookmark_details_remain_available(client):
     bm = client.post(
         "/api/bookmarks",
