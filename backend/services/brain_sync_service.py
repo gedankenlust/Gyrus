@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 from urllib.parse import quote
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.orm import Session, aliased
 from models.bookmark import Bookmark
 from models.collection import Collection
 
@@ -59,6 +60,15 @@ class BrainSyncService:
         if not collection_id:
             return Path("_Unsorted")
 
+        # Use a recursive CTE to fetch all ancestors in a single query (N+1 fix)
+        cte = select(Collection.id, Collection.name, Collection.parent_id).where(Collection.id == collection_id).cte(name="parent_chain", recursive=True)
+        parent = aliased(Collection)
+        cte = cte.union_all(
+            select(parent.id, parent.name, parent.parent_id).join(cte, parent.id == cte.c.parent_id)
+        )
+        rows = db.execute(select(cte.c.id, cte.c.name, cte.c.parent_id)).all()
+        id_to_col = {row.id: row for row in rows}
+
         path_parts = []
         current_id = collection_id
         visited: set[str] = set()
@@ -67,7 +77,7 @@ class BrainSyncService:
         # loop forever. New cycles are already blocked at the API level.
         while current_id and current_id not in visited:
             visited.add(current_id)
-            collection = db.query(Collection).filter(Collection.id == current_id).first()
+            collection = id_to_col.get(current_id)
             if not collection:
                 break
             path_parts.insert(0, self._sanitize_name(collection.name))
