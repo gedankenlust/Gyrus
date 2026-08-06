@@ -557,10 +557,6 @@ async def summarize_bookmark(bookmark_id: str, request: SummarizeRequest = Summa
         summary = await LLMService.ask_llm(
             prompt=summarize_prompt,
             context=context,
-            # Was hardcoded to "llama3" regardless of the user's configured
-            # model/URL — every other AI Brain endpoint (chat, auto-tag)
-            # already takes this from the client. Anyone not literally
-            # running llama3 got a 503 no matter what they had set up.
             provider_config=request.provider_config,
             title=bookmark.title or "",
             url=bookmark.url or "",
