@@ -87,3 +87,16 @@ def test_issue_evidence_is_cropped_into_run_directory(tmp_path):
 
     assert (tmp_path / "evidence" / "mobile-1.jpg").is_file()
     assert issues[0]["evidence_url"].endswith("/runs/run-1/evidence/mobile-1.jpg")
+
+
+def test_discard_snapshot_run(tmp_path, monkeypatch):
+    monkeypatch.setattr(visual_snapshot_service, "SNAPSHOT_DIR", tmp_path)
+    run_dir = tmp_path / "bookmark-1" / "runs" / "run-1"
+    run_dir.mkdir(parents=True)
+
+    assert run_dir.exists()
+    visual_snapshot_service.discard_snapshot_run("bookmark-1", "run-1")
+    assert not run_dir.exists()
+
+    # ensure no errors if the directory doesn't exist
+    visual_snapshot_service.discard_snapshot_run("bookmark-1", "run-1")
