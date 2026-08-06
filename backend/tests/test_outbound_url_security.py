@@ -8,6 +8,7 @@ from services.outbound_url_security import (
     OutboundURLBlocked,
     explicit_private_hostname,
     request_guard,
+    validate_bookmark_url_syntax,
     validate_outbound_url,
 )
 
@@ -49,3 +50,32 @@ async def test_public_request_hook_blocks_redirect_to_local(monkeypatch):
     await guard(httpx.Request("GET", "https://example.com/start"))
     with pytest.raises(OutboundURLBlocked):
         await guard(httpx.Request("GET", "http://127.0.0.1:8080/api/data/backup"))
+
+
+def test_validate_bookmark_url_syntax_valid_urls():
+    assert validate_bookmark_url_syntax("https://example.com") == "https://example.com"
+    assert validate_bookmark_url_syntax("http://example.com/path?query=1") == "http://example.com/path?query=1"
+    assert validate_bookmark_url_syntax("  https://example.com  ") == "https://example.com"
+
+def test_validate_bookmark_url_syntax_invalid_schemes():
+    with pytest.raises(OutboundURLBlocked, match="Only http:// and https:// URLs are allowed"):
+        validate_bookmark_url_syntax("ftp://example.com")
+    with pytest.raises(OutboundURLBlocked, match="Only http:// and https:// URLs are allowed"):
+        validate_bookmark_url_syntax("file:///etc/passwd")
+
+def test_validate_bookmark_url_syntax_missing_hostname():
+    with pytest.raises(OutboundURLBlocked, match="Only http:// and https:// URLs are allowed"):
+        validate_bookmark_url_syntax("https://")
+
+def test_validate_bookmark_url_syntax_credentials():
+    with pytest.raises(OutboundURLBlocked, match="Credentials in URLs are not allowed"):
+        validate_bookmark_url_syntax("https://user:password@example.com")
+
+def test_validate_bookmark_url_syntax_length_limit():
+    long_url = "https://example.com/" + "a" * 8192
+    with pytest.raises(OutboundURLBlocked, match="URL is missing or too long"):
+        validate_bookmark_url_syntax(long_url)
+
+def test_validate_bookmark_url_syntax_non_string():
+    with pytest.raises(OutboundURLBlocked, match="URL is missing or too long"):
+        validate_bookmark_url_syntax(None) # type: ignore
