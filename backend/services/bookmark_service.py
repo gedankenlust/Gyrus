@@ -634,6 +634,7 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
             tag = Tag(name=tag_name, color=_next_tag_color(db), source="ai")
             db.add(tag)
             db.flush()
+            tag_by_name[tag_name] = tag
         if tag.id not in preserved_tag_ids:
             db.add(BookmarkTag(bookmark_id=bm.id, tag_id=tag.id, source="ai"))
 

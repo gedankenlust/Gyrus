@@ -38,7 +38,7 @@ def test_delete_batch_moves_to_trash(client, db):
 
     with patch("services.bookmark_service.brain_sync_service.delete_bookmark_file") as mock_delete_file, \
          patch("services.bookmark_service.brain_sync_service.rebuild_index") as mock_rebuild_index, \
-         patch("services.vector_store.delete") as mock_vector_delete:
+         patch("services.bookmark_service._drop_vectors") as mock_drop_vectors:
 
         response = client.post("/api/bookmarks/delete-batch", json={"ids": [a["id"], b["id"], c["id"]]})
         assert response.status_code == 204
@@ -46,12 +46,10 @@ def test_delete_batch_moves_to_trash(client, db):
         # Only 'a' and 'b' should have their files deleted, since 'c' was already trashed
         assert mock_delete_file.call_count == 2
 
-        # Only 'a' and 'b' should be removed from vector store
-        assert mock_vector_delete.call_count == 2
-        vector_calls = [call.args[0] for call in mock_vector_delete.call_args_list]
-        assert a["id"] in vector_calls
-        assert b["id"] in vector_calls
-        assert c["id"] not in vector_calls
+        # Soft-delete drops vectors in one batch for newly trashed bookmarks only
+        mock_drop_vectors.assert_called_once()
+        dropped_ids = mock_drop_vectors.call_args.args[0]
+        assert set(dropped_ids) == {a["id"], b["id"]}
 
         mock_rebuild_index.assert_called_once()
 
@@ -77,13 +75,13 @@ def test_delete_batch_empty_list(client):
 
     with patch("services.bookmark_service.brain_sync_service.delete_bookmark_file") as mock_delete_file, \
          patch("services.bookmark_service.brain_sync_service.rebuild_index") as mock_rebuild_index, \
-         patch("services.vector_store.delete") as mock_vector_delete:
+         patch("services.bookmark_service._drop_vectors") as mock_drop_vectors:
 
         response = client.post("/api/bookmarks/delete-batch", json={"ids": []})
         assert response.status_code == 204
 
         mock_delete_file.assert_not_called()
-        mock_vector_delete.assert_not_called()
+        mock_drop_vectors.assert_called_once_with([])
         mock_rebuild_index.assert_called_once()
 
     assert client.get(f"/api/bookmarks/{a['id']}").status_code == 200
