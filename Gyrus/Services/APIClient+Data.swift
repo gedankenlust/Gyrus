@@ -7,7 +7,9 @@ extension APIClient {
 
     func exportHTML() async throws -> Data {
         let url = base.appending(path: "/api/export/html")
-        let (data, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
+        let (data, response) = try await URLSession.shared.data(for: request)
         try checkStatus(response)
         return data
     }
@@ -15,6 +17,7 @@ extension APIClient {
     func importHTML(data: Data, filename: String, rootFolderName: String? = nil) async throws -> ImportResult {
         var request = URLRequest(url: base.appending(path: "/api/import/html"))
         request.httpMethod = "POST"
+        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         let boundary = UUID().uuidString
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         var body = Data()
@@ -68,7 +71,9 @@ extension APIClient {
 
     func downloadBackup() async throws -> Data {
         let url = base.appending(path: "/api/data/backup")
-        let (data, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
+        let (data, response) = try await URLSession.shared.data(for: request)
         try checkStatus(response)
         return data
     }
@@ -77,6 +82,7 @@ extension APIClient {
     func restoreBackup(_ json: Data) async throws {
         var request = URLRequest(url: base.appending(path: "/api/data/restore"))
         request.httpMethod = "POST"
+        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = json
         let (_, response) = try await URLSession.shared.data(for: request)

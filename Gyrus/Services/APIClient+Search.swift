@@ -43,6 +43,7 @@ extension APIClient {
     func reindexEmbeddings() async throws -> ReindexResponse {
         var req = URLRequest(url: base.appending(path: "/api/search/reindex"))
         req.httpMethod = "POST"
+        req.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         let (data, response) = try await URLSession.shared.data(for: req)
         try checkStatus(response)
         return try decoder.decode(ReindexResponse.self, from: data)

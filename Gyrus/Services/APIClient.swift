@@ -125,8 +125,10 @@ final class APIClient {
     // MARK: - HTTP verbs
 
     func get<T: Decodable>(_ url: URL) async throws -> T {
+        var request = URLRequest(url: url)
+        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await URLSession.shared.data(for: request)
             try checkStatus(response, data: data)
             return try decode(data, from: url)
         } catch let e as APIError {
@@ -140,6 +142,7 @@ final class APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         request.httpBody = try encoder.encode(body)
         if let timeout { request.timeoutInterval = timeout }
         do {
@@ -157,6 +160,7 @@ final class APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         request.httpBody = try encoder.encode(body)
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -172,6 +176,7 @@ final class APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         request.httpBody = try encoder.encode(body)
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -187,6 +192,7 @@ final class APIClient {
     func delete(_ url: URL) async throws {
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
+        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             try checkStatus(response, data: data)
