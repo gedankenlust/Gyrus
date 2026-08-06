@@ -57,14 +57,19 @@ def _generated(index: int) -> str:
     return _hsl_hex(index * GOLDEN_ANGLE)
 
 
+PALETTE_SET = set(PALETTE)
+
+
 def next_color(db: Session) -> str:
     """The first palette color not currently used by any tag. Call this
     once per new tag — after it's added to the session (a flush makes it
     visible to this query), the next call correctly skips it too."""
     used = {c for (c,) in db.query(Tag.color).filter(Tag.color.isnot(None)).all()}
-    for c in PALETTE:
-        if c not in used:
-            return c
+    available = PALETTE_SET - used
+    if available:
+        for c in PALETTE:
+            if c in available:
+                return c
     n = len(used)
     for i in range(n, n + 1000):
         c = _generated(i)
