@@ -29,6 +29,12 @@ def test_extension_manifest_key_matches_allowed_chrome_origin():
 def test_request_without_origin_is_allowed():
     # The native app sends no Origin header.
     assert client.get("/health").status_code == 200
+    # But it must still supply a token for real API access.
+    assert client.get("/api/bookmarks/count-unread").status_code == 401
+
+
+def test_files_allowed_without_token():
+    assert client.get("/api/files/favicons/test.png").status_code == 404
 
 
 def test_gyrus_extension_health_is_allowed():

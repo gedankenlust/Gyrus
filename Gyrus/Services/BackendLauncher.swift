@@ -99,6 +99,8 @@ final class BackendLauncher {
             || path.contains("/Gyrus/backend/venv/")
     }
 
+    static let apiToken = UUID().uuidString
+
     func start() async {
         // SwiftUI can restart the scene task when StartupView is replaced by
         // ContentView. Never let that second call kill the healthy backend that
@@ -145,6 +147,7 @@ final class BackendLauncher {
         ]
         proc.currentDirectoryURL = backendDir
         var environment = ProcessInfo.processInfo.environment
+        environment["GYRUS_API_TOKEN"] = Self.apiToken
         if usesBundledRuntime {
             environment["PLAYWRIGHT_BROWSERS_PATH"] = backendDir
                 .appendingPathComponent("python-runtime/playwright-browsers").path

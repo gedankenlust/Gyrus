@@ -97,10 +97,11 @@ async def block_cross_site_origin(request: Request, call_next):
     if origin:
         if not is_trusted_extension_origin(origin):
             return JSONResponse(status_code=403, content={"detail": "Cross-site request blocked"})
-        if request.method == "OPTIONS" or request.url.path in {"/health", "/api/auth/extension-token"}:
-            return await call_next(request)
-        if not has_valid_api_token(request.headers.get("x-gyrus-token")):
-            return JSONResponse(status_code=401, content={"detail": "Invalid extension token"})
+    if request.method == "OPTIONS" or request.url.path in {"/health", "/api/auth/extension-token"} or request.url.path.startswith("/api/files/"):
+        return await call_next(request)
+    if not has_valid_api_token(request.headers.get("x-gyrus-token")):
+        return JSONResponse(status_code=401, content={"detail": "Invalid extension token"})
+    if origin:
         # The companion has one job: save the active tab. Even a compromised
         # extension build must not gain backup, reset, notes, or AI access.
         if request.method != "POST" or request.url.path != "/api/bookmarks":
