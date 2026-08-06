@@ -50,8 +50,7 @@ final class TagStore {
     /// Reassign every tag a distinct color — fixes a library where many tags
     /// ended up with the same or a very similar color.
     func rebalanceTagColors() async throws {
-        try await api.rebalanceTagColors()
-        try await fetchTags()
+        tags = try await api.rebalanceTagColors()
     }
 
     func tagPresence(tagId: String, in bookmarks: [Bookmark], forIds bookmarkIds: Set<String>) -> TagPresence {
