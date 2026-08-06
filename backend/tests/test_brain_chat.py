@@ -305,3 +305,46 @@ def test_chat_rescrapes_stale_cache_without_version_marker(client, brain_enabled
     client.post("/api/brain/chat", json={"bookmark_id": bm["id"], "prompt": "q2",
                 "provider_config": {"provider": "ollama", "model": "llama3"}})
     assert scrape_calls["n"] == 1
+
+
+def test_clear_messages_deletes_all_bookmark_messages(client, db):
+    from services.brain_chat_service import add_message, clear_messages, list_messages
+
+    bm = client.post("/api/bookmarks", json={
+        "title": "Clear me", "url": "https://example.com/clear", "source": "manual"
+    }).json()
+
+    add_message(db, bm["id"], "user", "Hello")
+    add_message(db, bm["id"], "assistant", "Hi there")
+
+    messages = list_messages(db, bm["id"])
+    assert len(messages) == 2
+
+    deleted_count = clear_messages(db, bm["id"])
+    assert deleted_count == 2
+
+    messages_after = list_messages(db, bm["id"])
+    assert len(messages_after) == 0
+
+
+def test_clear_messages_preserves_other_bookmarks(client, db):
+    from services.brain_chat_service import add_message, clear_messages, list_messages
+
+    bm1 = client.post("/api/bookmarks", json={
+        "title": "Clear me", "url": "https://example.com/clear1", "source": "manual"
+    }).json()
+    bm2 = client.post("/api/bookmarks", json={
+        "title": "Keep me", "url": "https://example.com/keep2", "source": "manual"
+    }).json()
+
+    add_message(db, bm1["id"], "user", "Hello 1")
+    add_message(db, bm2["id"], "user", "Hello 2")
+
+    assert len(list_messages(db, bm1["id"])) == 1
+    assert len(list_messages(db, bm2["id"])) == 1
+
+    deleted_count = clear_messages(db, bm1["id"])
+    assert deleted_count == 1
+
+    assert len(list_messages(db, bm1["id"])) == 0
+    assert len(list_messages(db, bm2["id"])) == 1
