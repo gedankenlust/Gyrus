@@ -119,7 +119,9 @@ app.add_middleware(
 
 
 @app.get("/api/auth/extension-token")
-def extension_token():
+def extension_token(request: Request):
+    if not is_trusted_extension_origin(request.headers.get("origin")):
+        return JSONResponse(status_code=403, content={"detail": "Cross-site request blocked"})
     return {"token": API_TOKEN}
 
 app.include_router(bookmarks.router)

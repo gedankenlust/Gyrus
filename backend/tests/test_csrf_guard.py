@@ -37,6 +37,12 @@ def test_files_allowed_without_token():
     assert client.get("/api/files/favicons/test.png").status_code == 404
 
 
+def test_extension_token_endpoint_blocks_requests_without_origin():
+    # If a local script tries to call the endpoint without an origin header, it should be blocked
+    r = client.get("/api/auth/extension-token")
+    assert r.status_code == 403
+
+
 def test_gyrus_extension_health_is_allowed():
     r = client.get("/health", headers={"Origin": main.EXTENSION_ORIGINS[0]})
     assert r.status_code == 200
