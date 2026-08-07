@@ -38,9 +38,16 @@ def test_files_allowed_without_token():
 
 
 def test_extension_token_endpoint_blocks_requests_without_origin():
-    # If a local script tries to call the endpoint without an origin header, it should be blocked
-    r = client.get("/api/auth/extension-token")
+    # Local scripts that omit Origin must not receive the process token.
+    # Pairing is POST because Chrome MV3 omits Origin on extension GETs.
+    r = client.post("/api/auth/extension-token")
     assert r.status_code == 403
+
+
+def test_extension_token_endpoint_blocks_get():
+    # GET pairing is intentionally unsupported (no Origin from Chrome MV3).
+    r = client.get("/api/auth/extension-token")
+    assert r.status_code == 405
 
 
 def test_gyrus_extension_health_is_allowed():
@@ -56,7 +63,7 @@ def test_unrelated_browser_extension_is_blocked():
 def test_gyrus_extension_requires_process_token_for_api():
     origin = main.EXTENSION_ORIGINS[0]
     assert client.get("/api/bookmarks/count", headers={"Origin": origin}).status_code == 401
-    token = client.get("/api/auth/extension-token", headers={"Origin": origin}).json()["token"]
+    token = client.post("/api/auth/extension-token", headers={"Origin": origin}).json()["token"]
     r = client.post(
         "/api/bookmarks",
         headers={"Origin": origin, "X-Gyrus-Token": token},
@@ -67,7 +74,7 @@ def test_gyrus_extension_requires_process_token_for_api():
 
 def test_gyrus_extension_cannot_read_or_reset_data():
     origin = main.EXTENSION_ORIGINS[0]
-    token = client.get("/api/auth/extension-token", headers={"Origin": origin}).json()["token"]
+    token = client.post("/api/auth/extension-token", headers={"Origin": origin}).json()["token"]
     headers = {"Origin": origin, "X-Gyrus-Token": token}
     assert client.get("/api/data/backup", headers=headers).status_code == 403
     assert client.post("/api/data/factory-reset", headers=headers).status_code == 403

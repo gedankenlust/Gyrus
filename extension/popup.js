@@ -26,9 +26,11 @@ async function saveBookmark() {
 
     pageTitle.textContent = tab.title;
 
-    // 2. Pair with the local backend. Only this extension's fixed browser
-    // origin is allowed to obtain the short-lived process token.
+    // 2. Pair with the local backend. Use POST so Chrome includes the
+    // extension Origin (MV3 omits Origin on GETs to host_permissions URLs).
+    // Only this extension's fixed browser origin may obtain the process token.
     const tokenResponse = await fetch('http://127.0.0.1:8080/api/auth/extension-token', {
+      method: 'POST',
       signal: controller.signal
     });
     if (!tokenResponse.ok) throw new Error(chrome.i18n.getMessage('gyrusError') + tokenResponse.status);

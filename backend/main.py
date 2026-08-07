@@ -118,8 +118,10 @@ app.add_middleware(
 )
 
 
-@app.get("/api/auth/extension-token")
+@app.post("/api/auth/extension-token")
 def extension_token(request: Request):
+    # Chrome MV3 omits Origin on GETs to host_permissions URLs, but always
+    # sends it on POST. Pairing must be POST so we can verify the fixed ID.
     if not is_trusted_extension_origin(request.headers.get("origin")):
         return JSONResponse(status_code=403, content={"detail": "Cross-site request blocked"})
     return {"token": API_TOKEN}
