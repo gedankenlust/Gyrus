@@ -5,6 +5,28 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.0-beta.2] – 2026-08-12
+
+### Changed
+- **Gyrus now runs on macOS 14 (Sonoma) and newer** instead of requiring
+  macOS 26 (Tahoe). The old target was the Xcode default rather than a real
+  requirement: no code is gated behind a macOS 26 availability check, the
+  newest APIs in use (`@Observable`, `SettingsLink`) are macOS 14, and the
+  bundled runtimes reach further back still. Release builds now report
+  `minos 14.0` while continuing to compile against the current SDK.
+- The README download row links to all releases instead of labelling the
+  preview channel as "Stable releases".
+
+### Added
+- Regression tests covering SQL-looking input on the search, bookmark, tag,
+  and dynamic list/sort query paths.
+
+### Fixed
+- Removed stale Python bytecode caches that still referenced the previous
+  project location and broke `pytest` collection after the repository moved.
+
+---
+
 ## [1.4.0-beta.1] – 2026-07-23
 
 ### Added
