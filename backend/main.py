@@ -97,7 +97,23 @@ async def block_cross_site_origin(request: Request, call_next):
     if origin:
         if not is_trusted_extension_origin(origin):
             return JSONResponse(status_code=403, content={"detail": "Cross-site request blocked"})
-    if request.method == "OPTIONS" or request.url.path in {"/health", "/api/auth/extension-token"} or request.url.path.startswith("/api/files/"):
+    # Token-exempt paths — each for a concrete reason, do not extend casually:
+    #   OPTIONS                     CORS preflight carries no custom headers.
+    #   /health                     Startup probe before the app knows a token.
+    #   /api/auth/extension-token   Pairing route; guarded by Origin instead
+    #                               (see the endpoint) — it cannot require the
+    #                               very token it hands out.
+    #   /api/files/*                Favicons, OG images and design screenshots
+    #                               are rendered by SwiftUI AsyncImage and
+    #                               URLSession.data(from:), neither of which can
+    #                               attach a header. Read-only static files;
+    #                               reaching one still requires knowing its
+    #                               bookmark UUID.
+    if (
+        request.method == "OPTIONS"
+        or request.url.path in {"/health", "/api/auth/extension-token"}
+        or request.url.path.startswith("/api/files/")
+    ):
         return await call_next(request)
     if not has_valid_api_token(request.headers.get("x-gyrus-token")):
         return JSONResponse(status_code=401, content={"detail": "Invalid extension token"})

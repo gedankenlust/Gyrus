@@ -138,7 +138,9 @@ struct ViewportScreenshotImage: View {
 
 struct ViewportFrameHeader: View {
     let viewport: APIClient.VisualViewportDTO
-    let trailing: String
+    // LocalizedStringKey, not String: Text(String) resolves to SwiftUI's
+    // verbatim initializer and would skip the string catalog entirely.
+    let trailing: LocalizedStringKey
 
     var body: some View {
         HStack(spacing: 8) {
