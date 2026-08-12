@@ -28,7 +28,51 @@ SWIFT_VERSION = "5.9"
 # Gyrus/Resources/Info.plist and the requirements in README/GETTING_STARTED.
 MACOS_MIN = "14.0"
 MARKETING_VERSION = "1.4.0"
-BUILD_VERSION = "9"
+BUILD_VERSION = "12"
+
+# Everything the "Bundle Python Backend" phase must keep out of the shipped app.
+#
+# This is a privacy boundary, not just tidiness: local tooling writes state into
+# backend/ (".claude-flow/data/pending-insights.jsonl" logged 172 edits together
+# with absolute paths under the developer's private project folder), and every one
+# of those files was being copied into the public DMG.
+#
+# Patterns starting with "/" are anchored to backend/ by rsync. That matters for
+# "tests" and the caches, because bundled site-packages legitimately ship
+# directories with those names that their own modules import. The unanchored
+# patterns are the ones that must be stripped at any depth.
+BACKEND_EXCLUDES = [
+    "venv",
+    "__pycache__",
+    "*.pyc",
+    "*.db",
+    "*.db-wal",
+    "*.db-shm",
+    ".DS_Store",
+    "/tests",
+    "/.pytest_cache",
+    "/.claude-flow",
+    "/.claude",
+    "/.ruff_cache",
+    "/.mypy_cache",
+    "/.gitignore",
+    "/.git",
+    "/.env",
+]
+
+_RSYNC_SRC = '\\"${SRCROOT}/backend/\\"'
+_RSYNC_DST = '\\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/backend/\\"'
+_LPROJ_DIR = '\\"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/en.lproj\\"'
+backend_rsync = (
+    # --delete-excluded, not just --delete: plain --delete protects excluded
+    # paths on the receiving side, so anything a previous build already copied
+    # into the bundle would stay there forever and the excludes would silently
+    # do nothing on an incremental build.
+    "rsync -a --delete --delete-excluded "
+    + " ".join(f"--exclude '{pattern}'" for pattern in BACKEND_EXCLUDES)
+    + f" {_RSYNC_SRC} {_RSYNC_DST}"
+    + f"\\nmkdir -p {_LPROJ_DIR}"
+)
 
 # 1. Collect all Swift files and their directories
 swift_files = []
@@ -308,7 +352,7 @@ pbxproj = f"""// !$*UTF8*$!
 \t\t\t);
 \t\t\trunOnlyForDeploymentPostprocessing = 0;
 \t\t\tshellPath = /bin/sh;
-\t\t\tshellScript = "rsync -a --delete --exclude 'venv' --exclude '__pycache__' --exclude '*.pyc' --exclude '*.db' --exclude '*.db-wal' --exclude '*.db-shm' --exclude '.DS_Store' \\"${{SRCROOT}}/backend/\\" \\"${{BUILT_PRODUCTS_DIR}}/${{UNLOCALIZED_RESOURCES_FOLDER_PATH}}/backend/\\"\\nmkdir -p \\"${{BUILT_PRODUCTS_DIR}}/${{UNLOCALIZED_RESOURCES_FOLDER_PATH}}/en.lproj\\"";
+\t\t\tshellScript = "{backend_rsync}";
 \t\t}};
 /* End PBXShellScriptBuildPhase section */
 

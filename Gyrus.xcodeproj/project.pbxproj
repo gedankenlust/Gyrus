@@ -497,7 +497,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "rsync -a --delete --exclude 'venv' --exclude '__pycache__' --exclude '*.pyc' --exclude '*.db' --exclude '*.db-wal' --exclude '*.db-shm' --exclude '.DS_Store' \"${SRCROOT}/backend/\" \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/backend/\"\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/en.lproj\"";
+			shellScript = "rsync -a --delete --delete-excluded --exclude 'venv' --exclude '__pycache__' --exclude '*.pyc' --exclude '*.db' --exclude '*.db-wal' --exclude '*.db-shm' --exclude '.DS_Store' --exclude '/tests' --exclude '/.pytest_cache' --exclude '/.claude-flow' --exclude '/.claude' --exclude '/.ruff_cache' --exclude '/.mypy_cache' --exclude '/.gitignore' --exclude '/.git' --exclude '/.env' \"${SRCROOT}/backend/\" \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/backend/\"\nmkdir -p \"${BUILT_PRODUCTS_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/en.lproj\"";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -608,7 +608,7 @@
 				APP_SANDBOX_ENABLED = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 12;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Gyrus/Resources/Info.plist;
@@ -631,7 +631,7 @@
 				APP_SANDBOX_ENABLED = NO;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 9;
+				CURRENT_PROJECT_VERSION = 12;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Gyrus/Resources/Info.plist;

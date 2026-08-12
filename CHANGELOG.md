@@ -22,6 +22,16 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   and dynamic list/sort query paths.
 
 ### Fixed
+- The bundled backend no longer carries local development state into released
+  builds. `backend/tests`, `.pytest_cache`, and local tooling directories were
+  copied into the app, including a file that logged edit history with absolute
+  paths from the developer's private project folder.
+- Packaging verifies the finished DMG before it can be published: the app
+  bundle must be present as `Gyrus.app`, its signature must still validate,
+  and the `/Applications` symlink must exist.
+- Releases no longer depend on Finder automation. When the installer window
+  cannot be arranged through AppleScript, packaging falls back to plain
+  `hdiutil` instead of failing.
 - Removed stale Python bytecode caches that still referenced the previous
   project location and broke `pytest` collection after the repository moved.
 

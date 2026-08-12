@@ -12,9 +12,9 @@
   without an account, cloud sync, or telemetry.
 </p>
 
-[![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-black?logo=apple)](#requirements) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Status](https://img.shields.io/badge/status-Early%20Preview-f59e0b.svg?style=flat-square)](#project-status) [![Version](https://img.shields.io/badge/version-1.4.0--beta.1-f59e0b.svg?style=flat-square)](#project-status) [![Built with Swift](https://img.shields.io/badge/Swift-SwiftUI-fa7343?logo=swift&logoColor=white&style=flat-square)](https://developer.apple.com/swiftui/) [![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)](https://fastapi.tiangolo.com/)
+[![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-black?logo=apple)](#requirements) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Status](https://img.shields.io/badge/status-Early%20Preview-f59e0b.svg?style=flat-square)](#project-status) [![Version](https://img.shields.io/badge/version-1.4.0--beta.2-f59e0b.svg?style=flat-square)](#project-status) [![Built with Swift](https://img.shields.io/badge/Swift-SwiftUI-fa7343?logo=swift&logoColor=white&style=flat-square)](https://developer.apple.com/swiftui/) [![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)](https://fastapi.tiangolo.com/)
 
-[**Download Early Preview**](https://github.com/gedankenlust/Gyrus/releases/tag/v1.4.0-beta.1) · [All releases](https://github.com/gedankenlust/Gyrus/releases) · [Features](#features) · [Browser extension](#browser-extension) · [AI Brain](#ai-brain-optional) · [Build](#building-from-source)
+[**Download Early Preview**](https://github.com/gedankenlust/Gyrus/releases/tag/v1.4.0-beta.2) · [All releases](https://github.com/gedankenlust/Gyrus/releases) · [Features](#features) · [Browser extension](#browser-extension) · [AI Brain](#ai-brain-optional) · [Build](#building-from-source)
 
 </div>
 
@@ -47,7 +47,7 @@ reading, and web-inspection app.
 ## Download and install
 
 Download **`Gyrus.dmg`** from the
-[current Early Preview](https://github.com/gedankenlust/Gyrus/releases/tag/v1.4.0-beta.1),
+[current Early Preview](https://github.com/gedankenlust/Gyrus/releases/tag/v1.4.0-beta.2),
 open it, and drag Gyrus into Applications. The latest non-preview build remains
 available under [stable releases](https://github.com/gedankenlust/Gyrus/releases/latest).
 
@@ -136,7 +136,7 @@ Arc, and Edge.
 
 ### Install from a release
 
-1. Download **`Gyrus-Saver-v1.4.0-beta.1.zip`** from the same GitHub release as the
+1. Download **`Gyrus-Saver-v1.4.0-beta.2.zip`** from the same GitHub release as the
    DMG and unzip it.
 2. Open `chrome://extensions`, `brave://extensions`, or the equivalent page.
 3. Enable **Developer mode**.
@@ -276,7 +276,7 @@ extension archive, and writes SHA-256 checksums. Build products are written to
 
 ## Project status
 
-**Current preview: v1.4.0-beta.1.** Gyrus is an **Early Preview**: it is used as
+**Current preview: v1.4.0-beta.2.** Gyrus is an **Early Preview**: it is used as
 a real local bookmark and web-research tool and has automated backend and macOS
 tests, but workflows and stored-data formats can still change before the next
 stable milestone.
