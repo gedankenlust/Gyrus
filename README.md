@@ -12,7 +12,7 @@
   without an account, cloud sync, or telemetry.
 </p>
 
-[![Platform](https://img.shields.io/badge/platform-macOS%2026%2B-black?logo=apple)](#requirements) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Status](https://img.shields.io/badge/status-Early%20Preview-f59e0b.svg?style=flat-square)](#project-status) [![Version](https://img.shields.io/badge/version-1.4.0--beta.1-f59e0b.svg?style=flat-square)](#project-status) [![Built with Swift](https://img.shields.io/badge/Swift-SwiftUI-fa7343?logo=swift&logoColor=white&style=flat-square)](https://developer.apple.com/swiftui/) [![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)](https://fastapi.tiangolo.com/)
+[![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-black?logo=apple)](#requirements) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Status](https://img.shields.io/badge/status-Early%20Preview-f59e0b.svg?style=flat-square)](#project-status) [![Version](https://img.shields.io/badge/version-1.4.0--beta.1-f59e0b.svg?style=flat-square)](#project-status) [![Built with Swift](https://img.shields.io/badge/Swift-SwiftUI-fa7343?logo=swift&logoColor=white&style=flat-square)](https://developer.apple.com/swiftui/) [![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)](https://fastapi.tiangolo.com/)
 
 [**Download Early Preview**](https://github.com/gedankenlust/Gyrus/releases/tag/v1.4.0-beta.1) · [Stable releases](https://github.com/gedankenlust/Gyrus/releases/latest) · [Features](#features) · [Browser extension](#browser-extension) · [AI Brain](#ai-brain-optional) · [Build](#building-from-source)
 
@@ -122,7 +122,7 @@ directly from your Mac to the referenced website.
 
 ## Requirements
 
-- **macOS 26 (Tahoe) or newer**
+- **macOS 14 (Sonoma) or newer**
 - Optional: [Ollama](https://ollama.com) for AI Brain, semantic search,
   translation, summaries, and taxonomy review
 

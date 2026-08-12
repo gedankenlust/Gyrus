@@ -21,7 +21,12 @@ os.makedirs(PROJ_DIR, exist_ok=True)
 BUNDLE_ID = "com.gyrus.app"
 PRODUCT_NAME = "Gyrus"
 SWIFT_VERSION = "5.9"
-MACOS_MIN = "26.0"
+# Sonoma, not the newest macOS: nothing in the app needs a later API (the
+# highest requirements are @Observable and SettingsLink, both macOS 14), and the
+# bundled runtimes are fine here too (python-runtime minos 11.0, Playwright
+# Chromium 13+). Keep this in sync with LSMinimumSystemVersion in
+# Gyrus/Resources/Info.plist and the requirements in README/GETTING_STARTED.
+MACOS_MIN = "14.0"
 MARKETING_VERSION = "1.4.0"
 BUILD_VERSION = "9"
 

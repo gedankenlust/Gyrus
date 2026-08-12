@@ -25,7 +25,7 @@
 	<key>GyrusReleaseChannel</key>
 	<string>beta.1</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>26.0</string>
+	<string>14.0</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

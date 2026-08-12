@@ -9,7 +9,7 @@ project-specific quirk you need to know.
 
 ## Prerequisites
 
-- **macOS 26 (Tahoe) or newer**
+- **macOS 14 (Sonoma) or newer**
 - **Xcode** (recent version)
 - **Python 3**
 - *(optional)* **[Ollama](https://ollama.com)** — only for AI Brain work

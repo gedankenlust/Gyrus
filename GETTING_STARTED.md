@@ -11,7 +11,7 @@ your own Mac — no account, no cloud, no telemetry.
 
 ### 1. Requirements
 
-- **macOS 26 (Tahoe)** or newer
+- **macOS 14 (Sonoma)** or newer
 - **Xcode** (to build the app)
 - **Python 3** (the backend uses it — already on most Macs)
 - *(optional)* **[Ollama](https://ollama.com)** — only if you want the AI Brain
@@ -202,7 +202,7 @@ bleibt auf deinem eigenen Mac — kein Konto, keine Cloud, keine Telemetrie.
 
 ### 1. Voraussetzungen
 
-- **macOS 26 (Tahoe)** oder neuer
+- **macOS 14 (Sonoma)** oder neuer
 - **Xcode** (zum Bauen der App)
 - **Python 3** (für das Backend — auf den meisten Macs schon vorhanden)
 - *(optional)* **[Ollama](https://ollama.com)** — nur falls du das AI Brain nutzen willst
