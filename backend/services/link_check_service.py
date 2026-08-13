@@ -138,18 +138,21 @@ def _persist_results(results: list[tuple[str, bool]]) -> None:
     """Persist completed checks in bounded batches without N+1 queries."""
     if not results:
         return
-    values = dict(results)
-    ids = list(values)
+
+    ids_dead = [k for k, v in results if v]
+    ids_alive = [k for k, v in results if not v]
+
     db = SessionLocal()
     try:
         # SQLite commonly limits bound parameters to 999.
-        for start in range(0, len(ids), 500):
-            chunk = ids[start:start + 500]
-            bookmarks = db.query(Bookmark).filter(Bookmark.id.in_(chunk)).all()
-            for bookmark in bookmarks:
-                is_dead = values[bookmark.id]
-                if bookmark.is_dead != is_dead:
-                    bookmark.is_dead = is_dead
+        for start in range(0, len(ids_dead), 500):
+            chunk = ids_dead[start:start + 500]
+            db.query(Bookmark).filter(Bookmark.id.in_(chunk), Bookmark.is_dead != True).update({"is_dead": True}, synchronize_session=False)
+
+        for start in range(0, len(ids_alive), 500):
+            chunk = ids_alive[start:start + 500]
+            db.query(Bookmark).filter(Bookmark.id.in_(chunk), Bookmark.is_dead != False).update({"is_dead": False}, synchronize_session=False)
+
         db.commit()
     finally:
         db.close()
