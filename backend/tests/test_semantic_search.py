@@ -186,10 +186,11 @@ def test_purge_expired_removes_vectors(db):
 
 
 @pytest.mark.asyncio
-async def test_restore_reindexes_embedding(db):
+async def test_restore_reindexes_embedding(db, monkeypatch):
     """Restoring from Trash rebuilds the vector that trashing removed."""
     from models.bookmark import Bookmark
     from services import bookmark_service, background
+    from sqlalchemy.orm import sessionmaker
 
     bm = Bookmark(title="Restored", url="https://vec-restore.com", source="manual")
     bm.scraped_content = "some scraped page content"
@@ -198,6 +199,11 @@ async def test_restore_reindexes_embedding(db):
 
     bookmark_service.delete_bookmark(db, bm)
     n_trashed = vector_store.count()
+
+    # The background task in restore_bookmarks uses SessionLocal; point it at this fixture's DB
+    PipelineSession = sessionmaker(bind=db.get_bind())
+    import database
+    monkeypatch.setattr(database, "SessionLocal", PipelineSession)
 
     with patch(
         "services.embedding_service.get_embedding",

@@ -265,17 +265,29 @@ def restore_bookmarks(db: Session, ids: list[str]) -> int:
     bms = db.query(Bookmark).filter(
         Bookmark.id.in_(ids), Bookmark.deleted_at.is_not(None)
     ).all()
-    for bm in bms:
-        bm.deleted_at = None
+    if not bms:
+        return 0
+
+    db.query(Bookmark).filter(
+        Bookmark.id.in_([bm.id for bm in bms]), Bookmark.deleted_at.is_not(None)
+    ).update({"deleted_at": None}, synchronize_session=False)
     db.commit()
-    for bm in bms:
-        _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm))
-        # The vector was dropped when the bookmark was trashed — rebuild it
-        # so the restored bookmark is findable by semantic search again.
-        if bm.scraped_content:
-            from services import background
-            background.schedule(index_bookmark_embedding(bm.id, bm.scraped_content))
-    _safe_brain_sync(lambda: brain_sync_service.rebuild_index(db))
+
+    async def _background_restore_sync(bookmark_ids: list[str]):
+        from database import SessionLocal
+        with SessionLocal() as bg_db:
+            bg_bms = bg_db.query(Bookmark).filter(Bookmark.id.in_(bookmark_ids)).all()
+            for bm in bg_bms:
+                _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(bg_db, bm))
+                # The vector was dropped when the bookmark was trashed — rebuild it
+                # so the restored bookmark is findable by semantic search again.
+                if bm.scraped_content:
+                    await index_bookmark_embedding(bm.id, bm.scraped_content)
+            _safe_brain_sync(lambda: brain_sync_service.rebuild_index(bg_db))
+
+    from services import background
+    background.schedule(_background_restore_sync([bm.id for bm in bms]))
+
     return len(bms)
 
 
