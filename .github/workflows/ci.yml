@@ -46,6 +46,96 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pytest -q
 
+  macos-14-backend-smoke:
+    # The unit tests above run against pip-installed packages on a CI Python.
+    # Users get something different: a relocatable interpreter with pinned
+    # wheels and a bundled Chromium, all inside the .app. This job builds that
+    # exact artifact on the oldest supported macOS and drives it over HTTP, so
+    # "works on Sonoma" covers the shipped stack and not just the source.
+    name: Backend smoke test on macOS 14
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # Downloads a pinned python-build-standalone (SHA-256 verified), installs
+      # the production dependencies, adds the Chromium shell, and asserts that
+      # both import and that Chromium launches. That last part is the Design
+      # tab's hard requirement.
+      - name: Build the bundled Python runtime
+        run: ./build_python_runtime.sh
+
+      - name: Serve the API from the bundled runtime and exercise it
+        run: |
+          set -euo pipefail
+
+          data_dir="$RUNNER_TEMP/gyrus-smoke"
+          rm -rf "$data_dir"
+          token="smoke-$RANDOM-$RANDOM"
+          py=python-runtime/bin/python3
+
+          GYRUS_DATA_DIR="$data_dir" GYRUS_API_TOKEN="$token" \
+            "$py" -m uvicorn main:app --host 127.0.0.1 --port 8099 --log-level warning \
+            > server.log 2>&1 &
+          server=$!
+          # Always surface the server log, otherwise a startup crash shows up
+          # only as an opaque curl failure.
+          trap 'echo "--- server.log ---"; cat server.log || true; kill "$server" 2>/dev/null || true' EXIT
+
+          for _ in $(seq 1 60); do
+            if curl -fsS -m 2 http://127.0.0.1:8099/health >/dev/null 2>&1; then break; fi
+            if ! kill -0 "$server" 2>/dev/null; then
+              echo "::error::The backend exited during startup on macOS $(sw_vers -productVersion)."
+              exit 1
+            fi
+            sleep 1
+          done
+
+          api() { curl -fsS -m 15 -H "X-Gyrus-Token: $token" "$@"; }
+
+          echo "== health =="
+          api http://127.0.0.1:8099/health
+
+          # Startup runs the Alembic migrations, so a 201 here means the schema
+          # was created and is writable on this OS.
+          echo "== create =="
+          api -X POST http://127.0.0.1:8099/api/bookmarks \
+            -H "Content-Type: application/json" \
+            -d '{"title":"Sonoma smoke test","url":"https://example.com/sonoma-smoke","source":"manual"}' \
+            > created.json
+          "$py" -c "
+          import json
+          created = json.load(open('created.json'))
+          assert created.get('url') == 'https://example.com/sonoma-smoke', created
+          print('  created', created['id'])
+          "
+
+          # FTS5 is compiled into the bundled interpreter's SQLite rather than
+          # the system one, so searching is the check that actually matters.
+          echo "== search (FTS5) =="
+          api "http://127.0.0.1:8099/api/search?q=sonoma" > found.json
+          "$py" -c "
+          import json
+          hits = json.load(open('found.json'))
+          assert any(h['url'] == 'https://example.com/sonoma-smoke' for h in hits), hits
+          print(f'  {len(hits)} hit(s)')
+          "
+
+          # The database holds everything the user owns; these modes are set
+          # explicitly in database.py and are worth asserting on the real OS.
+          echo "== file permissions =="
+          dir_mode=$(stat -f "%Lp" "$data_dir")
+          db_mode=$(stat -f "%Lp" "$data_dir/db/gyrus.db")
+          echo "  data dir: $dir_mode, database: $db_mode"
+          if [ "$dir_mode" != "700" ] || [ "$db_mode" != "600" ]; then
+            echo "::error::Expected 700 on the data directory and 600 on the database, got $dir_mode and $db_mode."
+            exit 1
+          fi
+
+          echo "== ok =="
+
   macos-tests:
     # Builds on the newest runner because the source needs a current Swift: the
     # compiler applies default main-actor isolation to SwiftUI views, and older
