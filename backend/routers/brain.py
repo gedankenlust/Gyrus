@@ -1,5 +1,6 @@
 import asyncio
 import httpx
+import aiofiles
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -344,8 +345,8 @@ async def _prepare_context(db: Session, bookmark, prompt: str | None = None) -> 
 
     full_text = ""
     if file_path.exists():
-        with open(file_path, "r", encoding="utf-8") as f:
-            full_text = f.read()
+        async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
+            full_text = await f.read()
 
     context = ""
     if "## Content (Scraped)" in full_text:
