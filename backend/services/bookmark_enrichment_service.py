@@ -268,20 +268,27 @@ def resume_pending() -> int:
     """Resume jobs interrupted by an app/backend shutdown."""
     db = SessionLocal()
     try:
-        bookmarks = db.query(Bookmark).filter(
+        bookmarks_to_resume = db.query(Bookmark.id).filter(
             Bookmark.deleted_at.is_(None),
             (Bookmark.metadata_status.in_(("pending", "running")))
             | (Bookmark.reader_status.in_(("pending", "running")))
             | (Bookmark.index_status.in_(("pending", "running"))),
         ).all()
-        ids = [bookmark.id for bookmark in bookmarks]
-        for bookmark in bookmarks:
-            if bookmark.metadata_status == "running":
-                bookmark.metadata_status = "pending"
-            if bookmark.reader_status == "running":
-                bookmark.reader_status = "pending"
-            if bookmark.index_status == "running":
-                bookmark.index_status = "pending"
+        ids = [row[0] for row in bookmarks_to_resume]
+
+        if ids:
+            db.query(Bookmark).filter(
+                Bookmark.id.in_(ids), Bookmark.metadata_status == "running"
+            ).update({Bookmark.metadata_status: "pending"}, synchronize_session=False)
+
+            db.query(Bookmark).filter(
+                Bookmark.id.in_(ids), Bookmark.reader_status == "running"
+            ).update({Bookmark.reader_status: "pending"}, synchronize_session=False)
+
+            db.query(Bookmark).filter(
+                Bookmark.id.in_(ids), Bookmark.index_status == "running"
+            ).update({Bookmark.index_status: "pending"}, synchronize_session=False)
+
         db.commit()
     finally:
         db.close()
