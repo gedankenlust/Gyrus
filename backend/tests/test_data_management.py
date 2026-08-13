@@ -9,16 +9,31 @@ def test_clear_cache(client):
     # Ensure directories exist and have some files
     favicons_dir = DATA_DIR / "favicons"
     og_images_dir = DATA_DIR / "og_images"
-    favicons_dir.mkdir(exist_ok=True)
-    og_images_dir.mkdir(exist_ok=True)
+    favicons_dir.mkdir(parents=True, exist_ok=True)
+    og_images_dir.mkdir(parents=True, exist_ok=True)
     
     test_favicon = favicons_dir / "test.png"
     test_favicon.write_text("dummy")
     
+    # Nested directory to ensure shutil.rmtree works on directories
+    nested_dir = favicons_dir / "nested"
+    nested_dir.mkdir(parents=True, exist_ok=True)
+    nested_file = nested_dir / "nested.png"
+    nested_file.write_text("dummy_nested")
+
+    test_og_image = og_images_dir / "test_og.png"
+    test_og_image.write_text("dummy_og")
+
     resp = client.post("/api/data/clear-cache")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
     assert not test_favicon.exists()
+    assert not nested_dir.exists()
+    assert not test_og_image.exists()
+
+    # Ensure root cache directories themselves are not deleted
+    assert favicons_dir.exists()
+    assert og_images_dir.exists()
 
 def test_clear_brain(client):
     # Gyrus files are removed, unrelated files in a selected vault are not.
