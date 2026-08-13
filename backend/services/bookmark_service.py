@@ -336,7 +336,7 @@ async def index_bookmark_embedding(bookmark_id: str, text: str) -> bool:
     if not text or not text.strip():
         return False
     try:
-        from services.embedding_service import get_embedding, EmbeddingUnavailableError
+        from services.embedding_service import get_embedding
         from services import vector_store
         vec = await get_embedding(text)
         return vector_store.upsert(bookmark_id, vec)
