@@ -56,3 +56,25 @@ def test_retention_of_blank_query_parameter_values():
 def test_invalid_url_fallback():
     # Invalid IPv6 URL causes a ValueError in urlsplit
     assert normalize_url("http://[::1") == "http://[::1"
+
+def test_multiple_identical_query_parameters():
+    assert normalize_url("http://example.com/?q=1&q=2") == "http://example.com?q=1&q=2"
+
+def test_other_url_schemes():
+    assert normalize_url("mailto:user@example.com") == "mailto:user@example.com"
+    assert normalize_url("file:///tmp/test.txt") == "file:///tmp/test.txt"
+    assert normalize_url("javascript:alert(1)") == "javascript:alert(1)"
+
+def test_credentials_in_url():
+    assert normalize_url("http://user:pass@example.com/") == "http://user:pass@example.com"
+    assert normalize_url("http://User:Pass@Example.com/") == "http://user:pass@example.com"
+
+def test_empty_query_or_fragment():
+    assert normalize_url("http://example.com/?") == "http://example.com"
+    assert normalize_url("http://example.com/#") == "http://example.com"
+
+def test_invalid_port_numbers():
+    assert normalize_url("http://example.com:80a/path") == "http://example.com:80a/path"
+
+def test_scheme_less_urls():
+    assert normalize_url("//example.com/path") == "//example.com/path"
