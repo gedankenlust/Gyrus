@@ -418,3 +418,22 @@ def test_compact_records_handles_empty_list():
     lines, keyed = taxonomy_service.compact_records([])
     assert lines == ""
     assert keyed == {}
+
+
+def test_taxonomy_limits_boundary_values():
+    # Negative and zero counts default to the minimum values
+    assert taxonomy_service.taxonomy_limits(-5) == (6, 2)
+    assert taxonomy_service.taxonomy_limits(0) == (6, 2)
+
+    # 1 bookmark is the minimum input for the calculation
+    assert taxonomy_service.taxonomy_limits(1) == (6, 2)
+
+    # Moderate count
+    assert taxonomy_service.taxonomy_limits(10) == (11, 2)
+
+    # High count scaling normally
+    assert taxonomy_service.taxonomy_limits(100) == (35, 7)
+
+    # 130 bookmarks and up hit the maximum tags cap (40)
+    assert taxonomy_service.taxonomy_limits(130) == (40, 8)
+    assert taxonomy_service.taxonomy_limits(1000) == (40, 8)
