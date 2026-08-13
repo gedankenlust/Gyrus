@@ -10,8 +10,6 @@ Intentionally simple:
   search(query_vec, k)         — return the k nearest bookmark IDs + distances
 """
 import logging
-from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
