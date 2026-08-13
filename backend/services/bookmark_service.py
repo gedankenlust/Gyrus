@@ -220,8 +220,7 @@ def delete_bookmarks(db: Session, ids: list[str]) -> None:
     bms = db.query(Bookmark).filter(
         Bookmark.id.in_(ids), Bookmark.deleted_at.is_(None)
     ).all()
-    for bm in bms:
-        _safe_brain_sync(lambda: brain_sync_service.delete_bookmark_file(db, bm))
+    _safe_brain_sync(lambda: brain_sync_service.delete_bookmarks_files(db, bms))
     _drop_vectors([bm.id for bm in bms])
 
     db.query(Bookmark).filter(

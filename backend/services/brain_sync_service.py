@@ -230,6 +230,22 @@ class BrainSyncService:
         if path.exists():
             path.unlink()
 
+    def delete_bookmarks_files(self, db: Session, bookmarks: list[Bookmark]):
+        """Removes multiple bookmark files from disk.
+        Caches collection paths to avoid N+1 DB queries."""
+        collection_paths = {}
+        for bookmark in bookmarks:
+            if bookmark.collection_id not in collection_paths:
+                collection_paths[bookmark.collection_id] = self._get_collection_path(db, bookmark.collection_id)
+
+            rel_dir = collection_paths[bookmark.collection_id]
+            short_id = bookmark.id[:8]
+            filename = f"{self._sanitize_name(bookmark.title or 'Untitled')}-{short_id}.md"
+            final_path = (self.root_dir / rel_dir / filename).resolve()
+
+            if final_path.is_relative_to(self.root_dir) and final_path.exists():
+                final_path.unlink()
+
     def clear_all_files(self):
         """Delete only files that can be identified as Gyrus-generated.
 

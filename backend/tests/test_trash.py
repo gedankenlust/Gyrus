@@ -36,7 +36,7 @@ def test_delete_batch_moves_to_trash(client, db):
     # Pre-trash c so we can verify it doesn't trigger side effects again
     client.delete(f"/api/bookmarks/{c['id']}")
 
-    with patch("services.bookmark_service.brain_sync_service.delete_bookmark_file") as mock_delete_file, \
+    with patch("services.bookmark_service.brain_sync_service.delete_bookmarks_files") as mock_delete_files, \
          patch("services.bookmark_service.brain_sync_service.rebuild_index") as mock_rebuild_index, \
          patch("services.bookmark_service._drop_vectors") as mock_drop_vectors:
 
@@ -44,7 +44,10 @@ def test_delete_batch_moves_to_trash(client, db):
         assert response.status_code == 204
 
         # Only 'a' and 'b' should have their files deleted, since 'c' was already trashed
-        assert mock_delete_file.call_count == 2
+        mock_delete_files.assert_called_once()
+        called_bms = mock_delete_files.call_args.args[1]
+        assert len(called_bms) == 2
+        assert {b.id for b in called_bms} == {a["id"], b["id"]}
 
         # Soft-delete drops vectors in one batch for newly trashed bookmarks only
         mock_drop_vectors.assert_called_once()
