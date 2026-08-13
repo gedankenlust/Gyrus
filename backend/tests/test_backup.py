@@ -86,3 +86,35 @@ def test_premigration_ring_is_independent_of_daily(tmp_backup, monkeypatch):
         backup_service.backup_before_migration()
     assert len(list(backups.glob(backup_service.PREMIGRATION_GLOB))) == 2
     assert (backups / "gyrus-20260101-000000.db").exists()
+
+def test_premigration_backup_no_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(backup_service, "DB_PATH", tmp_path / "missing.db")
+    monkeypatch.setattr(backup_service, "BACKUP_DIR", tmp_path / "backups")
+    backup_service.backup_before_migration()
+    assert not (tmp_path / "backups").exists() or not list((tmp_path / "backups").glob("*"))
+
+def test_run_daily_backup_exception(tmp_backup, monkeypatch, caplog):
+    _, backups = tmp_backup
+
+    def failing_snapshot(src, dst):
+        raise RuntimeError("Disk full or something")
+
+    monkeypatch.setattr(backup_service, "_snapshot", failing_snapshot)
+
+    backup_service.run_daily_backup()
+
+    assert "DB backup failed" in caplog.text
+    assert "Disk full or something" in caplog.text
+
+def test_backup_before_migration_exception(tmp_backup, monkeypatch, caplog):
+    _, backups = tmp_backup
+
+    def failing_snapshot(src, dst):
+        raise RuntimeError("Something went wrong")
+
+    monkeypatch.setattr(backup_service, "_snapshot", failing_snapshot)
+
+    backup_service.backup_before_migration()
+
+    assert "Pre-migration backup failed" in caplog.text
+    assert "Something went wrong" in caplog.text
