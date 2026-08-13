@@ -9,8 +9,11 @@ project-specific quirk you need to know.
 
 ## Prerequisites
 
-- **macOS 14 (Sonoma) or newer**
-- **Xcode** (recent version)
+- **A current macOS with a current Xcode.** Building needs a Swift toolchain
+  that applies default main-actor isolation to SwiftUI views; older ones reject
+  every access to `@MainActor` state from a view body. Note this is stricter
+  than what users need: the *released app* runs on macOS 14 (Sonoma) and newer,
+  and CI verifies that by launching a freshly built binary on a macOS 14 runner.
 - **Python 3**
 - *(optional)* **[Ollama](https://ollama.com)** — only for AI Brain work
 

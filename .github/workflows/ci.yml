@@ -27,16 +27,32 @@ jobs:
       - run: pip-audit -r requirements.txt
       - run: pytest -q
 
+  macos-backend-tests:
+    # The backend only ever runs on macOS, and parts of it are platform-specific
+    # (0o700/0o600 permissions, SQLite file locking), so the ubuntu run above is
+    # not sufficient on its own. macOS 14 is the oldest release we support.
+    name: Backend tests on macOS 14
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+
   macos-tests:
-    # Both ends of the supported range. macos-14 is the floor advertised in the
-    # README, and it is the only automated proof of that claim — building against
-    # a newer SDK says nothing about whether Sonoma's older SDK has the APIs.
-    name: macOS build and tests (${{ matrix.runner }})
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        runner: [macos-14, macos-latest]
+    # Builds on the newest runner because the source needs a current Swift: the
+    # compiler applies default main-actor isolation to SwiftUI views, and older
+    # toolchains reject every access to @MainActor state from a view body. That
+    # is a build-time requirement only — see macos-14-launch for what users get.
+    name: macOS build and tests
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - run: python3 generate_xcodeproj.py
@@ -55,10 +71,10 @@ jobs:
           plist=Gyrus/Resources/Info.plist
           binary=ci-build/Build/Products/Debug/Gyrus.app/Contents/MacOS/Gyrus
 
-          # Info.plist is what Finder and the App Store check before launching.
+          # Info.plist is what Finder checks before it will launch the app.
           declared=$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "$plist")
-          # minos in the Mach-O header is what dyld actually enforces at runtime.
-          # Xcode writes it from MACOSX_DEPLOYMENT_TARGET, so this catches a
+          # minos in the Mach-O header is what dyld actually enforces. Xcode
+          # writes it from MACOSX_DEPLOYMENT_TARGET, so this catches a
           # regenerated project file that lost the setting.
           actual=$(otool -l "$binary" | awk '/LC_BUILD_VERSION/{f=1} f && /minos/{print $2; exit}')
 
@@ -66,25 +82,85 @@ jobs:
           echo "Mach-O minos:           $actual"
 
           if [ "$declared" != "$expected" ] || [ "$actual" != "$expected" ]; then
-            echo "::error::Expected macOS $expected everywhere. Info.plist says '$declared' and the binary says '$actual'. Update MACOS_MIN in generate_xcodeproj.py and LSMinimumSystemVersion together, and keep README/GETTING_STARTED/CONTRIBUTING in step."
+            echo "::error::Expected macOS $expected everywhere. Info.plist says '$declared' and the binary says '$actual'. Update MACOS_MIN in generate_xcodeproj.py and LSMinimumSystemVersion together, and keep README/GETTING_STARTED in step."
             exit 1
           fi
 
-  macos-backend-tests:
-    # The backend also only ever runs on macOS, and parts of it are
-    # platform-specific (0o700/0o600 permissions, SQLite file locking), so the
-    # ubuntu run above is not sufficient on its own.
-    name: Backend tests on macOS 14
-    runs-on: macos-14
-    defaults:
-      run:
-        working-directory: backend
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      # ditto rather than uploading the .app directly: upload-artifact does not
+      # preserve symlinks or the executable bit, both of which a bundle needs.
+      - name: Package the app for the macOS 14 launch check
+        run: ditto -c -k --keepParent ci-build/Build/Products/Debug/Gyrus.app Gyrus-app.zip
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: backend/requirements.txt
-      - run: pip install -r requirements.txt
-      - run: pytest -q
+          name: gyrus-app-debug
+          path: Gyrus-app.zip
+          retention-days: 1
+
+  macos-14-launch:
+    # The point of the macOS 14 promise is that a binary built on current Xcode
+    # still *runs* on Sonoma. Compiling there proves nothing about that (and is
+    # impossible anyway, see macos-tests), so take the real artifact to a real
+    # macOS 14 machine and let dyld try to load it. If anything the app links
+    # against were unavailable on Sonoma, the process aborts here.
+    name: Launch on macOS 14
+    runs-on: macos-14
+    needs: macos-tests
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: gyrus-app-debug
+      - run: ditto -x -k Gyrus-app.zip .
+
+      - name: Confirm the runner really is macOS 14
+        run: |
+          set -euo pipefail
+          version=$(sw_vers -productVersion)
+          echo "Runner macOS: $version"
+          case "$version" in
+            14.*) ;;
+            *) echo "::error::Expected a macOS 14 runner, got $version. This job no longer tests the advertised minimum."; exit 1 ;;
+          esac
+
+      - name: Load and link the app under dyld
+        run: |
+          set -uo pipefail
+          binary=Gyrus.app/Contents/MacOS/Gyrus
+          chmod +x "$binary"
+
+          # The bundled Python runtime is not in the repository, so the app
+          # cannot reach a working backend here and may well exit on its own.
+          # That is fine: this step only asks whether macOS 14 can load and link
+          # the binary. Only dyld failures are treated as failures.
+          #
+          # Backgrounding rather than `timeout`, which is GNU coreutils and not
+          # part of a stock macOS.
+          "$binary" > launch.log 2>&1 &
+          pid=$!
+          sleep 20
+
+          # No `set -e` in this step on purpose: a non-zero exit from the app is
+          # an expected outcome here, not a failure.
+          if kill -0 "$pid" 2>/dev/null; then
+            status="still-running"
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+          else
+            wait "$pid"
+            status=$?
+          fi
+
+          echo "outcome: $status"
+          echo "--- output ---"
+          cat launch.log
+          echo "--------------"
+
+          if grep -qE "dyld|Symbol not found|Library not loaded|Incompatible library version|image not found" launch.log; then
+            echo "::error::dyld could not load the app on macOS $(sw_vers -productVersion). The macOS 14 minimum in the README is not accurate."
+            exit 1
+          fi
+
+          if [ "$status" = "still-running" ]; then
+            echo "::notice::App was still alive after 20s on macOS $(sw_vers -productVersion) — loaded and linked cleanly."
+          else
+            echo "::notice::App exited with $status and no dyld error. Linking on macOS 14 is fine; an early exit is expected without a bundled backend."
+          fi
