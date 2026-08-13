@@ -21,13 +21,40 @@ def _stub_bookmarks(count: int):
     }
 
 
-def test_normalize_tag_names_and_synonyms():
-    assert taxonomy_service.normalize_tag_name("  Coworking_Spaces ") == "coworking"
+@pytest.mark.parametrize("input_val, expected", [
+    ("  Coworking_Spaces ", "coworking"),
+    ("AI assisted development", "ai-assisted development"),
+    ("C++", "c++"),
+    ("C#", "c#"),
+    (".NET", ".net"),
+    ("Node.js", "node.js"),
+    ("Machine---Learning", "machine---learning"),
+    ("  - leading and trailing hyphens -  ", "leading and trailing hyphens"),
+    ("web_design", "webdesign"),
+    ("100% pure!@#$", "100 pure#"),
+    ("groß", "gross"),
+    ("MÄRZ", "märz"),
+])
+def test_normalize_tag_names_and_synonyms(input_val, expected):
+    assert taxonomy_service.normalize_tag_name(input_val) == expected
+
+def test_canonical_tag_key():
     assert taxonomy_service.canonical_tag_key("developer tools") == taxonomy_service.canonical_tag_key("developer tool")
-    assert taxonomy_service.normalize_tag_name("AI assisted development") == "ai-assisted development"
-    assert taxonomy_service.normalize_tag_name("far too many words for one useful taxonomy tag") is None
-    assert taxonomy_service.normalize_tag_name("C#") == "c#"
-    assert taxonomy_service.normalize_tag_name(".NET") == ".net"
+
+def test_normalize_tag_name_limits_and_invalid():
+    # Empty string or purely stripped string
+    assert taxonomy_service.normalize_tag_name("") is None
+    assert taxonomy_service.normalize_tag_name("   -  _   ") is None
+
+    # Exceeds max characters based on constant
+    assert taxonomy_service.normalize_tag_name("a" * (taxonomy_service.MAX_NAME_CHARS + 1)) is None
+    assert taxonomy_service.normalize_tag_name("a" * taxonomy_service.MAX_NAME_CHARS) == "a" * taxonomy_service.MAX_NAME_CHARS
+
+    # Exceeds max words based on constant
+    too_many_words = " ".join([f"w{i}" for i in range(taxonomy_service.MAX_WORDS + 1)])
+    max_words = " ".join([f"w{i}" for i in range(taxonomy_service.MAX_WORDS)])
+    assert taxonomy_service.normalize_tag_name(too_many_words) is None
+    assert taxonomy_service.normalize_tag_name(max_words) == max_words
 
 
 def test_collection_prompt_does_not_claim_there_is_only_one_page():
