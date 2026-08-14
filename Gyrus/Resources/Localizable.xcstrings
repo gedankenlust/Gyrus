@@ -10018,6 +10018,248 @@
           }
         }
       }
+    },
+    "Captured in an older inspection format. Some sections stay empty until you reinspect.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In einem älteren Erfassungsformat aufgenommen. Einige Abschnitte bleiben leer, bis du neu inspizierst."
+          }
+        }
+      }
+    },
+    "Partial capture": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teilweise erfasst"
+          }
+        }
+      }
+    },
+    "Capture failed": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erfassung fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "Design tokens": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Design-Tokens"
+          }
+        }
+      }
+    },
+    "Custom properties the site declares": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vom Auftritt selbst definierte CSS-Variablen"
+          }
+        }
+      }
+    },
+    "In use": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Verwendung"
+          }
+        }
+      }
+    },
+    "Painted on the page, largest area first": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf der Seite gezeichnet, größte Fläche zuerst"
+          }
+        }
+      }
+    },
+    "Screenshot palette": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screenshot-Palette"
+          }
+        }
+      }
+    },
+    "Averaged from the rendered image, not exact values": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus dem gerenderten Bild gemittelt, keine exakten Werte"
+          }
+        }
+      }
+    },
+    "Type scale, largest first": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typo-Skala, größte zuerst"
+          }
+        }
+      }
+    },
+    "All font stacks": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Schriftstapel"
+          }
+        }
+      }
+    },
+    "Sizing & spacing": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Größen & Abstände"
+          }
+        }
+      }
+    },
+    "Font stacks": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schriftstapel"
+          }
+        }
+      }
+    },
+    "Shadows": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schatten"
+          }
+        }
+      }
+    },
+    "Motion": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bewegung"
+          }
+        }
+      }
+    },
+    "Other": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sonstige"
+          }
+        }
+      }
+    },
+    "Framework internals": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Framework-Interna"
+          }
+        }
+      }
+    },
+    "Spacing Scale": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abstandsskala"
+          }
+        }
+      }
+    },
+    "Copy across instances": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texte der einzelnen Vorkommen"
+          }
+        }
+      }
+    },
+    "Distinct patterns / instances found": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterschiedliche Muster / gefundene Vorkommen"
+          }
+        }
+      }
+    },
+    "No obvious component patterns found in this viewport.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In diesem Viewport wurden keine eindeutigen Komponentenmuster gefunden."
+          }
+        }
+      }
+    },
+    "Counts are a lower bound: the capture samples a limited number of elements per page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Anzahlen sind Untergrenzen: Die Erfassung wertet nur eine begrenzte Zahl von Elementen pro Seite aus."
+          }
+        }
+      }
     }
   },
   "version": "1.1"

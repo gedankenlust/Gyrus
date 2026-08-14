@@ -73,6 +73,7 @@
 		034B0F40E1CC0C317FC66722 = {isa = PBXBuildFile; fileRef = D65984A982BE37D701863441; };
 		653DD92D4EF271ADCD7CF824 = {isa = PBXBuildFile; fileRef = AD383AFDB3CF8CC42546B5A0; };
 		3AEA3B92F6C806A9A3A7AE34 = {isa = PBXBuildFile; fileRef = E6B1069E26E307BEE7211DDC; };
+		1142B80450D9969BF2BA5164 = {isa = PBXBuildFile; fileRef = 59A070DEC2FA93C313A7F888; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -144,7 +145,8 @@
 		AD7B369A1002175F6918630C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CollectionTreeTests.swift"; sourceTree = "<group>"; };
 		D65984A982BE37D701863441 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ColorExtensionTests.swift"; sourceTree = "<group>"; };
 		AD383AFDB3CF8CC42546B5A0 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ModelEncodingTests.swift"; sourceTree = "<group>"; };
-		E6B1069E26E307BEE7211DDC = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIStateStoreTests.swift"; sourceTree = "<group>"; };
+		E6B1069E26E307BEE7211DDC = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SnapshotColorTests.swift"; sourceTree = "<group>"; };
+		59A070DEC2FA93C313A7F888 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIStateStoreTests.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -168,6 +170,7 @@
 				D65984A982BE37D701863441,
 				AD383AFDB3CF8CC42546B5A0,
 				E6B1069E26E307BEE7211DDC,
+				59A070DEC2FA93C313A7F888,
 			);
 			path = GyrusTests;
 			sourceTree = "<group>";
@@ -577,6 +580,7 @@
 				034B0F40E1CC0C317FC66722,
 				653DD92D4EF271ADCD7CF824,
 				3AEA3B92F6C806A9A3A7AE34,
+				1142B80450D9969BF2BA5164,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

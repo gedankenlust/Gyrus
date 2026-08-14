@@ -13,16 +13,28 @@ extension APIClient {
         let url: String
         let title: String
         let capturedAt: String
+        /// "completed", "partial" (some viewports threw) or "failed" (none captured).
         let status: String?
         let viewports: [VisualViewportDTO]
+        /// Why individual viewports are missing. The backend has always written
+        /// this alongside the viewports; it just had nowhere to go until the
+        /// inspector started explaining a partial capture.
+        let errors: [VisualSnapshotErrorDTO]?
 
         enum CodingKeys: String, CodingKey {
-            case url, title, status, viewports
+            case url, title, status, viewports, errors
             case bookmarkId = "bookmark_id"
             case schemaVersion = "schema_version"
             case runId = "run_id"
             case capturedAt = "captured_at"
         }
+    }
+
+    struct VisualSnapshotErrorDTO: Decodable, Identifiable {
+        let viewport: String?
+        let message: String?
+
+        var id: String { "\(viewport ?? "?")-\(message ?? "")" }
     }
 
     struct VisualSnapshotJobStatus: Decodable, JobStatusReporting {

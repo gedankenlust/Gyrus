@@ -19,7 +19,13 @@ logger = logging.getLogger(__name__)
 
 
 SNAPSHOT_DIR = DATA_DIR / "visual_snapshots"
-SNAPSHOT_SCHEMA_VERSION = 2
+# 3: CSS custom properties are ordered by significance before the cap, so a
+#    utility-CSS site no longer spends its whole budget on framework
+#    placeholders. Keep in sync with expectedSnapshotSchemaVersion in
+#    Gyrus/Views/PreviewPanel/VisualSnapshotTabView.swift — the app compares the
+#    two and offers a reinspect when a stored snapshot predates the current
+#    capture.
+SNAPSHOT_SCHEMA_VERSION = 3
 MAX_SNAPSHOT_RUNS = 8
 VIEWPORTS = [
     {"name": "desktop", "width": 1440, "height": 900, "device_scale_factor": 1},
@@ -552,13 +558,38 @@ _VISUAL_EXTRACTOR_JS = r"""
     if (item.font_family) fontSet.add(item.font_family);
   }
 
+  // Custom properties, ordered so that the ones carrying a design decision
+  // survive the cap applied further down.
+  //
+  // This used to ship the raw iteration order and slice it. Utility frameworks
+  // register a large number of bookkeeping properties on :root (Tailwind alone
+  // emits dozens of --tw-* placeholders holding "0 0 #0000" or an empty string),
+  // and on such a site those could consume the entire budget, so the tokens the
+  // page actually defines never left the browser at all. No amount of filtering
+  // in the app can recover a value that was never sent.
   const rootStyles = window.getComputedStyle(document.documentElement);
-  const cssVariables = [];
+  const meaningfulVariables = [];
+  const placeholderVariables = [];
+  // Values a framework parks on :root purely so a later rule can override them.
+  const placeholderValues = new Set([
+    '', '0', '0s', '0px', 'none', 'solid', 'initial', 'auto',
+    '0 0 #0000', 'border-box', 'content-box', 'translateX(0)', 'translate(0)',
+    'normal', '1', '100%',
+  ]);
   for (const name of rootStyles) {
-    if (name.startsWith('--')) {
-      cssVariables.push({name, value: rootStyles.getPropertyValue(name).trim()});
+    if (!name.startsWith('--')) continue;
+    const value = rootStyles.getPropertyValue(name).trim();
+    const entry = {name, value};
+    if (placeholderValues.has(value.toLowerCase())) {
+      placeholderVariables.push(entry);
+    } else {
+      meaningfulVariables.push(entry);
     }
   }
+  // Placeholders are kept rather than dropped: a site may legitimately define a
+  // token whose value happens to look like one, and the app shows them in a
+  // collapsed group. They just no longer crowd out the real tokens.
+  const cssVariables = meaningfulVariables.concat(placeholderVariables);
 
   const imgAssets = Array.from(document.images).map((img) => ({
     kind: 'image',

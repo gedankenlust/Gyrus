@@ -41,6 +41,140 @@ struct SnapshotColorChip: View {
     }
 }
 
+struct PaletteChip: View {
+    let entry: PaletteEntry
+
+    var body: some View {
+        Button {
+            copy(entry.hex)
+            AppStore.shared.uiStateStore.showInfo("Copied \(entry.hex).")
+        } label: {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color(hexString: entry.hex) ?? .secondary.opacity(0.2))
+                    .frame(width: 28, height: 28)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(.secondary.opacity(0.2), lineWidth: 1)
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.hex.uppercased())
+                        .font(.system(.caption, design: .monospaced).weight(.semibold))
+                    if !entry.caption.isEmpty {
+                        Text(verbatim: entry.caption)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+                Spacer(minLength: 0)
+                if entry.occurrences > 1 {
+                    Text(verbatim: "\(entry.occurrences)x")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(7)
+            .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 7))
+        }
+        .buttonStyle(.plain)
+        .help("Copy \(entry.hex)")
+    }
+}
+
+struct PaletteBand: View {
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
+    let entries: [PaletteEntry]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+                Text(subtitle)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 8)], spacing: 8) {
+                ForEach(entries) { entry in
+                    PaletteChip(entry: entry)
+                }
+            }
+        }
+    }
+}
+
+struct TypeScaleRow: View {
+    let step: TypeScaleStep
+
+    /// The panel is ~500pt wide, so a 96px heading is rendered at a readable
+    /// stand-in size rather than at its true size. The number stays exact in the
+    /// metrics line underneath.
+    private var previewSize: CGFloat {
+        min(max(CGFloat(step.pixels), 11), 30)
+    }
+
+    private var weight: Font.Weight {
+        switch Int(step.fontWeight) ?? 400 {
+        case ..<300: .light
+        case 300..<400: .regular
+        case 400..<500: .regular
+        case 500..<600: .medium
+        case 600..<700: .semibold
+        case 700..<800: .bold
+        default: .heavy
+        }
+    }
+
+    private var metrics: String {
+        var parts = [step.fontSize, step.fontWeight]
+        if !step.lineHeight.isEmpty, step.lineHeight != "normal" { parts.append(step.lineHeight) }
+        if !step.letterSpacing.isEmpty, step.letterSpacing != "normal" { parts.append(step.letterSpacing) }
+        parts.append("\(step.occurrences)x")
+        return parts.joined(separator: "  ·  ")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(verbatim: step.specimen.isEmpty ? "Aa Bb Cc 123" : step.specimen)
+                .font(.system(size: previewSize, weight: weight))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .textSelection(.enabled)
+
+            HStack(spacing: 8) {
+                Text(verbatim: metrics)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Button {
+                    copy(step.css)
+                    AppStore.shared.uiStateStore.showInfo("CSS copied.")
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tertiary)
+                .help("Copy CSS")
+            }
+
+            Text(verbatim: step.fontFamily)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 7))
+    }
+}
+
 struct MetricPill: View {
     let label: String
     let value: Int
@@ -62,7 +196,9 @@ struct MetricPill: View {
 struct ComponentGroup: Identifiable {
     let title: String
     let icon: String
-    let samples: [APIClient.VisualElementSampleDTO]
+    let variants: [ComponentVariant]
+    /// Instances before collapsing, so the header can say "3 patterns, 11 uses".
+    let instanceCount: Int
 
     var id: String { title }
 }
@@ -73,8 +209,8 @@ struct ComponentGroupView: View {
     var body: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(group.samples.prefix(12))) { sample in
-                    ElementSampleRow(sample: sample)
+                ForEach(group.variants) { variant in
+                    ElementSampleRow(sample: variant.representative, variant: variant)
                 }
             }
             .padding(.top, 6)
@@ -83,13 +219,78 @@ struct ComponentGroupView: View {
                 Label(LocalizedStringKey(group.title), systemImage: group.icon)
                     .font(.caption.bold())
                 Spacer()
-                Text("\(group.samples.count)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                if group.instanceCount != group.variants.count {
+                    Text(verbatim: "\(group.variants.count) / \(group.instanceCount)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .help("Distinct patterns / instances found")
+                } else {
+                    Text(verbatim: "\(group.variants.count)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .padding(8)
         .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 7))
+    }
+}
+
+struct CSSVariableGroupView: View {
+    let group: CSSVariableGroup
+    @State private var isExpanded: Bool
+
+    init(group: CSSVariableGroup) {
+        self.group = group
+        _isExpanded = State(initialValue: !group.collapsed)
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 5) {
+                ForEach(group.variables) { variable in
+                    HStack(spacing: 8) {
+                        if let color = SnapshotColor.normalize(variable.value) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color(hexString: color.hex) ?? .clear)
+                                .frame(width: 14, height: 14)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .stroke(.secondary.opacity(0.25), lineWidth: 1)
+                                )
+                        }
+                        Text(verbatim: variable.name)
+                            .font(.system(.caption2, design: .monospaced).weight(.semibold))
+                            .lineLimit(1)
+                        Text(verbatim: variable.value)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        Spacer(minLength: 0)
+                        Button {
+                            copy("\(variable.name): \(variable.value)")
+                            AppStore.shared.uiStateStore.showInfo("Copied.")
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .padding(.top, 6)
+        } label: {
+            HStack(spacing: 8) {
+                Text(group.title)
+                    .font(.caption2.bold())
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(verbatim: "\(group.variables.count)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
     }
 }
 
@@ -104,7 +305,7 @@ struct InspectorList: View {
                     .font(.caption2.bold())
                     .foregroundStyle(.secondary)
                 ForEach(values, id: \.self) { value in
-                    CopyRow(value: value, systemImage: "doc.on.doc")
+                    CopyRow(value: value)
                 }
             }
         }
@@ -113,13 +314,18 @@ struct InspectorList: View {
 
 struct CopyRow: View {
     let value: String
-    let systemImage: String
+    /// Optional: `CopyRow` always draws a trailing copy button, so a leading
+    /// "doc.on.doc" would put two identical icons on the same row. Pass an icon
+    /// only when it says something the text does not.
+    var systemImage: String? = nil
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: systemImage)
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+            }
             Text(value)
                 .font(.caption)
                 .lineLimit(2)
@@ -310,6 +516,8 @@ struct NetworkRequestList: View {
 
 struct ElementSampleRow: View {
     let sample: APIClient.VisualElementSampleDTO
+    /// Present when this row stands for several identical instances.
+    var variant: ComponentVariant? = nil
 
     private var cssText: String {
         """
@@ -335,7 +543,20 @@ struct ElementSampleRow: View {
     var body: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 8) {
-                if !sample.text.isEmpty {
+                if let variant, variant.texts.count > 1 {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Copy across instances")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.secondary)
+                        ForEach(variant.texts.prefix(8), id: \.self) { text in
+                            Text(verbatim: "· \(text)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .textSelection(.enabled)
+                        }
+                    }
+                } else if !sample.text.isEmpty {
                     Text(sample.text)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -365,14 +586,23 @@ struct ElementSampleRow: View {
             .padding(.top, 6)
         } label: {
             HStack(spacing: 8) {
-                Text(sample.selectorHint)
+                Text(verbatim: sample.selectorHint)
                     .font(.system(.caption, design: .monospaced).weight(.semibold))
                     .lineLimit(1)
-                Text(sample.tag)
+                    .truncationMode(.middle)
+                Text(verbatim: sample.tag)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                if let variant, variant.count > 1 {
+                    Text(verbatim: "\(variant.count)x")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Color.accentColor.opacity(0.14), in: Capsule())
+                }
                 Spacer()
-                Text("\(sample.width)x\(sample.height)")
+                Text(verbatim: "\(sample.width)x\(sample.height)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

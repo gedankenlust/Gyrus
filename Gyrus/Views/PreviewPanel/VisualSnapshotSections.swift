@@ -8,36 +8,119 @@ extension VisualSnapshotTabView {
             colorsSection
             typographySection(viewport)
             layoutSection(viewport)
+            cssVariablesSection(viewport)
         }
     }
 
+    /// Three bands instead of one flat grid.
+    ///
+    /// The old section concatenated `dominantColors + observedColors` and let
+    /// first-wins deduplication decide, which always put the screenshot's
+    /// quantized pixels ahead of the colors the page actually declares. A
+    /// designer opens this to lift a palette, so the authored tokens come first
+    /// and the sampled pixels are demoted to a collapsed afterthought.
     var colorsSection: some View {
-        SnapshotSection(title: "Colors", icon: "eyedropper") {
-            VStack(alignment: .leading, spacing: 12) {
-                if colors.isEmpty {
+        let tokens = selectedViewport?.cssVariables?.colorTokens() ?? []
+        let painted = (selectedViewport?.elementSamples ?? []).paintedPalette()
+        let screenshot = SnapshotColor.unique(from: selectedViewport?.dominantColors ?? [])
+
+        return SnapshotSection(title: "Colors", icon: "eyedropper") {
+            VStack(alignment: .leading, spacing: 14) {
+                if tokens.isEmpty && painted.isEmpty && screenshot.isEmpty {
                     Text("No colors captured.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 8)], spacing: 8) {
-                        ForEach(colors) { color in
-                            SnapshotColorChip(color: color)
-                        }
-                    }
                 }
 
-                if let variables = selectedViewport?.cssVariables, !variables.isEmpty {
-                    InspectorList(title: "CSS Variables", values: variables.prefix(80).map { "\($0.name): \($0.value)" })
+                if !tokens.isEmpty {
+                    PaletteBand(
+                        title: "Design tokens",
+                        subtitle: "Custom properties the site declares",
+                        entries: tokens
+                    )
+                }
+
+                if !painted.isEmpty {
+                    PaletteBand(
+                        title: "In use",
+                        subtitle: "Painted on the page, largest area first",
+                        entries: painted
+                    )
+                }
+
+                if !screenshot.isEmpty {
+                    DisclosureGroup {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 8)], spacing: 8) {
+                            ForEach(screenshot) { color in
+                                SnapshotColorChip(color: color)
+                            }
+                        }
+                        .padding(.top, 6)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("Screenshot palette")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.secondary)
+                            Text("Averaged from the rendered image, not exact values")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
                 }
             }
         }
     }
 
     func typographySection(_ viewport: APIClient.VisualViewportDTO) -> some View {
-        SnapshotSection(title: "Typography", icon: "textformat") {
+        let scale = (viewport.elementSamples ?? []).typeScale()
+
+        return SnapshotSection(title: "Typography", icon: "textformat") {
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(Array(viewport.observedFonts.enumerated()), id: \.offset) { _, font in
-                    CopyRow(value: font, systemImage: "doc.on.doc")
+                if scale.isEmpty {
+                    ForEach(Array(viewport.observedFonts.enumerated()), id: \.offset) { _, font in
+                        CopyRow(value: font)
+                    }
+                } else {
+                    Text("Type scale, largest first")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    ForEach(scale) { step in
+                        TypeScaleRow(step: step)
+                    }
+
+                    if !viewport.observedFonts.isEmpty {
+                        DisclosureGroup {
+                            VStack(alignment: .leading, spacing: 5) {
+                                ForEach(Array(viewport.observedFonts.enumerated()), id: \.offset) { _, font in
+                                    CopyRow(value: font)
+                                }
+                            }
+                            .padding(.top, 6)
+                        } label: {
+                            Text("All font stacks")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Custom properties, grouped by the shape of their value.
+    ///
+    /// Previously a flat list capped at 80 entries, which on a utility-CSS site
+    /// meant the real tokens were pushed out of view by framework bookkeeping
+    /// like `--tw-ring-shadow: 0 0 #0000`.
+    @ViewBuilder
+    func cssVariablesSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        let groups = groupCSSVariables(viewport.cssVariables ?? [])
+        if !groups.isEmpty {
+            SnapshotSection(title: "CSS Variables", icon: "curlybraces") {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(groups) { group in
+                        CSSVariableGroupView(group: group)
+                    }
                 }
             }
         }
@@ -67,24 +150,28 @@ extension VisualSnapshotTabView {
 
     func componentsSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
         let samples = viewport.elementSamples ?? []
-        let groups = [
-            ComponentGroup(title: "Navigation", icon: "point.3.connected.trianglepath.dotted", samples: samples.matching(["nav", "header", "menu"])),
-            ComponentGroup(title: "Hero / Sections", icon: "rectangle.topthird.inset.filled", samples: samples.matching(["hero", "section", "main", "article"])),
-            ComponentGroup(title: "CTA / Buttons", icon: "button.programmable", samples: samples.filter { $0.tag == "button" || $0.selectorHint.localizedCaseInsensitiveContains("btn") || $0.selectorHint.localizedCaseInsensitiveContains("cta") }),
-            ComponentGroup(title: "Cards", icon: "rectangle.stack", samples: samples.matching(["card", "tile", "item"])),
-            ComponentGroup(title: "Forms", icon: "rectangle.and.pencil.and.ellipsis", samples: samples.filter { ["form", "input", "textarea", "select", "label"].contains($0.tag) }),
-        ]
+        let groups = classifyComponents(samples)
+        // The capture samples at most 24 elements per selector and 90 in total,
+        // so once that ceiling is reached the instance counts are a floor rather
+        // than a census. Say so instead of implying precision.
+        let sampleCeilingReached = samples.count >= 90
 
         return SnapshotSection(title: "Components", icon: "square.stack.3d.up") {
             VStack(alignment: .leading, spacing: 10) {
-                ForEach(groups.filter { !$0.samples.isEmpty }) { group in
-                    ComponentGroupView(group: group)
-                }
-
-                if groups.allSatisfy({ $0.samples.isEmpty }) {
-                    Text("No obvious component patterns found yet. Raw computed elements are still available in Raw.")
+                if groups.isEmpty {
+                    Text("No obvious component patterns found in this viewport.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                } else {
+                    ForEach(groups) { group in
+                        ComponentGroupView(group: group)
+                    }
+
+                    if sampleCeilingReached {
+                        Label("Counts are a lower bound: the capture samples a limited number of elements per page.", systemImage: "info.circle")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
         }
@@ -94,7 +181,6 @@ extension VisualSnapshotTabView {
         let samples = viewport.elementSamples ?? []
         let maxWidth = samples.map(\.width).max() ?? 0
         let commonRadii = frequency(samples.map(\.borderRadius).filter { !$0.isEmpty && $0 != "0px" })
-        let commonPadding = frequency(samples.map(\.padding).filter { !$0.isEmpty })
         let commonDisplay = frequency(samples.map(\.display).filter { !$0.isEmpty })
 
         return SnapshotSection(title: "Layout", icon: "rectangle.3.group") {
@@ -105,9 +191,9 @@ extension VisualSnapshotTabView {
                     MetricPill(label: "Max Element W", value: maxWidth)
                 }
 
-                InspectorList(title: "Display Patterns", values: commonDisplay)
-                InspectorList(title: "Padding Patterns", values: commonPadding)
+                InspectorList(title: "Spacing Scale", values: samples.spacingScale())
                 InspectorList(title: "Radius Patterns", values: commonRadii)
+                InspectorList(title: "Display Patterns", values: commonDisplay)
             }
         }
     }

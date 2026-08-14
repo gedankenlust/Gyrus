@@ -5,6 +5,15 @@ import UniformTypeIdentifiers
 
 private let designSections = DesignInspectorSection.allCases
 
+/// Mirrors SNAPSHOT_SCHEMA_VERSION in backend/services/visual_snapshot_service.py.
+///
+/// The backend has always stamped a version into every snapshot, but nothing
+/// ever read it, so a capture taken before a new field existed simply rendered
+/// as empty sections with no explanation. Raise both constants together whenever
+/// the capture gains something the inspector depends on; the reinspect notice
+/// then appears on its own.
+private let expectedSnapshotSchemaVersion = 3
+
 enum DesignInspectorSection: String, CaseIterable, Identifiable {
     case preview
     case issues
@@ -65,15 +74,20 @@ struct VisualSnapshotTabView: View {
         return snapshot.viewports.first
     }
 
-    var colors: [SnapshotColor] {
-        guard let viewport = selectedViewport else { return [] }
-        return SnapshotColor.unique(from: viewport.dominantColors + viewport.observedColors)
-    }
-
     private var missingViewportNames: [String] {
         guard let snapshot else { return [] }
         let captured = Set(snapshot.viewports.map(\.name))
         return ["desktop", "tablet", "mobile"].filter { !captured.contains($0) }
+    }
+
+    /// Snapshots predating the version stamp report nil and are treated as v1.
+    private var isSchemaOutdated: Bool {
+        guard let snapshot else { return false }
+        return (snapshot.schemaVersion ?? 1) < expectedSnapshotSchemaVersion
+    }
+
+    private var needsReinspection: Bool {
+        !missingViewportNames.isEmpty || isSchemaOutdated
     }
 
     var body: some View {
@@ -171,6 +185,7 @@ struct VisualSnapshotTabView: View {
 
     private var snapshotContent: some View {
         VStack(alignment: .leading, spacing: 14) {
+            captureStatusBar
             outdatedSnapshotNotice
             sectionPicker
 
@@ -247,18 +262,76 @@ struct VisualSnapshotTabView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// A partial capture used to be indistinguishable from a clean one: the
+    /// failed viewports were simply absent and nothing said why. Show when the
+    /// snapshot was taken, and surface the per-viewport failure reasons.
+    @ViewBuilder
+    private var captureStatusBar: some View {
+        if let snapshot {
+            let failures = snapshot.errors ?? []
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) {
+                    if let captured = snapshotCaptureDate(snapshot.capturedAt) {
+                        Label {
+                            Text(verbatim: captured.formatted(date: .abbreviated, time: .shortened))
+                        } icon: {
+                            Image(systemName: "clock")
+                        }
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    }
+
+                    switch snapshot.status {
+                    case "partial":
+                        captureBadge("Partial capture", color: .orange)
+                    case "failed":
+                        captureBadge("Capture failed", color: .red)
+                    default:
+                        EmptyView()
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                ForEach(failures) { failure in
+                    Text("\(failure.viewport?.capitalized ?? "Viewport"): \(failure.message ?? "")")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .textSelection(.enabled)
+                }
+            }
+        }
+    }
+
+    private func captureBadge(_ title: LocalizedStringKey, color: Color) -> some View {
+        Text(title)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.15), in: Capsule())
+    }
+
     @ViewBuilder
     private var outdatedSnapshotNotice: some View {
-        if !missingViewportNames.isEmpty {
+        if needsReinspection {
             HStack(spacing: 10) {
                 Image(systemName: "arrow.triangle.2.circlepath")
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Snapshot needs reinspection")
                         .font(.caption.bold())
-                    Text("Missing: \(missingViewportNames.map(\.capitalized).joined(separator: ", "))")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if !missingViewportNames.isEmpty {
+                        Text("Missing: \(missingViewportNames.map(\.capitalized).joined(separator: ", "))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    if isSchemaOutdated {
+                        Text("Captured in an older inspection format. Some sections stay empty until you reinspect.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Spacer(minLength: 0)
                 Button {
