@@ -28,7 +28,7 @@ SWIFT_VERSION = "5.9"
 # Gyrus/Resources/Info.plist and the requirements in README/GETTING_STARTED.
 MACOS_MIN = "14.0"
 MARKETING_VERSION = "1.4.0"
-BUILD_VERSION = "13"
+BUILD_VERSION = "14"
 
 # Everything the "Bundle Python Backend" phase must keep out of the shipped app.
 #
