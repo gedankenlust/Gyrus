@@ -573,7 +573,8 @@ _VISUAL_EXTRACTOR_JS = r"""
   // Values a framework parks on :root purely so a later rule can override them.
   const placeholderValues = new Set([
     '', '0', '0s', '0px', 'none', 'solid', 'initial', 'auto',
-    '0 0 #0000', 'border-box', 'content-box', 'translateX(0)', 'translate(0)',
+    // Lowercase throughout: matched against value.toLowerCase() below.
+    '0 0 #0000', 'border-box', 'content-box', 'translatex(0)', 'translate(0)',
     'normal', '1', '100%',
   ]);
   for (const name of rootStyles) {

@@ -98,6 +98,59 @@ final class SnapshotColorTests: XCTestCase {
         XCTAssertNotNil(hex("oklch(0.5 0.9 200)"))
     }
 
+    // MARK: - Units that used to be silently dropped
+
+    /// Every angle unit is legal wherever CSS expects a hue. Parsing used to
+    /// discard the component it could not read, which shifted every later
+    /// argument into the wrong slot instead of failing.
+    func testHueAcceptsAngleUnits() {
+        XCTAssertEqual(hex("hsl(120deg 100% 50%)"), "#00ff00")
+        XCTAssertEqual(hex("hsl(120deg, 100%, 50%)"), "#00ff00")
+        XCTAssertEqual(hex("hsl(0.3333turn, 100%, 50%)"), "#00ff00")
+        XCTAssertEqual(hex("hsl(133.33grad, 100%, 50%)"), "#00ff00")
+    }
+
+    func testAlphaIsNotMistakenForAChannelWhenHueCarriesAUnit() {
+        // Regression: this used to parse as hue 100, saturation 0.5,
+        // lightness 0.005 and render near-black.
+        XCTAssertEqual(hex("hsla(120deg, 100%, 50%, 0.5)"), "#00ff00")
+    }
+
+    func testNegativeAndOversizedHuesWrap() {
+        XCTAssertEqual(hex("hsl(-240, 100%, 50%)"), "#00ff00")
+        XCTAssertEqual(hex("hsl(480, 100%, 50%)"), "#00ff00")
+    }
+
+    /// rgb() channels may be percentages of full scale. Treating "100%" as the
+    /// raw number 100 produced #640000 for pure red — a wrong swatch, which is
+    /// worse than the nil this used to return.
+    func testRGBPercentageChannels() {
+        XCTAssertEqual(hex("rgb(100%, 0%, 0%)"), "#ff0000")
+        XCTAssertEqual(hex("rgb(100% 100% 100%)"), "#ffffff")
+    }
+
+    /// The unit decides, not the magnitude: a percentage lightness at or below
+    /// 1% is a very dark color, and guessing from the number alone made it white.
+    func testOKLCHSmallPercentageLightnessStaysDark() {
+        guard let dark = SnapshotColor.normalize("oklch(1% 0 0)") else {
+            return XCTFail("oklch(1% 0 0) did not parse")
+        }
+        XCTAssertNotEqual(dark.hex, "#ffffff")
+        assertChannels(dark.hex, red: 0, green: 0, blue: 0, tolerance: 12)
+    }
+
+    func testOKLCHHueAcceptsDegrees() {
+        XCTAssertEqual(
+            SnapshotColor.normalize("oklch(0.7 0.1 200deg)")?.hex,
+            SnapshotColor.normalize("oklch(0.7 0.1 200)")?.hex
+        )
+    }
+
+    func testUnparseableComponentsFailRatherThanShift() {
+        XCTAssertNil(hex("rgb(calc(1 + 1), 0, 0)"))
+        XCTAssertNil(hex("hsl(var(--h), 100%, 50%)"))
+    }
+
     // MARK: - Deduplication
 
     func testUniqueKeepsFirstOccurrenceAndDropsRepeats() {

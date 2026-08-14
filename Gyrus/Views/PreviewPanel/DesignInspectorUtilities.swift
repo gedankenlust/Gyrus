@@ -35,10 +35,13 @@ struct SnapshotColor: Identifiable, Hashable {
         }
 
         if lowered.hasPrefix("rgb") {
-            let parts = numericComponents(of: raw, function: lowered.hasPrefix("rgba") ? "rgba" : "rgb")
-            guard parts.count >= 3 else { return nil }
-            if parts.count >= 4, parts[3] == 0 { return nil }
-            return SnapshotColor(hex: hexString(parts[0] / 255, parts[1] / 255, parts[2] / 255), source: raw)
+            guard let parts = components(of: raw), parts.count >= 3 else { return nil }
+            if parts.count >= 4, parts[3].value == 0 { return nil }
+            // A channel may be written 0-255 or as a percentage of full scale.
+            func channel(_ part: ColorComponent) -> Double {
+                part.unit == "%" ? part.value / 100 : part.value / 255
+            }
+            return SnapshotColor(hex: hexString(channel(parts[0]), channel(parts[1]), channel(parts[2])), source: raw)
         }
 
         // Chromium only serializes computed styles back to rgb() for legacy
@@ -46,41 +49,76 @@ struct SnapshotColor: Identifiable, Hashable {
         // getComputedStyle unchanged, so without these two branches every such
         // color was silently discarded and never reached the palette.
         if lowered.hasPrefix("hsl") {
-            let parts = numericComponents(of: raw, function: lowered.hasPrefix("hsla") ? "hsla" : "hsl")
-            guard parts.count >= 3 else { return nil }
-            if parts.count >= 4, parts[3] == 0 { return nil }
-            let (r, g, b) = hslToRGB(hue: parts[0], saturation: parts[1] / 100, lightness: parts[2] / 100)
+            guard let parts = components(of: raw), parts.count >= 3 else { return nil }
+            if parts.count >= 4, parts[3].value == 0 { return nil }
+            let (r, g, b) = hslToRGB(
+                hue: parts[0].degrees,
+                saturation: parts[1].value / 100,
+                lightness: parts[2].value / 100
+            )
             return SnapshotColor(hex: hexString(r, g, b), source: raw)
         }
 
         if lowered.hasPrefix("oklch") {
-            let parts = numericComponents(of: raw, function: "oklch")
-            guard parts.count >= 3 else { return nil }
-            if parts.count >= 4, parts[3] == 0 { return nil }
-            // A lightness written as a percentage arrives already divided by the
-            // percent stripping below, so only bare values above 1 need scaling.
-            let lightness = parts[0] > 1 ? parts[0] / 100 : parts[0]
-            let (r, g, b) = oklchToRGB(lightness: lightness, chroma: parts[1], hue: parts[2])
+            guard let parts = components(of: raw), parts.count >= 3 else { return nil }
+            if parts.count >= 4, parts[3].value == 0 { return nil }
+            // Lightness is 0-1, or a percentage of that range. The unit has to
+            // decide: guessing from magnitude misreads "oklch(1% 0 0)" — a very
+            // dark color — as fully lit white.
+            let lightness = parts[0].unit == "%" ? parts[0].value / 100 : parts[0].value
+            let (r, g, b) = oklchToRGB(lightness: lightness, chroma: parts[1].value, hue: parts[2].degrees)
             return SnapshotColor(hex: hexString(r, g, b), source: raw)
         }
 
         return nil
     }
 
-    /// Pulls the numbers out of a CSS color function, tolerating both the comma
-    /// and the space/slash separated syntax. Percent signs are dropped, so the
-    /// caller decides what a percentage means for its own channel.
-    private static func numericComponents(of raw: String, function: String) -> [Double] {
-        var body = raw
-        if let open = body.firstIndex(of: "("), let close = body.lastIndex(of: ")") {
-            body = String(body[body.index(after: open)..<close])
-        } else {
-            body = body.replacingOccurrences(of: function, with: "")
+    /// One argument of a CSS color function, with its unit preserved.
+    struct ColorComponent {
+        let value: Double
+        /// "%", "deg", "turn", "rad", "grad", or "" when the number is bare.
+        let unit: String
+
+        /// The component read as an angle. CSS allows every angle unit wherever
+        /// a hue is expected, and a bare number means degrees.
+        var degrees: Double {
+            switch unit {
+            case "turn": value * 360
+            case "rad": value * 180 / .pi
+            case "grad": value * 0.9
+            default: value
+            }
         }
-        return body
-            .replacingOccurrences(of: "%", with: "")
-            .split { $0 == "," || $0 == " " || $0 == "/" }
-            .compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+    }
+
+    /// Splits a CSS color function into its arguments, keeping units attached.
+    ///
+    /// Returns nil rather than skipping an argument it cannot read. The previous
+    /// version `compactMap`ped failures away, so a single unparsed component
+    /// silently shifted every later one into the wrong slot: `hsla(120deg, 100%,
+    /// 50%, .5)` lost its hue and read the lightness as an alpha, landing on
+    /// near-black instead of green.
+    private static func components(of raw: String) -> [ColorComponent]? {
+        guard let open = raw.firstIndex(of: "("), let close = raw.lastIndex(of: ")"), open < close else {
+            return nil
+        }
+        let body = raw[raw.index(after: open)..<close]
+
+        var parsed: [ColorComponent] = []
+        for token in body.split(whereSeparator: { $0 == "," || $0 == " " || $0 == "/" }) {
+            let trimmed = token.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { continue }
+            if trimmed.lowercased() == "none" {
+                // A missing component in the modern syntax means zero.
+                parsed.append(ColorComponent(value: 0, unit: ""))
+                continue
+            }
+            let numberPart = trimmed.prefix { $0.isNumber || $0 == "." || $0 == "-" || $0 == "+" }
+            guard let value = Double(numberPart) else { return nil }
+            let unit = trimmed.dropFirst(numberPart.count).lowercased()
+            parsed.append(ColorComponent(value: value, unit: String(unit)))
+        }
+        return parsed
     }
 
     private static func hexString(_ r: Double, _ g: Double, _ b: Double) -> String {
@@ -245,7 +283,8 @@ func groupCSSVariables(_ variables: [APIClient.VisualCSSVariableDTO]) -> [CSSVar
     // them. They carry no design decision.
     let sentinels: Set<String> = [
         "", "0", "0s", "0px", "none", "solid", "initial", "auto",
-        "0 0 #0000", "border-box", "content-box", "translateX(0)", "translate(0)",
+        // Lowercase throughout: these are compared against `lowered`.
+        "0 0 #0000", "border-box", "content-box", "translatex(0)", "translate(0)",
         "100%", "1", "normal",
     ]
 
@@ -275,8 +314,18 @@ func groupCSSVariables(_ variables: [APIClient.VisualCSSVariableDTO]) -> [CSSVar
             shadows.append(variable)
             continue
         }
-        if lowered.hasSuffix("ms") || lowered.hasSuffix("s") && Double(lowered.dropLast()) != nil
-            || lowered.contains("cubic-bezier") || lowered.contains("ease") || lowered.contains("steps(") {
+        // Parenthesised deliberately: `&&` binds tighter than `||`, so the
+        // earlier unparenthesised chain applied the numeric guard only to the
+        // bare-"s" arm. Everything ending in the letters "ms" counted as a
+        // duration, which filed a font stack named "Comic Sans MS" under Motion
+        // before it could ever reach the font branch. Easings are matched
+        // exactly rather than by substring, so a token like "increase" is safe.
+        let easingKeywords: Set<String> = [
+            "ease", "ease-in", "ease-out", "ease-in-out", "linear", "step-start", "step-end",
+        ]
+        let isDuration = (lowered.hasSuffix("ms") || lowered.hasSuffix("s")) && cssLengthValue(lowered) != nil
+        if isDuration || easingKeywords.contains(lowered)
+            || lowered.hasPrefix("cubic-bezier(") || lowered.hasPrefix("steps(") {
             motion.append(variable)
             continue
         }
@@ -380,9 +429,15 @@ extension Array where Element == APIClient.VisualElementSampleDTO {
                 specimen: bucket.specimen
             )
         }
+        // Every field of the identity takes part in the ordering. Dictionary
+        // enumeration is unordered and Array.sort is not stable, so a tiebreak
+        // that stopped at the weight let two rungs differing only by family
+        // swap places — and swap which one survived the limit — between
+        // launches.
         .sorted { lhs, rhs in
-            if lhs.pixels == rhs.pixels { return lhs.fontWeight > rhs.fontWeight }
-            return lhs.pixels > rhs.pixels
+            if lhs.pixels != rhs.pixels { return lhs.pixels > rhs.pixels }
+            if lhs.fontWeight != rhs.fontWeight { return lhs.fontWeight > rhs.fontWeight }
+            return lhs.fontFamily < rhs.fontFamily
         }
         .prefix(limit)
         .map { $0 }
@@ -395,23 +450,38 @@ extension Array where Element == APIClient.VisualElementSampleDTO {
     /// underlying 4/8/12/16/24 rhythm never became visible. Splitting the
     /// shorthand into its edges first is what turns it into a scale.
     func spacingScale(limit: Int = 12) -> [String] {
-        var counts: [Double: (label: String, count: Int)] = [:]
+        // Keyed on the whole token, unit included: keying on the bare number
+        // collapsed "1rem" and "1px" into one entry whose label was whichever
+        // happened to be seen last.
+        var counts: [String: Int] = [:]
 
         for sample in self {
             for shorthand in [sample.padding, sample.margin] {
                 for edge in shorthand.split(separator: " ") {
-                    let token = String(edge)
+                    let token = String(edge).lowercased()
                     guard let value = cssLengthValue(token), value > 0 else { continue }
-                    let existing = counts[value]
-                    counts[value] = (token, (existing?.count ?? 0) + 1)
+                    counts[token, default: 0] += 1
                 }
             }
         }
 
+        // Take the most *used* steps, then present them ascending. Trimming a
+        // list that was already sorted ascending kept the twelve smallest
+        // values instead, so one-off 1px hairlines crowded out the 16/24/32
+        // rhythm this is meant to reveal.
         return counts
-            .sorted { $0.key < $1.key }
+            .sorted { lhs, rhs in
+                if lhs.value == rhs.value { return lhs.key < rhs.key }
+                return lhs.value > rhs.value
+            }
             .prefix(limit)
-            .map { "\($0.value.label) (\($0.value.count)x)" }
+            .sorted { lhs, rhs in
+                let left = cssLengthValue(lhs.key) ?? 0
+                let right = cssLengthValue(rhs.key) ?? 0
+                if left == right { return lhs.key < rhs.key }
+                return left < right
+            }
+            .map { "\($0.key) (\($0.value)x)" }
     }
 }
 
