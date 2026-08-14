@@ -92,6 +92,20 @@ struct ViewportComparisonStrip: View {
     private let cellWidth: CGFloat = 148
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Each frame stops at its own fold, so the taller viewports show the
+            // start of the next section while the desktop one does not. Without
+            // saying so, that reads as a broken screenshot rather than as the
+            // layout difference it is.
+            Text("Each frame shows the first screenful at that viewport.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+
+            comparisonRow
+        }
+    }
+
+    private var comparisonRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .top, spacing: 12) {
                 ForEach(viewports, id: \.name) { viewport in
@@ -190,9 +204,13 @@ struct ViewportScreenshotImage: View {
         guard cropHeight > 0 else { return nil }
         let cropRect = CGRect(x: 0, y: 0, width: cgImage.width, height: cropHeight)
         guard let cropped = cgImage.cropping(to: cropRect) else { return nil }
+        // Sized from the pixels that were actually cut, not from the viewport.
+        // `cropHeight` is clamped to the image, so a page shorter than its
+        // viewport yields fewer rows than a full screenful — declaring the
+        // result viewport-tall anyway stretched such a page vertically.
         return NSImage(
             cgImage: cropped,
-            size: NSSize(width: CGFloat(viewport.width), height: CGFloat(viewport.height))
+            size: NSSize(width: CGFloat(cgImage.width) / scale, height: CGFloat(cropHeight) / scale)
         )
     }
 }
