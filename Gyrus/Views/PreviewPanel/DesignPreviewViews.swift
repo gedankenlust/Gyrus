@@ -76,6 +76,67 @@ struct LiveViewportFrame: View {
     }
 }
 
+/// All captured viewports next to each other.
+///
+/// Three viewports were being captured and the panel could only switch between
+/// them one at a time, which answers "what does this look like on mobile" but
+/// not "what changes between desktop and mobile" — and the second question is
+/// the one a responsive design actually has to answer.
+struct ViewportComparisonStrip: View {
+    let viewports: [APIClient.VisualViewportDTO]
+
+    /// A common width rather than a common scale: at a shared scale the mobile
+    /// frame would be a fifth of the desktop one and too small to read. Equal
+    /// width makes the layouts comparable, and the true dimensions are printed
+    /// under each frame.
+    private let cellWidth: CGFloat = 148
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(viewports, id: \.name) { viewport in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 5) {
+                            Image(systemName: viewportComparisonIcon(viewport.name))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            Text(verbatim: viewport.name.capitalized)
+                                .font(.caption.weight(.semibold))
+                        }
+
+                        ViewportScreenshotImage(viewport: viewport)
+                            .frame(
+                                width: cellWidth,
+                                height: cellWidth * CGFloat(max(viewport.height, 1)) / CGFloat(max(viewport.width, 1))
+                            )
+                            .background(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7)
+                                    .stroke(.secondary.opacity(0.25), lineWidth: 1)
+                            )
+                            .shadow(color: .black.opacity(0.1), radius: 6, y: 3)
+
+                        Text(verbatim: "\(viewport.width)x\(viewport.height)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func viewportComparisonIcon(_ name: String) -> String {
+        switch name {
+        case "desktop": "desktopcomputer"
+        case "tablet": "ipad"
+        case "mobile": "iphone"
+        default: "rectangle"
+        }
+    }
+}
+
 struct ViewportScreenshotImage: View {
     let viewport: APIClient.VisualViewportDTO
 
@@ -112,14 +173,14 @@ struct ViewportScreenshotImage: View {
         isLoading = true
         defer { isLoading = false }
 
-        do {
-            let url = APIClient.shared.visualSnapshotFileURL(path: viewport.screenshotURL)
-            let (data, _) = try await URLSession.shared.data(from: url)
-            guard let source = NSImage(data: data) else { return }
-            image = cropViewport(from: source, viewport: viewport) ?? source
-        } catch {
+        // Through the shared store: the comparison strip shows every viewport at
+        // once, and the component thumbnails cut out of the same screenshots,
+        // so each image should be fetched and decoded once.
+        guard let source = await SnapshotImageStore.shared.image(atPath: viewport.screenshotURL) else {
             image = nil
+            return
         }
+        image = cropViewport(from: source, viewport: viewport) ?? source
     }
 
     func cropViewport(from source: NSImage, viewport: APIClient.VisualViewportDTO) -> NSImage? {

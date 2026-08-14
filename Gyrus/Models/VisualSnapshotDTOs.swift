@@ -30,6 +30,26 @@ extension APIClient {
         }
     }
 
+    /// One entry in the capture history. The full snapshot for a run is fetched
+    /// separately, so the list stays cheap even with several runs on disk.
+    struct VisualSnapshotRunDTO: Decodable, Identifiable {
+        let runId: String
+        let capturedAt: String?
+        let status: String?
+        let viewportCount: Int?
+        let issueCount: Int?
+
+        var id: String { runId }
+
+        enum CodingKeys: String, CodingKey {
+            case status
+            case runId = "run_id"
+            case capturedAt = "captured_at"
+            case viewportCount = "viewport_count"
+            case issueCount = "issue_count"
+        }
+    }
+
     struct VisualSnapshotErrorDTO: Decodable, Identifiable {
         let viewport: String?
         let message: String?

@@ -1,5 +1,87 @@
 import XCTest
+import AppKit
 @testable import Gyrus
+
+/// Covers the geometry that cuts component thumbnails out of a page screenshot.
+@MainActor
+final class SnapshotImageCropTests: XCTestCase {
+
+    /// A screenshot captured at 2x for a 1440pt viewport.
+    private func screenshot(pixelWidth: Int, pixelHeight: Int, pointWidth: Int) -> NSImage {
+        let context = CGContext(
+            data: nil,
+            width: pixelWidth,
+            height: pixelHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        let cgImage = context.makeImage()!
+        let pointHeight = pixelHeight * pointWidth / pixelWidth
+        return NSImage(cgImage: cgImage, size: NSSize(width: pointWidth, height: pointHeight))
+    }
+
+    /// Element rectangles are in CSS pixels, the screenshot is in device pixels.
+    /// The returned image is sized back in points, so a 108x42 button plus the
+    /// 6pt context margin on each side comes back as 120x54 regardless of ratio.
+    func testCropScalesByDevicePixelRatio() throws {
+        let image = screenshot(pixelWidth: 2880, pixelHeight: 1800, pointWidth: 1440)
+        let cropped = try XCTUnwrap(
+            SnapshotImageStore.shared.crop(
+                image, x: 32, y: 152, width: 108, height: 42, viewportWidth: 1440
+            )
+        )
+        XCTAssertEqual(cropped.size.width, 120, accuracy: 0.5)
+        XCTAssertEqual(cropped.size.height, 54, accuracy: 0.5)
+    }
+
+    func testCropWorksAtOneToOne() throws {
+        let image = screenshot(pixelWidth: 1440, pixelHeight: 900, pointWidth: 1440)
+        let cropped = try XCTUnwrap(
+            SnapshotImageStore.shared.crop(
+                image, x: 100, y: 100, width: 200, height: 100, viewportWidth: 1440
+            )
+        )
+        XCTAssertEqual(cropped.size.width, 212, accuracy: 0.5)
+        XCTAssertEqual(cropped.size.height, 112, accuracy: 0.5)
+    }
+
+    /// An element flush against the top-left corner makes the padded rect start
+    /// at a negative offset. `cropping(to:)` returns nil for a rect that leaves
+    /// the image, so it has to be clamped rather than passed through.
+    func testCropClampsAtTheImageEdge() throws {
+        let image = screenshot(pixelWidth: 1440, pixelHeight: 900, pointWidth: 1440)
+        let cropped = try XCTUnwrap(
+            SnapshotImageStore.shared.crop(
+                image, x: 0, y: 0, width: 50, height: 20, viewportWidth: 1440
+            )
+        )
+        // Only the trailing margin survives on each axis.
+        XCTAssertEqual(cropped.size.width, 56, accuracy: 0.5)
+        XCTAssertEqual(cropped.size.height, 26, accuracy: 0.5)
+    }
+
+    func testCropRejectsDegenerateGeometry() {
+        let image = screenshot(pixelWidth: 1440, pixelHeight: 900, pointWidth: 1440)
+        XCTAssertNil(SnapshotImageStore.shared.crop(image, x: 10, y: 10, width: 0, height: 20, viewportWidth: 1440))
+        XCTAssertNil(SnapshotImageStore.shared.crop(image, x: 10, y: 10, width: 20, height: 0, viewportWidth: 1440))
+        XCTAssertNil(SnapshotImageStore.shared.crop(image, x: 10, y: 10, width: 20, height: 20, viewportWidth: 0))
+    }
+
+    /// Elements below the fold sit far down a full-page screenshot; the crop has
+    /// to reach them rather than assuming a viewport-tall image.
+    func testCropReachesContentBelowTheFold() throws {
+        let image = screenshot(pixelWidth: 1440, pixelHeight: 6000, pointWidth: 1440)
+        let cropped = try XCTUnwrap(
+            SnapshotImageStore.shared.crop(
+                image, x: 20, y: 4800, width: 300, height: 120, viewportWidth: 1440
+            )
+        )
+        XCTAssertEqual(cropped.size.width, 312, accuracy: 0.5)
+        XCTAssertEqual(cropped.size.height, 132, accuracy: 0.5)
+    }
+}
 
 /// Covers the derivations behind the Design tab's System and Components panels.
 final class DesignInspectorGroupingTests: XCTestCase {

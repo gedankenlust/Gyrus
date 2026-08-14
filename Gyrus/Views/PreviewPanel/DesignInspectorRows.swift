@@ -175,6 +175,56 @@ struct TypeScaleRow: View {
     }
 }
 
+/// The component as it actually looks, cut out of the page screenshot.
+///
+/// A component inventory without pictures is a list of selectors — and on a
+/// utility-CSS site those selectors carry no meaning at all. Everything needed
+/// was already captured: the full-page image and each element's rectangle.
+struct ComponentThumbnail: View {
+    let sample: APIClient.VisualElementSampleDTO
+    let screenshotPath: String
+    let viewportWidth: Int
+
+    @State private var image: NSImage?
+    @State private var isLoading = true
+
+    private let boxWidth: CGFloat = 92
+    private let boxHeight: CGFloat = 58
+
+    var body: some View {
+        ZStack {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else if isLoading {
+                ProgressView().scaleEffect(0.4)
+            } else {
+                Image(systemName: "rectangle.dashed")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(width: boxWidth, height: boxHeight)
+        .background(.white)
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .overlay(
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(.secondary.opacity(0.22), lineWidth: 1)
+        )
+        .task(id: sample.id) {
+            isLoading = true
+            defer { isLoading = false }
+            guard let full = await SnapshotImageStore.shared.image(atPath: screenshotPath) else { return }
+            image = SnapshotImageStore.shared.crop(
+                full,
+                x: sample.x, y: sample.y, width: sample.width, height: sample.height,
+                viewportWidth: viewportWidth
+            )
+        }
+    }
+}
+
 struct MetricPill: View {
     let label: String
     let value: Int
@@ -205,12 +255,19 @@ struct ComponentGroup: Identifiable {
 
 struct ComponentGroupView: View {
     let group: ComponentGroup
+    let screenshotPath: String
+    let viewportWidth: Int
 
     var body: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(group.variants) { variant in
-                    ElementSampleRow(sample: variant.representative, variant: variant)
+                    ElementSampleRow(
+                        sample: variant.representative,
+                        variant: variant,
+                        screenshotPath: screenshotPath,
+                        viewportWidth: viewportWidth
+                    )
                 }
             }
             .padding(.top, 6)
@@ -518,6 +575,9 @@ struct ElementSampleRow: View {
     let sample: APIClient.VisualElementSampleDTO
     /// Present when this row stands for several identical instances.
     var variant: ComponentVariant? = nil
+    /// Set to show a cut-out of the element; empty disables the thumbnail.
+    var screenshotPath: String = ""
+    var viewportWidth: Int = 0
 
     private var cssText: String {
         """
@@ -586,6 +646,13 @@ struct ElementSampleRow: View {
             .padding(.top, 6)
         } label: {
             HStack(spacing: 8) {
+                if !screenshotPath.isEmpty, viewportWidth > 0 {
+                    ComponentThumbnail(
+                        sample: sample,
+                        screenshotPath: screenshotPath,
+                        viewportWidth: viewportWidth
+                    )
+                }
                 Text(verbatim: sample.selectorHint)
                     .font(.system(.caption, design: .monospaced).weight(.semibold))
                     .lineLimit(1)

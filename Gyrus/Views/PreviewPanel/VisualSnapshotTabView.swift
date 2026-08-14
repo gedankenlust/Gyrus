@@ -46,6 +46,7 @@ enum DesignInspectorSection: String, CaseIterable, Identifiable {
 
 private enum DesignReviewMode: String, CaseIterable, Identifiable {
     case snapshot = "Snapshot"
+    case compare = "Compare"
     case live = "Live"
 
     var id: String { rawValue }
@@ -64,6 +65,9 @@ struct VisualSnapshotTabView: View {
     @State private var captureStatus: APIClient.VisualSnapshotJobStatus?
     @State private var isExportingPDF = false
     @State private var loadError: String?
+    @State private var runs: [APIClient.VisualSnapshotRunDTO] = []
+    /// Non-nil while an earlier capture is on screen instead of the current one.
+    @State private var viewingRunId: String?
 
     var selectedViewport: APIClient.VisualViewportDTO? {
         guard let snapshot else { return nil }
@@ -105,7 +109,9 @@ struct VisualSnapshotTabView: View {
             }
         }
         .task(id: bookmark.id) {
+            viewingRunId = nil
             await loadSnapshot()
+            await loadRuns()
             await resumeSnapshotJobIfNeeded()
         }
     }
@@ -128,6 +134,8 @@ struct VisualSnapshotTabView: View {
                     .buttonStyle(.borderless)
                     .help("Cancel inspection")
                 }
+                historyMenu
+
                 Button {
                     Task { await captureSnapshot() }
                 } label: {
@@ -142,6 +150,106 @@ struct VisualSnapshotTabView: View {
             .background(.bar)
             Divider()
         }
+    }
+
+    /// The backend keeps the last few captures. Being able to step back to one
+    /// is what turns the Design tab into something you can watch a site with:
+    /// when a competitor changes their palette or their layout, the previous
+    /// capture is the only evidence of what it used to be.
+    @ViewBuilder
+    private var historyMenu: some View {
+        if runs.count > 1 {
+            Menu {
+                Button {
+                    Task { await returnToLatestSnapshot() }
+                } label: {
+                    Label("Latest capture", systemImage: "clock.arrow.circlepath")
+                }
+                .disabled(viewingRunId == nil)
+
+                Divider()
+
+                ForEach(runs) { run in
+                    Button {
+                        Task { await loadRun(run) }
+                    } label: {
+                        if viewingRunId == run.runId {
+                            Label(runLabel(run), systemImage: "checkmark")
+                        } else {
+                            Text(verbatim: runLabel(run))
+                        }
+                    }
+                }
+            } label: {
+                Label("History", systemImage: "clock.arrow.circlepath")
+                    .font(.caption.weight(.medium))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .disabled(isCapturing)
+        }
+    }
+
+    private func runLabel(_ run: APIClient.VisualSnapshotRunDTO) -> String {
+        var parts: [String] = []
+        if let raw = run.capturedAt, let date = snapshotCaptureDate(raw) {
+            parts.append(date.formatted(date: .abbreviated, time: .shortened))
+        } else {
+            parts.append(run.runId)
+        }
+        if let viewports = run.viewportCount {
+            parts.append(String(localized: "\(viewports) viewports"))
+        }
+        if let issues = run.issueCount, issues > 0 {
+            parts.append(String(localized: "\(issues) issues"))
+        }
+        if run.status == "partial" || run.status == "failed" {
+            parts.append(run.status ?? "")
+        }
+        return parts.joined(separator: "  ·  ")
+    }
+
+    @ViewBuilder
+    private var historicalSnapshotNotice: some View {
+        if viewingRunId != nil {
+            HStack(spacing: 10) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .foregroundStyle(.secondary)
+                Text("Viewing an earlier capture. Reinspecting replaces the current one, not this.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Button {
+                    Task { await returnToLatestSnapshot() }
+                } label: {
+                    Text("Back to latest")
+                        .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.borderless)
+            }
+            .padding(10)
+            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        }
+    }
+
+    private func loadRuns() async {
+        runs = (try? await APIClient.shared.visualSnapshotRuns(bookmarkId: bookmark.id)) ?? []
+    }
+
+    private func loadRun(_ run: APIClient.VisualSnapshotRunDTO) async {
+        do {
+            let loaded = try await APIClient.shared.visualSnapshotRun(bookmarkId: bookmark.id, runId: run.runId)
+            snapshot = loaded
+            viewingRunId = run.runId
+            selectedViewportName = loaded.viewports.first?.name
+        } catch {
+            AppStore.shared.uiStateStore.showError(designErrorMessage(error))
+        }
+    }
+
+    private func returnToLatestSnapshot() async {
+        viewingRunId = nil
+        await loadSnapshot()
     }
 
     private func loadingState(_ text: String) -> some View {
@@ -186,7 +294,12 @@ struct VisualSnapshotTabView: View {
     private var snapshotContent: some View {
         VStack(alignment: .leading, spacing: 14) {
             captureStatusBar
-            outdatedSnapshotNotice
+            historicalSnapshotNotice
+            // A stored run is a record of the past, so nagging to reinspect it
+            // would be nonsense — the notice belongs to the current capture.
+            if viewingRunId == nil {
+                outdatedSnapshotNotice
+            }
             sectionPicker
 
             if let selectedViewport {
@@ -415,7 +528,9 @@ struct VisualSnapshotTabView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 180)
+                // Three segments now, and the German labels are longer than the
+                // English ones.
+                .frame(width: 250)
 
                 Spacer(minLength: 0)
 
@@ -434,7 +549,11 @@ struct VisualSnapshotTabView: View {
                 .disabled(snapshot?.viewports.isEmpty ?? true || isExportingPDF)
             }
 
-            reviewViewportPicker
+            // The per-viewport picker is meaningless while every viewport is on
+            // screen at once.
+            if reviewMode != .compare {
+                reviewViewportPicker
+            }
 
             if let snapshot, snapshot.viewports.isEmpty {
                 Text("No viewports captured yet.")
@@ -444,6 +563,17 @@ struct VisualSnapshotTabView: View {
                 switch reviewMode {
                 case .snapshot:
                     SnapshotViewportFrame(viewport: selectedViewport)
+                case .compare:
+                    if snapshot.viewports.count > 1 {
+                        ViewportComparisonStrip(viewports: snapshot.viewports)
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Only one viewport was captured, so there is nothing to compare.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            SnapshotViewportFrame(viewport: selectedViewport)
+                        }
+                    }
                 case .live:
                     LiveViewportFrame(url: URL(string: snapshot.url), viewport: selectedViewport)
                 }
@@ -584,8 +714,11 @@ struct VisualSnapshotTabView: View {
         guard let captured = status.snapshot else { return }
         snapshot = captured
         loadError = nil
+        // A fresh capture always returns you to the present.
+        viewingRunId = nil
         selectedViewportName = captured.viewports.first?.name
         updateBookmarkSnapshotStatus(captured)
+        await loadRuns()
         AppStore.shared.uiStateStore.showInfo("Snapshot captured.")
     }
 

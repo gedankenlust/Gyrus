@@ -10260,6 +10260,94 @@
           }
         }
       }
+    },
+    "Compare": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vergleich"
+          }
+        }
+      }
+    },
+    "Only one viewport was captured, so there is nothing to compare.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es wurde nur ein Viewport erfasst, es gibt also nichts zu vergleichen."
+          }
+        }
+      }
+    },
+    "History": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verlauf"
+          }
+        }
+      }
+    },
+    "Latest capture": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neueste Erfassung"
+          }
+        }
+      }
+    },
+    "Viewing an earlier capture. Reinspecting replaces the current one, not this.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du siehst eine frühere Erfassung. Eine Neuinspektion ersetzt die aktuelle, nicht diese."
+          }
+        }
+      }
+    },
+    "Back to latest": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurück zur neuesten"
+          }
+        }
+      }
+    },
+    "%lld viewports": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Viewports"
+          }
+        }
+      }
+    },
+    "%lld issues": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Probleme"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

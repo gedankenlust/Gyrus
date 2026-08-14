@@ -39,6 +39,17 @@ extension APIClient {
         )
     }
 
+    /// Previous captures for this bookmark. The backend keeps the last few runs
+    /// on disk and has exposed them since they were introduced; nothing in the
+    /// app ever asked for them.
+    func visualSnapshotRuns(bookmarkId: String) async throws -> [VisualSnapshotRunDTO] {
+        try await get(base.appending(path: "/api/brain/bookmarks/\(bookmarkId)/visual-snapshot/runs"))
+    }
+
+    func visualSnapshotRun(bookmarkId: String, runId: String) async throws -> VisualSnapshotDTO {
+        try await get(base.appending(path: "/api/brain/bookmarks/\(bookmarkId)/visual-snapshot/runs/\(runId)"))
+    }
+
     func visualSnapshotFileURL(path: String) -> URL {
         if path.hasPrefix("/") {
             return base.appending(path: path)

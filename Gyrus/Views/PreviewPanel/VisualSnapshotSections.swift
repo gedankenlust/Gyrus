@@ -164,7 +164,11 @@ extension VisualSnapshotTabView {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(groups) { group in
-                        ComponentGroupView(group: group)
+                        ComponentGroupView(
+                            group: group,
+                            screenshotPath: viewport.screenshotURL,
+                            viewportWidth: viewport.width
+                        )
                     }
 
                     if sampleCeilingReached {
