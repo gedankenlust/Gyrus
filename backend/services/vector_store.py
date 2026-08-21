@@ -110,6 +110,14 @@ def delete_many(bookmark_ids: list[str]) -> None:
         logger.warning("vector_store.delete_many failed: %s", e)
 
 
+def clear() -> None:
+    """Remove every embedding, including stale rows without a bookmark."""
+    try:
+        _get_conn().execute("DELETE FROM bookmarks_vec")
+    except Exception as e:
+        logger.warning("vector_store.clear failed: %s", e)
+
+
 def search(query_vec: list[float], k: int = 20) -> list[tuple[str, float]]:
     """Return up to k (bookmark_id, distance) pairs, closest first."""
     import json

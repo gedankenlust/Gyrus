@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from database import get_db, DATA_DIR
+from services import bookmark_service
 from services.brain_sync_service import brain_sync_service
 from models.bookmark import Bookmark, BookmarkNote, BrainMessage
 from models.collection import Collection
@@ -81,6 +82,7 @@ async def clear_brain():
 async def clear_bookmarks(db: Session = Depends(get_db)):
     """Delete all rows from bookmarks, collections, tags, and bookmark_notes."""
     try:
+        bookmark_ids = [row.id for row in db.query(Bookmark.id).all()]
         # Order matters for foreign key constraints if they aren't ON DELETE CASCADE
         # In Gyrus, they seem to be set up well, but we can be explicit.
         db.query(BookmarkTag).delete()
@@ -90,6 +92,9 @@ async def clear_bookmarks(db: Session = Depends(get_db)):
         db.query(Collection).delete()
         db.query(Tag).delete()
         db.commit()
+        from services import vector_store
+        vector_store.clear()
+        bookmark_service.delete_generated_artifacts(bookmark_ids)
     except Exception as e:
         db.rollback()
         logger.exception("Failed to clear bookmarks")

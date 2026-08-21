@@ -51,8 +51,13 @@ def test_clear_brain(client):
     assert user_file.exists()
 
 def test_clear_bookmarks(client):
+    from services import vector_store
+
     # Create a bookmark
-    client.post("/api/bookmarks", json={"title": "Example", "url": "https://example.com"})
+    bookmark = client.post(
+        "/api/bookmarks", json={"title": "Example", "url": "https://example.com"}
+    ).json()
+    vector_store.upsert(bookmark["id"], [0.1] * 768)
     
     # Verify it exists
     assert len(client.get("/api/bookmarks").json()) > 0
@@ -63,6 +68,7 @@ def test_clear_bookmarks(client):
     
     # Verify it's gone
     assert len(client.get("/api/bookmarks").json()) == 0
+    assert vector_store.count() == 0
 
 def test_factory_reset(client):
     # Setup: Create files and database entries

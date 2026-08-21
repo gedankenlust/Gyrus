@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 
 from models.bookmark import Bookmark
 from services import bookmark_service
+from database import DATA_DIR
 
 BOOKMARK = {"title": "Example", "url": "https://example.com", "source": "manual"}
 
@@ -116,10 +117,18 @@ def test_restore_brings_it_back(client):
 
 def test_purge_specific_is_permanent(client):
     bm = _create(client)
+    snapshot = DATA_DIR / "visual_snapshots" / bm["id"] / "snapshot.png"
+    structure = DATA_DIR / "site_structure" / f"{bm['id']}-cache.json"
+    snapshot.parent.mkdir(parents=True, exist_ok=True)
+    structure.parent.mkdir(parents=True, exist_ok=True)
+    snapshot.write_text("image")
+    structure.write_text("structure")
     client.delete(f"/api/bookmarks/{bm['id']}")
     resp = client.post("/api/bookmarks/trash/purge", json={"ids": [bm["id"]]})
     assert resp.json()["purged"] == 1
     assert client.get("/api/bookmarks/trash/count").json() == 0
+    assert not snapshot.exists()
+    assert not structure.exists()
 
 
 def test_empty_trash_purges_all(client):

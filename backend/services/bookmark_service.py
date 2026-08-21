@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+import shutil
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session, selectinload
 from sqlalchemy.exc import IntegrityError
@@ -10,6 +11,7 @@ from models.tag import Tag, BookmarkTag
 from schemas.bookmark import BookmarkCreate, BookmarkUpdate
 from services.brain_sync_service import brain_sync_service
 from services.tag_colors import next_color as _next_tag_color
+from database import DATA_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -290,6 +292,17 @@ def _drop_vectors(ids: list[str]) -> None:
         logger.warning("Bulk vector removal failed: %s", exc)
 
 
+def delete_generated_artifacts(ids: list[str]) -> None:
+    """Remove cached design and site-structure files for hard-deleted rows."""
+    snapshot_root = DATA_DIR / "visual_snapshots"
+    structure_root = DATA_DIR / "site_structure"
+    for bookmark_id in ids:
+        shutil.rmtree(snapshot_root / bookmark_id, ignore_errors=True)
+        if structure_root.exists():
+            for path in structure_root.glob(f"{bookmark_id}-*.json"):
+                path.unlink(missing_ok=True)
+
+
 def get_trashed(db: Session, limit: int = 200, offset: int = 0) -> list[Bookmark]:
     """List bookmarks currently in the Trash, most recently deleted first."""
     return (
@@ -346,10 +359,12 @@ def purge_bookmarks(db: Session, ids: list[str] | None = None) -> int:
         q = q.filter(Bookmark.id.in_(ids))
     # Vectors are normally dropped on trashing, but clean up stragglers so a
     # hard delete never leaves orphan rows in bookmarks_vec.
-    _drop_vectors([row.id for row in q.with_entities(Bookmark.id).all()])
-    n = q.count()
+    purged_ids = [row.id for row in q.with_entities(Bookmark.id).all()]
+    _drop_vectors(purged_ids)
+    n = len(purged_ids)
     q.delete(synchronize_session=False)
     db.commit()
+    delete_generated_artifacts(purged_ids)
     return n
 
 
@@ -361,9 +376,11 @@ def purge_expired(db: Session, days: int = TRASH_RETENTION_DAYS) -> int:
     )
     n = q.count()
     if n:
-        _drop_vectors([row.id for row in q.with_entities(Bookmark.id).all()])
+        purged_ids = [row.id for row in q.with_entities(Bookmark.id).all()]
+        _drop_vectors(purged_ids)
         q.delete(synchronize_session=False)
         db.commit()
+        delete_generated_artifacts(purged_ids)
     return n
 
 
