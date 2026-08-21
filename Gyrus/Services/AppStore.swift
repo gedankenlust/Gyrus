@@ -589,6 +589,7 @@ final class AppStore {
             tagsStore.selectedTagName = nil
         case .factory:
             try await api.factoryReset()
+            BackendLauncher.shared.clearLog()
             bookmarksStore.bookmarks = []
             bookmarksStore.selectedBookmark = nil
             bookmarksStore.selectedIds = []

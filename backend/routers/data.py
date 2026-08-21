@@ -14,7 +14,20 @@ from models.tag import Tag, BookmarkTag
 router = APIRouter(prefix="/api/data", tags=["data"])
 logger = logging.getLogger(__name__)
 
-BACKUP_VERSION = 1
+BACKUP_VERSION = 2
+SUPPORTED_BACKUP_VERSIONS = {1, BACKUP_VERSION}
+
+# Generated data that belongs to Gyrus and can safely be removed during a
+# factory reset. The database itself stays open; clear_bookmarks() removes its
+# rows while the internal backup copies are deleted here.
+FACTORY_RESET_DIRECTORIES = (
+    DATA_DIR / "favicons",
+    DATA_DIR / "og_images",
+    DATA_DIR / "visual_snapshots",
+    DATA_DIR / "site_structure",
+    DATA_DIR / "python-cache",
+    DATA_DIR / "db" / "backups",
+)
 
 
 def _iso(dt: datetime | None) -> str | None:
@@ -29,6 +42,25 @@ def _parse_dt(value: str | None) -> datetime:
             pass
     return datetime.now(timezone.utc)
 
+
+def _parse_optional_dt(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def _clear_directory(directory) -> None:
+    if not directory.exists():
+        return
+    for item in directory.iterdir():
+        if item.is_file() or item.is_symlink():
+            item.unlink(missing_ok=True)
+        elif item.is_dir():
+            shutil.rmtree(item)
+
 @router.post("/clear-cache")
 async def clear_cache():
     """Delete all files in ~/.gyrus/favicons and ~/.gyrus/og-images."""
@@ -36,12 +68,7 @@ async def clear_cache():
     og_images_dir = DATA_DIR / "og_images"
     
     for directory in [favicons_dir, og_images_dir]:
-        if directory.exists():
-            for item in directory.iterdir():
-                if item.is_file():
-                    item.unlink()
-                elif item.is_dir():
-                    shutil.rmtree(item)
+        _clear_directory(directory)
     return {"status": "ok"}
 
 @router.post("/clear-brain")
@@ -71,10 +98,11 @@ async def clear_bookmarks(db: Session = Depends(get_db)):
 
 @router.post("/factory-reset")
 async def factory_reset(db: Session = Depends(get_db)):
-    """Combine all clear operations."""
-    await clear_cache()
-    await clear_brain()
+    """Remove all Gyrus-owned user data and return to a fresh state."""
     await clear_bookmarks(db)
+    await clear_brain()
+    for directory in FACTORY_RESET_DIRECTORIES:
+        _clear_directory(directory)
     return {"status": "ok"}
 
 @router.get("/backup")
@@ -104,7 +132,16 @@ def backup(db: Session = Depends(get_db)):
                 "description": b.description, "notes": b.notes,
                 "favicon_path": b.favicon_path, "og_image_url": b.og_image_url,
                 "og_image_path": b.og_image_path, "source": b.source,
-                "is_dead": b.is_dead, "collection_id": b.collection_id,
+                "is_dead": b.is_dead, "is_read": b.is_read,
+                "scraped_content": b.scraped_content,
+                "metadata_status": b.metadata_status,
+                "reader_status": b.reader_status,
+                "index_status": b.index_status,
+                "analysis_error": b.analysis_error,
+                "analysis_attempts": b.analysis_attempts,
+                "analysis_updated_at": _iso(b.analysis_updated_at),
+                "deleted_at": _iso(b.deleted_at),
+                "collection_id": b.collection_id,
                 "created_at": _iso(b.created_at), "updated_at": _iso(b.updated_at),
             }
             for b in db.query(Bookmark).all()
@@ -152,7 +189,7 @@ class RestoreData(BaseModel):
 @router.post("/restore")
 def restore(data: RestoreData, db: Session = Depends(get_db)):
     """Replace ALL current data with the contents of a JSON backup."""
-    if data.version != BACKUP_VERSION:
+    if data.version not in SUPPORTED_BACKUP_VERSIONS:
         raise HTTPException(status_code=422, detail="Unsupported backup version")
     try:
         # 1. Wipe existing data (FK-safe order).
@@ -191,7 +228,19 @@ def restore(data: RestoreData, db: Session = Depends(get_db)):
                 description=b.get("description"), notes=b.get("notes"),
                 favicon_path=b.get("favicon_path"), og_image_url=b.get("og_image_url"),
                 og_image_path=b.get("og_image_path"), source=b.get("source", "manual"),
-                is_dead=b.get("is_dead", False), collection_id=b.get("collection_id"),
+                is_dead=b.get("is_dead", False), is_read=b.get("is_read", False),
+                scraped_content=b.get("scraped_content"),
+                metadata_status=b.get("metadata_status", "pending"),
+                reader_status=b.get(
+                    "reader_status",
+                    "ready" if b.get("scraped_content") else "pending",
+                ),
+                index_status=b.get("index_status", "not_requested"),
+                analysis_error=b.get("analysis_error"),
+                analysis_attempts=b.get("analysis_attempts", 0),
+                analysis_updated_at=_parse_optional_dt(b.get("analysis_updated_at")),
+                deleted_at=_parse_optional_dt(b.get("deleted_at")),
+                collection_id=b.get("collection_id"),
                 created_at=_parse_dt(b.get("created_at")), updated_at=_parse_dt(b.get("updated_at")),
             ))
         db.flush()

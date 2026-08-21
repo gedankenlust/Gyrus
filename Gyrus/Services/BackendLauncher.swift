@@ -75,6 +75,16 @@ final class BackendLauncher {
 
     private init() {}
 
+    func clearLog() {
+        guard let logHandle else { return }
+        do {
+            try logHandle.seek(toOffset: 0)
+            try logHandle.truncate(atOffset: 0)
+        } catch {
+            // Reset already succeeded; a diagnostic log must not make it fail.
+        }
+    }
+
     private func killExistingBackend() {
         // Kill only a process whose executable belongs to Gyrus. PID files can
         // become stale and a recycled PID must never terminate another app.

@@ -4,6 +4,7 @@ from pathlib import Path
 from services.brain_sync_service import brain_sync_service
 from services import brain_chat_service
 from database import DATA_DIR
+from models.bookmark import Bookmark
 
 def test_clear_cache(client):
     # Ensure directories exist and have some files
@@ -73,6 +74,18 @@ def test_factory_reset(client):
     brain_sync_service.root_dir.mkdir(parents=True, exist_ok=True)
     test_file = brain_sync_service.root_dir / "test-1234abcd.md"
     test_file.write_text("dummy")
+
+    generated_files = []
+    for relative in (
+        "visual_snapshots/bookmark-1/snapshot.png",
+        "site_structure/bookmark-1.json",
+        "db/backups/gyrus-previous.db",
+        "python-cache/module.pyc",
+    ):
+        path = DATA_DIR / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("generated")
+        generated_files.append(path)
     
     client.post("/api/bookmarks", json={"title": "Example", "url": "https://example.com"})
     
@@ -82,6 +95,7 @@ def test_factory_reset(client):
     
     assert not test_favicon.exists()
     assert not test_file.exists()
+    assert all(not path.exists() for path in generated_files)
     assert len(client.get("/api/bookmarks").json()) == 0
 
 def test_backup(client):
@@ -91,12 +105,13 @@ def test_backup(client):
     assert "attachment" in resp.headers["content-disposition"]
     assert "gyrus_backup.json" in resp.headers["content-disposition"]
     body = resp.json()
-    assert body["version"] == 1
+    assert body["version"] == 2
     for key in ("collections", "tags", "bookmarks", "bookmark_notes", "brain_messages", "bookmark_tags"):
         assert key in body
 
 
 def test_backup_restore_roundtrip(client, db):
+    from datetime import datetime, timezone
     from models.tag import BookmarkTag, Tag
 
     # Build some data: folder + nested folder + tag + bookmark with a note.
@@ -112,16 +127,32 @@ def test_backup_restore_roundtrip(client, db):
     db.add(ai_tag)
     db.flush()
     db.add(BookmarkTag(bookmark_id=bm["id"], tag_id=ai_tag.id, source="ai"))
+    stored = db.get(Bookmark, bm["id"])
+    stored.is_read = True
+    stored.scraped_content = "Durable reader text"
+    stored.metadata_status = "ready"
+    stored.reader_status = "ready"
+    stored.index_status = "ready"
+    stored.analysis_error = "Previous transient error"
+    stored.analysis_attempts = 3
+    stored.analysis_updated_at = datetime.now(timezone.utc)
+    trashed = Bookmark(
+        id="trashed-bookmark",
+        title="Trashed",
+        url="https://trashed.example.com",
+        deleted_at=datetime.now(timezone.utc),
+    )
+    db.add(trashed)
     db.commit()
 
     # Backup → JSON.
     backup = client.get("/api/data/backup")
     assert backup.status_code == 200
     payload = backup.json()
-    assert payload["version"] == 1
+    assert payload["version"] == 2
     assert payload["tags"][0]["source"] == "ai"
     assert len(payload["collections"]) == 2
-    assert len(payload["bookmarks"]) == 1
+    assert len(payload["bookmarks"]) == 2
     assert payload["bookmark_tags"] == [{
         "bookmark_id": bm["id"],
         "tag_id": ai_tag.id,
@@ -142,9 +173,44 @@ def test_backup_restore_roundtrip(client, db):
     assert [c["name"] for c in work["children"]] == ["Sub"]
     restored = client.get(f"/api/bookmarks/{bm['id']}").json()
     assert restored["url"] == "https://roundtrip.example.com"
+    restored_model = db.get(Bookmark, bm["id"])
+    assert restored_model.is_read is True
+    assert restored_model.scraped_content == "Durable reader text"
+    assert restored_model.metadata_status == "ready"
+    assert restored_model.reader_status == "ready"
+    assert restored_model.index_status == "ready"
+    assert restored_model.analysis_error == "Previous transient error"
+    assert restored_model.analysis_attempts == 3
+    assert restored_model.analysis_updated_at is not None
+    assert db.get(Bookmark, "trashed-bookmark").deleted_at is not None
     assert any(n["content"] == "keep me" for n in restored["bookmark_notes"])
     chat = client.get(f"/api/brain/bookmarks/{bm['id']}/messages").json()
     assert any(m["content"] == "remember me" for m in chat)
     restored_link = db.query(BookmarkTag).filter(BookmarkTag.bookmark_id == bm["id"]).one()
     assert restored_link.source == "ai"
     assert db.query(Tag).filter(Tag.id == ai_tag.id).one().source == "ai"
+
+
+def test_restore_accepts_version_1_backup_with_safe_defaults(client, db):
+    payload = {
+        "version": 1,
+        "collections": [],
+        "tags": [],
+        "bookmarks": [{
+            "id": "legacy-bookmark",
+            "title": "Legacy",
+            "url": "https://legacy.example.com",
+            "is_dead": False,
+        }],
+        "bookmark_notes": [],
+        "brain_messages": [],
+        "bookmark_tags": [],
+    }
+
+    response = client.post("/api/data/restore", json=payload)
+
+    assert response.status_code == 200
+    restored = db.get(Bookmark, "legacy-bookmark")
+    assert restored.is_read is False
+    assert restored.reader_status == "pending"
+    assert restored.index_status == "not_requested"
