@@ -126,6 +126,36 @@ def test_semantic_search_returns_indexed_bookmark(client, db):
     vector_store.delete(bm["id"])
 
 
+def test_semantic_search_paginates_without_repeating(client):
+    bookmarks = [
+        client.post("/api/bookmarks", json={
+            **BOOKMARK,
+            "title": f"Result {index}",
+            "url": f"https://semantic-page-{index}.example",
+        }).json()
+        for index in range(5)
+    ]
+    ranked = [(bookmark["id"], index / 10) for index, bookmark in enumerate(bookmarks)]
+
+    with (
+        patch(
+            "services.embedding_service.get_embedding",
+            new=AsyncMock(return_value=FAKE_VEC),
+        ),
+        patch("services.vector_store.search", return_value=ranked),
+    ):
+        first = client.get("/api/search/semantic", params={"q": "test", "limit": 2})
+        second = client.get(
+            "/api/search/semantic", params={"q": "test", "limit": 2, "offset": 2}
+        )
+
+    first_ids = [bookmark["id"] for bookmark in first.json()]
+    second_ids = [bookmark["id"] for bookmark in second.json()]
+    assert first_ids == [bookmarks[0]["id"], bookmarks[1]["id"]]
+    assert second_ids == [bookmarks[2]["id"], bookmarks[3]["id"]]
+    assert set(first_ids).isdisjoint(second_ids)
+
+
 def test_semantic_status_endpoint(client):
     resp = client.get("/api/search/status")
     assert resp.status_code == 200

@@ -15,11 +15,12 @@ extension APIClient {
 
     /// Semantic / meaning-based search. Returns an empty list when Ollama is
     /// unreachable — the caller should fall back to keyword search silently.
-    func searchSemantic(query: String, limit: Int = 20) async throws -> [Bookmark] {
+    func searchSemantic(query: String, limit: Int = 20, offset: Int = 0) async throws -> [Bookmark] {
         var components = URLComponents(url: base.appending(path: "/api/search/semantic"), resolvingAgainstBaseURL: false)!
         components.queryItems = [
             .init(name: "q", value: query),
             .init(name: "limit", value: "\(limit)"),
+            .init(name: "offset", value: "\(offset)"),
         ]
         return try await get(components.url!)
     }

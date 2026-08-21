@@ -135,7 +135,8 @@ final class BookmarkStore {
 
             // Exclude pending deletions
             let filtered = page.filter { !pendingDeletionIds.contains($0.id) }
-            bookmarks.append(contentsOf: filtered)
+            let existingIds = Set(bookmarks.map(\.id))
+            bookmarks.append(contentsOf: filtered.filter { !existingIds.contains($0.id) })
 
             currentOffset += page.count
             hasMore = page.count == pageSize
@@ -151,11 +152,15 @@ final class BookmarkStore {
         if showTrash {
             return try await api.trashedBookmarks(limit: pageSize, offset: offset)
         } else if !query.isEmpty && semanticSearchEnabled {
-            // Semantic search doesn't support pagination — always returns the full ranked list.
             // Degrade to keyword search when it returns nothing OR throws
             // (Ollama down only yields [], but network/server errors throw).
-            let results = (try? await api.searchSemantic(query: query, limit: pageSize)) ?? []
-            return results.isEmpty ? try await api.search(query: query, limit: pageSize, offset: offset) : results
+            let results = (try? await api.searchSemantic(
+                query: query, limit: pageSize, offset: offset
+            )) ?? []
+            if results.isEmpty && offset == 0 {
+                return try await api.search(query: query, limit: pageSize, offset: 0)
+            }
+            return results
         } else if !query.isEmpty {
             return try await api.search(query: query, limit: pageSize, offset: offset)
         } else if showDeadOnly {
@@ -203,12 +208,12 @@ final class BookmarkStore {
     }
 
     func setRead(ids: Set<String>, isRead: Bool) async throws {
-        for id in ids {
-            var update = BookmarkUpdate()
-            update.isRead = isRead
-            let updated = try await api.updateBookmark(id: id, body: update)
-            if let idx = bookmarks.firstIndex(where: { $0.id == id }) { bookmarks[idx] = updated }
-            if selectedBookmark?.id == id { selectedBookmark = updated }
+        _ = try await api.setBookmarksRead(ids: ids, isRead: isRead)
+        for index in bookmarks.indices where ids.contains(bookmarks[index].id) {
+            bookmarks[index].isRead = isRead
+        }
+        if let selected = selectedBookmark, ids.contains(selected.id) {
+            selectedBookmark?.isRead = isRead
         }
     }
 
@@ -351,10 +356,12 @@ final class BookmarkStore {
     }
 
     func moveToCollection(ids: Set<String>, collectionId: String?) async throws {
-        for id in ids {
-            var update = BookmarkUpdate()
-            update.collectionId = collectionId
-            _ = try await api.updateBookmark(id: id, body: update)
+        _ = try await api.moveBookmarks(ids: ids, collectionId: collectionId)
+        for index in bookmarks.indices where ids.contains(bookmarks[index].id) {
+            bookmarks[index].collectionId = collectionId
+        }
+        if let selected = selectedBookmark, ids.contains(selected.id) {
+            selectedBookmark?.collectionId = collectionId
         }
         // Notify that folder counts need refresh
         NotificationCenter.default.post(name: .bookmarksMoved, object: nil)

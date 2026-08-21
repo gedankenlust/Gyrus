@@ -27,6 +27,7 @@ def search(
 async def search_semantic(
     q: str = "",
     limit: int = Query(default=20, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
 ):
     """Semantic / meaning-based search via local embeddings.
@@ -38,7 +39,7 @@ async def search_semantic(
     """
     if not q.strip():
         return []
-    results = await search_bookmarks_semantic(db, q, limit=limit)
+    results = await search_bookmarks_semantic(db, q, limit=limit, offset=offset)
     return [enrich_bookmark_summary(bm) for bm in results]
 
 

@@ -33,6 +33,37 @@ def test_update_bookmark(client):
     assert resp.json()["title"] == "Updated"
 
 
+def test_batch_move_and_read_are_atomic(client, db):
+    folder = client.post("/api/collections", json={"name": "Batch folder"}).json()
+    first = client.post("/api/bookmarks", json={
+        **BOOKMARK, "url": "https://batch-first.example"
+    }).json()
+    second = client.post("/api/bookmarks", json={
+        **BOOKMARK, "url": "https://batch-second.example"
+    }).json()
+    ids = [first["id"], second["id"]]
+
+    moved = client.post("/api/bookmarks/move-batch", json={
+        "ids": ids, "collection_id": folder["id"]
+    })
+    read = client.post("/api/bookmarks/read-batch", json={
+        "ids": ids, "is_read": True
+    })
+
+    assert moved.json() == {"updated": 2}
+    assert read.json() == {"updated": 2}
+    rows = db.query(Bookmark).filter(Bookmark.id.in_(ids)).all()
+    assert all(row.collection_id == folder["id"] for row in rows)
+    assert all(row.is_read for row in rows)
+
+    failed = client.post("/api/bookmarks/move-batch", json={
+        "ids": [first["id"], "missing"], "collection_id": None
+    })
+    assert failed.status_code == 404
+    db.expire_all()
+    assert db.get(Bookmark, first["id"]).collection_id == folder["id"]
+
+
 def test_delete_bookmark(client):
     created = client.post("/api/bookmarks", json=BOOKMARK).json()
     resp = client.delete(f"/api/bookmarks/{created['id']}")

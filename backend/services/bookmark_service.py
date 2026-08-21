@@ -196,6 +196,54 @@ def update_bookmark(db: Session, bm: Bookmark, data: BookmarkUpdate) -> Bookmark
     return bm
 
 
+def move_bookmarks(
+    db: Session, ids: list[str], collection_id: str | None
+) -> int:
+    """Move an entire selection atomically and refresh the Brain mirror once."""
+    unique_ids = list(dict.fromkeys(ids))
+    if collection_id is not None and db.get(Collection, collection_id) is None:
+        raise LookupError("Collection not found")
+
+    bookmarks = db.query(Bookmark).filter(
+        Bookmark.id.in_(unique_ids), Bookmark.deleted_at.is_(None)
+    ).all()
+    if len(bookmarks) != len(unique_ids):
+        raise LookupError("One or more bookmarks were not found")
+
+    old_paths = {}
+    for bookmark in bookmarks:
+        try:
+            old_paths[bookmark.id] = brain_sync_service._get_bookmark_file_path(db, bookmark)
+        except Exception:
+            old_paths[bookmark.id] = None
+        bookmark.collection_id = collection_id
+
+    db.commit()
+    for bookmark in bookmarks:
+        _safe_brain_sync(
+            lambda bookmark=bookmark: brain_sync_service.sync_bookmark(
+                db, bookmark, old_path=old_paths[bookmark.id]
+            )
+        )
+    _safe_brain_sync(lambda: brain_sync_service.rebuild_index(db))
+    return len(bookmarks)
+
+
+def set_bookmarks_read(db: Session, ids: list[str], is_read: bool) -> int:
+    """Set read state for a complete selection in one transaction."""
+    unique_ids = list(dict.fromkeys(ids))
+    bookmarks = db.query(Bookmark).filter(
+        Bookmark.id.in_(unique_ids), Bookmark.deleted_at.is_(None)
+    ).all()
+    if len(bookmarks) != len(unique_ids):
+        raise LookupError("One or more bookmarks were not found")
+
+    for bookmark in bookmarks:
+        bookmark.is_read = is_read
+    db.commit()
+    return len(bookmarks)
+
+
 def delete_bookmark(db: Session, bm: Bookmark) -> None:
     """Soft-delete: move the bookmark to the Trash. Its AI-Brain markdown file is
     removed so it disappears from the mirror, but the row is kept (recoverable)

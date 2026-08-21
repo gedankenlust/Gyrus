@@ -309,6 +309,36 @@ def delete_bookmarks_batch(data: BulkDeleteRequest, db: Session = Depends(get_db
     bookmark_service.delete_bookmarks(db, data.ids)
 
 
+class BulkMoveRequest(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=5_000)
+    collection_id: str | None = None
+
+
+class BulkReadRequest(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=5_000)
+    is_read: bool
+
+
+@router.post("/move-batch")
+def move_bookmarks_batch(data: BulkMoveRequest, db: Session = Depends(get_db)):
+    try:
+        moved = bookmark_service.move_bookmarks(db, data.ids, data.collection_id)
+    except LookupError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"updated": moved}
+
+
+@router.post("/read-batch")
+def read_bookmarks_batch(data: BulkReadRequest, db: Session = Depends(get_db)):
+    try:
+        updated = bookmark_service.set_bookmarks_read(db, data.ids, data.is_read)
+    except LookupError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"updated": updated}
+
+
 class TrashIdsRequest(BaseModel):
     # None / omitted = act on the whole Trash (used by "Empty Trash").
     ids: list[str] | None = None

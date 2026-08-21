@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 async def search_bookmarks_semantic(
-    db: Session, query: str, limit: int = 20
+    db: Session, query: str, limit: int = 20, offset: int = 0
 ) -> list[Bookmark]:
     """Return bookmarks ranked by semantic similarity to *query*.
 
@@ -27,7 +27,8 @@ async def search_bookmarks_semantic(
         logger.info("semantic search unavailable: %s", e)
         return []
 
-    pairs = vector_store.search(query_vec, k=limit * 2)
+    window = offset + limit
+    pairs = vector_store.search(query_vec, k=window * 2)
     if not pairs:
         return []
 
@@ -41,7 +42,7 @@ async def search_bookmarks_semantic(
         .all()
     }
     ranked = [bm_map[i] for i in ids if i in bm_map]
-    return ranked[:limit]
+    return ranked[offset:window]
 
 
 def search_bookmarks(db: Session, query: str, limit: int = 50, offset: int = 0) -> list[Bookmark]:

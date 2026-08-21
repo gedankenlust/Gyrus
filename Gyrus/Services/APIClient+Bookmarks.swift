@@ -70,6 +70,31 @@ extension APIClient {
         try await postIgnoreResponse(base.appending(path: "/api/bookmarks/delete-batch"), body: Body(ids: Array(ids)))
     }
 
+    @discardableResult
+    func moveBookmarks(ids: Set<String>, collectionId: String?) async throws -> Int {
+        struct Body: Encodable {
+            let ids: [String]
+            let collection_id: String?
+        }
+        struct Response: Decodable { let updated: Int }
+        let response: Response = try await post(
+            base.appending(path: "/api/bookmarks/move-batch"),
+            body: Body(ids: Array(ids), collection_id: collectionId)
+        )
+        return response.updated
+    }
+
+    @discardableResult
+    func setBookmarksRead(ids: Set<String>, isRead: Bool) async throws -> Int {
+        struct Body: Encodable { let ids: [String]; let is_read: Bool }
+        struct Response: Decodable { let updated: Int }
+        let response: Response = try await post(
+            base.appending(path: "/api/bookmarks/read-batch"),
+            body: Body(ids: Array(ids), is_read: isRead)
+        )
+        return response.updated
+    }
+
     func bookmarkCount() async throws -> Int {
         try await get(base.appending(path: "/api/bookmarks/count"))
     }
