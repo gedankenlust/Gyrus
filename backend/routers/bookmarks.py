@@ -375,6 +375,25 @@ class ReaderResponse(BaseModel):
     content: str
 
 
+def _reader_failure(errors: list[str | None]) -> tuple[int, str, str]:
+    details = [str(error).strip() for error in errors if error and str(error).strip()]
+    combined = " | ".join(details)
+    lowered = combined.casefold()
+    diagnostic = f"Reader: {combined or 'No readable page text found'}"[:2_000]
+
+    if "timeout" in lowered or "timed out" in lowered:
+        return 504, "The page did not respond in time. Try again.", diagnostic
+    if "ssl" in lowered or "certificate" in lowered:
+        return 422, "The page's security certificate could not be verified.", diagnostic
+    if any(code in lowered for code in ("http 401", "http 403", "status 401", "status 403")):
+        return 422, "The page blocked access to its content.", diagnostic
+    if "unsupported content type" in lowered:
+        return 422, "This type of page cannot be opened in Reader.", diagnostic
+    if "safety limit" in lowered or "too large" in lowered:
+        return 413, "The page is too large to process safely.", diagnostic
+    return 422, "No readable content could be extracted from this page.", diagnostic
+
+
 @router.get("/{bookmark_id}/reader", response_model=ReaderResponse)
 async def get_reader_content(bookmark_id: str, db: Session = Depends(get_db)):
     bm = bookmark_service.get_bookmark(db, bookmark_id)
@@ -395,21 +414,26 @@ async def get_reader_content(bookmark_id: str, db: Session = Depends(get_db)):
         return ReaderResponse(content=cached_content)
 
     bookmark_enrichment_service.record_stage(bookmark_id, "reader", "running", db=db)
+    scrape_error = None
+    rendered_error = None
     try:
         scrape_result = await scraper_service.extract_content(bm.url)
-        content = scrape_result.get("content", "")
+        content = (scrape_result.get("content") or "").strip()
+        scrape_error = scrape_result.get("error")
     except Exception as exc:
-        bookmark_enrichment_service.record_stage(
-            bookmark_id, "reader", "failed", f"Reader: {exc}", db=db
-        )
-        raise
+        content = ""
+        scrape_error = str(exc)
 
     # Vite/React and similar sites often ship an empty <div id="root"> in the
     # HTML and render all visible text with JavaScript. Chromium is already
     # bundled for Design; use it only for this explicit Reader request.
     if not content:
-        rendered = await scraper_service.extract_rendered_content(bm.url)
-        content = rendered.get("content", "")
+        try:
+            rendered = await scraper_service.extract_rendered_content(bm.url)
+            content = (rendered.get("content") or "").strip()
+            rendered_error = rendered.get("error")
+        except Exception as exc:
+            rendered_error = str(exc)
 
     if content:
         stored = bookmark_service.store_scraped_content(db, bookmark_id, content)
@@ -422,14 +446,17 @@ async def get_reader_content(bookmark_id: str, db: Session = Depends(get_db)):
         )
         bookmark_enrichment_service.schedule_index(bookmark_id, content)
     else:
+        status_code, message, diagnostic = _reader_failure(
+            [scrape_error, rendered_error]
+        )
         bookmark_enrichment_service.record_stage(
             bookmark_id,
             "reader",
             "failed",
-            "Reader: No readable page text found",
+            diagnostic,
             db=db,
         )
-        content = ""
+        raise HTTPException(status_code=status_code, detail=message)
 
     return ReaderResponse(content=content)
 

@@ -266,7 +266,7 @@ def test_reader_uses_browser_fallback_for_javascript_page(client, db):
     ]
 
 
-def test_reader_returns_empty_content_when_page_is_not_readable(client):
+def test_reader_returns_actionable_error_when_page_is_not_readable(client, db):
     from unittest.mock import AsyncMock, patch
 
     created = client.post("/api/bookmarks", json={
@@ -290,9 +290,41 @@ def test_reader_returns_empty_content_when_page_is_not_readable(client):
     ):
         response = client.get(f"/api/bookmarks/{created['id']}/reader")
 
-    assert response.status_code == 200
-    assert response.json() == {"content": ""}
+    assert response.status_code == 422
+    assert response.json() == {
+        "detail": "No readable content could be extracted from this page."
+    }
+    bookmark = db.query(Bookmark).filter(Bookmark.id == created["id"]).one()
+    assert bookmark.reader_status == "failed"
+    assert "No visible text" in bookmark.analysis_error
     schedule_index.assert_not_called()
+
+
+def test_reader_reports_timeout_and_preserves_diagnostic(client, db):
+    from unittest.mock import AsyncMock, patch
+
+    created = client.post("/api/bookmarks", json={
+        "title": "Slow page",
+        "url": "https://slow-reader.example",
+        "source": "manual",
+    }).json()
+
+    with (
+        patch(
+            "routers.bookmarks.scraper_service.extract_content",
+            new=AsyncMock(return_value={"content": "", "error": "Request timed out"}),
+        ),
+        patch(
+            "routers.bookmarks.scraper_service.extract_rendered_content",
+            new=AsyncMock(return_value={"content": "", "error": "Browser timeout"}),
+        ),
+    ):
+        response = client.get(f"/api/bookmarks/{created['id']}/reader")
+
+    assert response.status_code == 504
+    assert response.json()["detail"] == "The page did not respond in time. Try again."
+    bookmark = db.query(Bookmark).filter(Bookmark.id == created["id"]).one()
+    assert "Request timed out" in bookmark.analysis_error
 
 
 def test_translate_reader_preserves_current_content_and_language(client, db):

@@ -5759,6 +5759,118 @@
         }
       }
     },
+    "Loading Reader...": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reader wird geladen ..."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading Reader..."
+          }
+        }
+      }
+    },
+    "Reader unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reader nicht verfügbar"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reader unavailable"
+          }
+        }
+      }
+    },
+    "The page did not respond in time. Try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Seite hat nicht rechtzeitig geantwortet. Versuche es erneut."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The page did not respond in time. Try again."
+          }
+        }
+      }
+    },
+    "The page's security certificate could not be verified.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Sicherheitszertifikat der Seite konnte nicht überprüft werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The page's security certificate could not be verified."
+          }
+        }
+      }
+    },
+    "The page blocked access to its content.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Seite hat den Zugriff auf ihren Inhalt blockiert."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The page blocked access to its content."
+          }
+        }
+      }
+    },
+    "The page is too large to process safely.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Seite ist zu groß, um sie sicher zu verarbeiten."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The page is too large to process safely."
+          }
+        }
+      }
+    },
+    "This type of page cannot be opened in Reader.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Seitentyp kann im Reader nicht geöffnet werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This type of page cannot be opened in Reader."
+          }
+        }
+      }
+    },
     "No path selected": {
       "extractionState": "stale",
       "localizations": {

@@ -135,7 +135,9 @@ struct BookmarkDetailView: View {
     @State private var pageMode = PageMode.fromPreference(AppSettings.shared.defaultPreviewTab)
     @State private var isEditing    = false
     @State private var newNoteText  = ""
-    @State private var readerContent: String = "Loading..."
+    @State private var readerContent = ""
+    @State private var readerLoadError: String?
+    @State private var isLoadingReader = false
     @State private var isCleaningReader = false
     @State private var isTranslatingReader = false
     @State private var didCopyReader = false
@@ -192,7 +194,9 @@ struct BookmarkDetailView: View {
             selectedTab = preferredTab
             pageMode = PageMode.fromPreference(AppSettings.shared.defaultPreviewTab)
             isEditing   = false
-            readerContent = "Loading..."
+            readerContent = ""
+            readerLoadError = nil
+            isLoadingReader = false
             readerLoadedBookmarkID = nil
         }
         .task(id: bookmark.id) {
@@ -352,8 +356,24 @@ struct BookmarkDetailView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    ReaderFormattedContent(title: bookmark.title, content: readerContent)
-                        .textSelection(.enabled)
+                    if isLoadingReader {
+                        ProgressView("Loading Reader...")
+                            .frame(maxWidth: .infinity, minHeight: 180)
+                    } else if let readerLoadError {
+                        ContentUnavailableView {
+                            Label("Reader unavailable", systemImage: "doc.text.magnifyingglass")
+                        } description: {
+                            Text(readerLoadError)
+                        } actions: {
+                            Button("Try Again") {
+                                Task { await loadReaderContent(force: true) }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 240)
+                    } else {
+                        ReaderFormattedContent(title: bookmark.title, content: readerContent)
+                            .textSelection(.enabled)
+                    }
                 }
                 .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -364,36 +384,53 @@ struct BookmarkDetailView: View {
         }
     }
 
-    private func loadReaderContent() async {
-        guard readerLoadedBookmarkID != bookmark.id else { return }
+    private func loadReaderContent(force: Bool = false) async {
+        guard force || readerLoadedBookmarkID != bookmark.id else { return }
         readerLoadedBookmarkID = bookmark.id
-        readerContent = "Loading..."
+        readerContent = ""
+        readerLoadError = nil
         readerHasUsableContent = false
+        isLoadingReader = true
+        defer { isLoadingReader = false }
         do {
             let extracted = try await APIClient.shared.fetchReaderContent(id: bookmark.id)
-            guard !extracted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                readerContent = AppSettings.shared.localized(
-                    "No readable content could be extracted from this page."
-                )
-                return
-            }
             readerContent = extracted
             readerHasUsableContent = true
-            guard aiConfig.aiEnabled else { return }
+        } catch {
+            readerLoadedBookmarkID = nil
+            readerLoadError = localizedReaderError(error)
+            return
+        }
 
-            isCleaningReader = true
-            defer { isCleaningReader = false }
+        guard aiConfig.aiEnabled else { return }
+        isCleaningReader = true
+        defer { isCleaningReader = false }
+        do {
             readerContent = try await APIClient.shared.cleanupReaderContent(
                 id: bookmark.id,
                 config: AppSettings.shared.aiBrainConfig
             )
         } catch {
-            if readerContent == "Loading..." {
-                readerContent = "Failed to load content."
-                readerHasUsableContent = false
-            } else {
-                AppStore.shared.uiStateStore.showError(error.localizedDescription)
-            }
+            AppStore.shared.uiStateStore.showError(error.localizedDescription)
+        }
+    }
+
+    private func localizedReaderError(_ error: Error) -> String {
+        switch error.localizedDescription {
+        case "The page did not respond in time. Try again.":
+            AppSettings.shared.localized("The page did not respond in time. Try again.")
+        case "The page's security certificate could not be verified.":
+            AppSettings.shared.localized("The page's security certificate could not be verified.")
+        case "The page blocked access to its content.":
+            AppSettings.shared.localized("The page blocked access to its content.")
+        case "This type of page cannot be opened in Reader.":
+            AppSettings.shared.localized("This type of page cannot be opened in Reader.")
+        case "The page is too large to process safely.":
+            AppSettings.shared.localized("The page is too large to process safely.")
+        case "No readable content could be extracted from this page.":
+            AppSettings.shared.localized("No readable content could be extracted from this page.")
+        default:
+            error.localizedDescription
         }
     }
 

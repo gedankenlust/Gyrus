@@ -211,7 +211,9 @@ async def enrich_bookmark(bookmark_id: str, *, include_design_snapshot: bool = F
                     scrape_result = await scraper_service.extract_content(url)
                     content = (scrape_result.get("content") or "").strip()
                     if not content:
-                        raise ValueError("No readable page text found")
+                        raise ValueError(
+                            scrape_result.get("error") or "No readable page text found"
+                        )
                     db = SessionLocal()
                     try:
                         if not bookmark_service.store_scraped_content(db, bookmark_id, content):
