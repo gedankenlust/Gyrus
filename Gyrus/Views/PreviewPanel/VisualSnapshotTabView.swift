@@ -12,7 +12,7 @@ private let designSections = DesignInspectorSection.allCases
 /// as empty sections with no explanation. Raise both constants together whenever
 /// the capture gains something the inspector depends on; the reinspect notice
 /// then appears on its own.
-private let expectedSnapshotSchemaVersion = 6
+private let expectedSnapshotSchemaVersion = 7
 
 enum DesignInspectorSection: String, CaseIterable, Identifiable {
     case preview

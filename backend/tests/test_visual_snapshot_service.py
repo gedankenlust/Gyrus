@@ -78,6 +78,59 @@ def test_technology_detection_does_not_invent_a_stack_without_signals():
     assert _detect_technologies({}) == []
 
 
+def test_technology_detection_describes_a_handcrafted_static_site():
+    technologies = _detect_technologies(
+        {
+            "runtime_markers": [
+                "Custom CSS",
+                "CSS Design Tokens",
+                "Self-hosted Fonts",
+                "Google Analytics 4",
+            ],
+            "script_content_markers": ["Canvas 2D"],
+            "generic_signals": {
+                "same_origin_script_count": 5,
+                "same_origin_stylesheet_count": 1,
+                "module_script_count": 0,
+                "semantic_content_element_count": 24,
+            },
+        }
+    )
+
+    by_name = {item["name"]: item for item in technologies}
+    assert {
+        "Custom CSS",
+        "CSS Design Tokens",
+        "Self-hosted Fonts",
+        "Google Analytics 4",
+        "Canvas 2D",
+        "Vanilla JavaScript",
+        "Static HTML",
+    } <= by_name.keys()
+    assert by_name["Custom CSS"]["confidence"] == "high"
+    assert by_name["Canvas 2D"]["confidence"] == "high"
+    assert by_name["Vanilla JavaScript"]["confidence"] == "medium"
+    assert by_name["Static HTML"]["confidence"] == "medium"
+
+
+def test_static_architecture_inference_is_suppressed_for_framework_pages():
+    technologies = _detect_technologies(
+        {
+            "runtime_markers": ["React"],
+            "generic_signals": {
+                "same_origin_script_count": 4,
+                "module_script_count": 0,
+                "semantic_content_element_count": 20,
+            },
+        }
+    )
+
+    names = {item["name"] for item in technologies}
+    assert "React" in names
+    assert "Vanilla JavaScript" not in names
+    assert "Static HTML" not in names
+
+
 def test_technology_detection_ignores_framework_words_in_unrelated_assets():
     technologies = _detect_technologies(
         {
@@ -135,6 +188,8 @@ def test_script_content_markers_are_bounded_and_use_specific_fingerprints():
 
     assert _script_content_markers(content) == ["Radix UI", "Lucide", "Motion", "Plausible"]
     assert _script_content_markers(b"motion is a common English word") == []
+    assert _script_content_markers(b"canvas.getContext('2d')") == ["Canvas 2D"]
+    assert _script_content_markers(b"gtag('config', measurementId)") == ["Google Analytics 4"]
     assert _script_content_markers(b"x" * 2_000_001) == []
 
 

@@ -21,13 +21,14 @@ logger = logging.getLogger(__name__)
 
 
 SNAPSHOT_DIR = DATA_DIR / "visual_snapshots"
-# 6: Website inspection includes rendered navigation trees and a sitemap-backed
-#    page hierarchy. Keep in sync with
+# 7: Website inspection identifies first-party frontend building blocks and
+#    cautiously infers static HTML / vanilla JavaScript when no application
+#    framework is present. Keep in sync with
 #    expectedSnapshotSchemaVersion in
 #    Gyrus/Views/PreviewPanel/VisualSnapshotTabView.swift — the app compares the
 #    two and offers a reinspect when a stored snapshot predates the current
 #    capture.
-SNAPSHOT_SCHEMA_VERSION = 6
+SNAPSHOT_SCHEMA_VERSION = 7
 MAX_SNAPSHOT_RUNS = 8
 MAX_TECHNOLOGY_SCRIPT_PROBES = 12
 MAX_TECHNOLOGY_SCRIPT_BYTES = 2_000_000
@@ -68,6 +69,11 @@ _TECHNOLOGY_RULES = (
     ("Lucide", "Icon Library", ("lucide", "createLucideIcon")),
     ("Motion", "Animation Library", ("/motion-", "motion/react", "framer-motion")),
     ("Plausible", "Analytics", ("plausible.js", "plausible.io")),
+    ("Google Analytics 4", "Analytics", ("google-analytics-4", "googletagmanager.com/gtag")),
+    ("Custom CSS", "Styling", ("custom-css",)),
+    ("CSS Design Tokens", "Design System", ("css-design-tokens",)),
+    ("Self-hosted Fonts", "Typography", ("self-hosted-fonts",)),
+    ("Canvas 2D", "Graphics", ("canvas-2d",)),
     ("SSR + Hydration", "Rendering", ("ssr-hydration",)),
     ("PWA Manifest", "PWA", ("web-app-manifest",)),
     ("Apache", "Web Server", ("apache",)),
@@ -83,6 +89,8 @@ _SCRIPT_CONTENT_FINGERPRINTS = (
     ("Lucide", ("createlucideicon", "lucide-react", "lucide-vue")),
     ("Motion", ("framer-motion", "motion/react", "motion-dom", "motionconfigcontext")),
     ("Plausible", ("/scripts/plausible.js", "plausible.io/js/")),
+    ("Google Analytics 4", ("googletagmanager.com/gtag/js", "gtag('config'", "gtag(\"config\"")),
+    ("Canvas 2D", ("getcontext('2d')", "getcontext(\"2d\")")),
 )
 
 
@@ -212,6 +220,52 @@ def _detect_technologies(signals: dict[str, Any] | None) -> list[dict[str, Any]]
                 "category": "Site Generator",
                 "confidence": "high",
                 "evidence": [f"Generator: {generator[:180]}"],
+            }
+        )
+
+    detected_names = {technology["name"] for technology in technologies}
+    architecture_categories = {
+        "CMS",
+        "Framework",
+        "Site Generator",
+        "UI Library",
+        "Website Builder",
+    }
+    has_application_stack = bool(generator) or any(
+        technology["category"] in architecture_categories
+        for technology in technologies
+    )
+    generic_signals = signals.get("generic_signals") or {}
+    same_origin_scripts = int(generic_signals.get("same_origin_script_count") or 0)
+    module_scripts = int(generic_signals.get("module_script_count") or 0)
+    semantic_elements = int(generic_signals.get("semantic_content_element_count") or 0)
+
+    if same_origin_scripts > 0 and not has_application_stack:
+        technologies.append(
+            {
+                "name": "Vanilla JavaScript",
+                "category": "JavaScript",
+                "confidence": "medium",
+                "evidence": [
+                    f"Inference: {same_origin_scripts} first-party script(s) and no detected JavaScript framework."
+                ],
+            }
+        )
+
+    if (
+        semantic_elements >= 3
+        and module_scripts == 0
+        and not has_application_stack
+        and "SSR + Hydration" not in detected_names
+    ):
+        technologies.append(
+            {
+                "name": "Static HTML",
+                "category": "Rendering",
+                "confidence": "medium",
+                "evidence": [
+                    "Inference: semantic document content with no detected CMS, site generator, hydration, or application framework."
+                ],
             }
         )
 
@@ -1081,6 +1135,19 @@ _VISUAL_EXTRACTOR_JS = r"""
     type: attr(el, 'type')
   })).filter((item) => item.url).slice(0, 80);
 
+  const sameOrigin = (url) => {
+    try { return new URL(url, location.href).origin === location.origin; } catch (_) { return false; }
+  };
+  const sameOriginStylesheets = styleAssets.filter((item) => sameOrigin(item.url));
+  const sameOriginScripts = scriptAssets.filter((item) => sameOrigin(item.url));
+  const moduleScripts = scriptAssets.filter((item) => item.type === 'module');
+  const resourceUrls = performance.getEntriesByType('resource')
+    .map((entry) => entry.name || '')
+    .filter(Boolean);
+  const selfHostedFontUrls = resourceUrls.filter((url) =>
+    sameOrigin(url) && /\.(?:woff2?|ttf|otf)(?:\?|$)/i.test(url)
+  );
+
   const links = Array.from(document.querySelectorAll('a[href]')).map((a) => {
     const href = absoluteUrl(attr(a, 'href'));
     let isExternal = false;
@@ -1315,6 +1382,13 @@ _VISUAL_EXTRACTOR_JS = r"""
   mark('Radix UI', Boolean(document.querySelector('[data-radix-collection-item], [id^="radix-"]')));
   mark('Lucide', Boolean(document.querySelector('svg.lucide, [class*="lucide-"]')));
   mark('Plausible', scriptAssets.some((item) => /plausible(?:\.min)?\.js|plausible\.io/i.test(item.url)));
+  mark('Google Analytics 4', Boolean(
+    document.querySelector('meta[name="ga4-measurement-id"]') ||
+    scriptAssets.some((item) => /googletagmanager\.com\/gtag\/js/i.test(item.url))
+  ));
+  mark('Custom CSS', sameOriginStylesheets.length > 0);
+  mark('CSS Design Tokens', meaningfulVariables.length >= 4);
+  mark('Self-hosted Fonts', selfHostedFontUrls.length > 0);
   mark('PWA Manifest', Boolean(document.querySelector('link[rel="manifest"]')));
 
   const markupHints = [];
@@ -1382,6 +1456,15 @@ _VISUAL_EXTRACTOR_JS = r"""
       script_urls: scriptAssets.map((item) => item.url).slice(0, 80),
       stylesheet_urls: styleAssets.map((item) => item.url).slice(0, 80),
       markup_hints: markupHints.slice(0, 20),
+      generic_signals: {
+        same_origin_script_count: sameOriginScripts.length,
+        same_origin_stylesheet_count: sameOriginStylesheets.length,
+        module_script_count: moduleScripts.length,
+        semantic_content_element_count: document.querySelectorAll(
+          'main, article, section, h1, h2, h3, p, ul, ol'
+        ).length,
+        self_hosted_font_count: selfHostedFontUrls.length,
+      },
     },
   };
 }

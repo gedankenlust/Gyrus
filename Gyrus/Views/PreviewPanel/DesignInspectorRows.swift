@@ -106,7 +106,8 @@ struct TechnologyCard: View {
                 .padding(.top, 5)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text([technology.name, technology.version].compactMap { $0 }.joined(separator: " "))
+                (Text(LocalizedStringKey(technology.name))
+                    + Text(technology.version.map { " \($0)" } ?? ""))
                     .font(.caption.weight(.semibold))
                     .lineLimit(2)
                 Text(LocalizedStringKey(technology.category))

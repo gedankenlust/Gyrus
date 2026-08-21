@@ -10477,6 +10477,127 @@
         }
       }
     },
+    "Canvas 2D": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Canvas 2D"
+          }
+        }
+      }
+    },
+    "CSS Design Tokens": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CSS-Design-Tokens"
+          }
+        }
+      }
+    },
+    "Custom CSS": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigenes CSS"
+          }
+        }
+      }
+    },
+    "Google Analytics 4": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Google Analytics 4"
+          }
+        }
+      }
+    },
+    "Self-hosted Fonts": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selbst gehostete Schriften"
+          }
+        }
+      }
+    },
+    "Static HTML": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Statisches HTML"
+          }
+        }
+      }
+    },
+    "Vanilla JavaScript": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vanilla JavaScript"
+          }
+        }
+      }
+    },
+    "Design System": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Designsystem"
+          }
+        }
+      }
+    },
+    "Graphics": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grafik"
+          }
+        }
+      }
+    },
+    "JavaScript": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JavaScript"
+          }
+        }
+      }
+    },
+    "Styling": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gestaltung"
+          }
+        }
+      }
+    },
     "Architecture": {
       "extractionState": "manual",
       "localizations": {
