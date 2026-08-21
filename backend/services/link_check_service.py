@@ -88,9 +88,13 @@ async def _check_url(client: httpx.AsyncClient, url: str) -> bool | None:
                 return True
             # Some servers don't support HEAD; if we got a non-2xx/3xx, fall back to GET
             if r.status_code >= 400 and r.status_code not in (401, 403, 429):
-                r = await client.get(url, follow_redirects=True, timeout=TIMEOUT)
-                if r.status_code in (404, 410):
-                    return True
+                # We only need the status. Streaming and closing immediately
+                # avoids downloading a full archive/video/page into memory.
+                async with client.stream(
+                    "GET", url, follow_redirects=True, timeout=TIMEOUT
+                ) as response:
+                    if response.status_code in (404, 410):
+                        return True
             return False  # got a response → the link is alive
         except httpx.ConnectError as exc:
             # DNS failure / connection refused — can be transient under load.

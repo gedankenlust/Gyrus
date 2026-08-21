@@ -76,13 +76,19 @@ final class BackendLauncher {
     private init() {}
 
     func clearLog() {
-        guard let logHandle else { return }
-        do {
-            try logHandle.seek(toOffset: 0)
-            try logHandle.truncate(atOffset: 0)
-        } catch {
-            // Reset already succeeded; a diagnostic log must not make it fail.
+        if let logHandle {
+            do {
+                try logHandle.seek(toOffset: 0)
+                try logHandle.truncate(atOffset: 0)
+            } catch {
+                // Reset already succeeded; a diagnostic log must not make it fail.
+            }
         }
+        let bootstrapLog = dataDir.appendingPathComponent("backend-bootstrap.log")
+        try? Data().write(to: bootstrapLog, options: .atomic)
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o600], ofItemAtPath: bootstrapLog.path
+        )
     }
 
     private func killExistingBackend() {
@@ -109,7 +115,7 @@ final class BackendLauncher {
             || path.contains("/Gyrus/backend/venv/")
     }
 
-    static let apiToken = UUID().uuidString
+    nonisolated static let apiToken = UUID().uuidString
 
     func start() async {
         // SwiftUI can restart the scene task when StartupView is replaced by
@@ -217,6 +223,11 @@ final class BackendLauncher {
 
         try? FileManager.default.createDirectory(at: venvDir.deletingLastPathComponent(),
                                                  withIntermediateDirectories: true)
+        let bootstrapLog = dataDir.appendingPathComponent("backend-bootstrap.log")
+        FileManager.default.createFile(atPath: bootstrapLog.path, contents: nil)
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o600], ofItemAtPath: bootstrapLog.path
+        )
 
         bootstrapStatus = "Creating virtual environment..."
         try await runCommand(executable: "/usr/bin/python3", arguments: ["-m", "venv", venvDir.path], currentDirectory: backendDir)
@@ -234,20 +245,49 @@ final class BackendLauncher {
         process.arguments = arguments
         process.currentDirectoryURL = currentDirectory
 
-        // Capture output to avoid polluting terminal or getting blocked by full pipes
-        process.standardOutput = Pipe()
-        process.standardError = Pipe()
+        let logURL = dataDir.appendingPathComponent("backend-bootstrap.log")
+        FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        guard let output = try? FileHandle(forWritingTo: logURL) else {
+            throw NSError(
+                domain: "BackendLauncher",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Could not open the backend setup log."]
+            )
+        }
+        defer { try? output.close() }
+        try output.seekToEnd()
+        let commandLine = "\n$ \(([executable] + arguments).joined(separator: " "))\n"
+        try output.write(contentsOf: Data(commandLine.utf8))
+        process.standardOutput = output
+        process.standardError = output
 
         try process.run()
 
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            process.terminationHandler = { _ in
-                continuation.resume()
+        let deadline = ContinuousClock.now.advanced(by: .seconds(15 * 60))
+        while process.isRunning {
+            if ContinuousClock.now >= deadline {
+                process.terminate()
+                throw NSError(
+                    domain: "BackendLauncher",
+                    code: 2,
+                    userInfo: [
+                        NSLocalizedDescriptionKey:
+                            "Backend setup timed out. Details: \(logURL.path)"
+                    ]
+                )
             }
+            try await Task.sleep(for: .milliseconds(200))
         }
 
         if process.terminationStatus != 0 {
-            throw NSError(domain: "BackendLauncher", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: "Command failed with status \(process.terminationStatus)"])
+            throw NSError(
+                domain: "BackendLauncher",
+                code: Int(process.terminationStatus),
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Backend setup failed with status \(process.terminationStatus). Details: \(logURL.path)"
+                ]
+            )
         }
     }
 }

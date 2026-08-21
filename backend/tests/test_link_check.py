@@ -43,6 +43,22 @@ async def test_403_is_not_dead():
 
 
 @pytest.mark.asyncio
+async def test_get_fallback_does_not_download_response_body():
+    class MustNotRead(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            raise AssertionError("link checker consumed the response body")
+            yield b""
+
+    def handler(request):
+        if request.method == "HEAD":
+            return httpx.Response(405)
+        return httpx.Response(200, stream=MustNotRead())
+
+    async with _client(handler) as c:
+        assert await _check_url(c, "https://example.com/no-head") is False
+
+
+@pytest.mark.asyncio
 async def test_timeout_is_not_dead(monkeypatch):
     monkeypatch.setattr(link_check_service, "RETRY_DELAY", 0)
 

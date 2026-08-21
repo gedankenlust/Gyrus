@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import io
 import logging
@@ -7,6 +8,7 @@ import httpx
 from PIL import Image
 
 from database import DATA_DIR
+from services.bounded_download import get_limited
 from services.outbound_url_security import request_guard
 
 logger = logging.getLogger(__name__)
@@ -15,6 +17,10 @@ FAVICONS_DIR = DATA_DIR / "favicons"
 OG_IMAGES_DIR = DATA_DIR / "og_images"
 TIMEOUT = httpx.Timeout(10.0)
 OG_MAX_WIDTH = 600
+MAX_METADATA_HTML_BYTES = 2_000_000
+MAX_FAVICON_BYTES = 1_000_000
+MAX_OG_IMAGE_BYTES = 8_000_000
+MAX_OG_IMAGE_PIXELS = 20_000_000
 
 # A browser-like User-Agent applied to ALL requests (page, favicon, OG image).
 # Some sites (e.g. Wikipedia) serve favicons differently — or block them — for
@@ -45,13 +51,16 @@ async def fetch_metadata(url: str) -> dict:
             soup = None
             page_url = url
             try:
-                resp = await client.get(url)
-                resp.raise_for_status()
+                resp = await get_limited(
+                    client, url, max_bytes=MAX_METADATA_HTML_BYTES
+                )
+                if resp.status_code >= 400:
+                    raise RuntimeError(f"Website returned HTTP {resp.status_code}")
                 # Final URL after redirects — e.g. GitHub Pages project sites
                 # redirect "/project" to "/project/", which is what relative
                 # favicon hrefs and well-known paths must resolve against.
-                page_url = str(resp.url)
-                soup = BeautifulSoup(resp.text, "html.parser")
+                page_url = resp.url
+                soup = await asyncio.to_thread(BeautifulSoup, resp.text, "html.parser")
             except Exception as e:
                 logger.info("page fetch failed for %s (will still try favicon): %s", url, e)
 
@@ -186,7 +195,9 @@ async def _fetch_favicon(page_url: str, soup, client: httpx.AsyncClient) -> str 
 
     for candidate in _favicon_candidates(soup, page_url):
         try:
-            resp = await client.get(candidate, timeout=5.0)
+            resp = await get_limited(
+                client, candidate, max_bytes=MAX_FAVICON_BYTES, timeout=5.0
+            )
             if resp.status_code != 200 or not resp.content:
                 continue
             ext = _image_extension(resp.content, resp.headers.get("content-type", ""))
@@ -210,11 +221,23 @@ async def _fetch_og_image(image_url: str, page_url: str, client: httpx.AsyncClie
     """
     try:
         abs_url = urljoin(page_url, image_url)
-        resp = await client.get(abs_url, timeout=10.0)
+        resp = await get_limited(
+            client, abs_url, max_bytes=MAX_OG_IMAGE_BYTES, timeout=10.0
+        )
         if resp.status_code != 200 or not resp.content:
             return None
 
-        img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+        return await asyncio.to_thread(_store_og_image, resp.content, abs_url)
+    except Exception as e:
+        logger.debug("og image fetch failed for %s: %s", image_url, e)
+    return None
+
+
+def _store_og_image(content: bytes, abs_url: str) -> str | None:
+    with Image.open(io.BytesIO(content)) as source:
+        if source.width * source.height > MAX_OG_IMAGE_PIXELS:
+            raise ValueError("Image dimensions exceed the safety limit")
+        img = source.convert("RGBA")
         background = Image.new("RGB", img.size, (255, 255, 255))
         background.paste(img, mask=img.split()[3])
         img = background
@@ -230,6 +253,3 @@ async def _fetch_og_image(image_url: str, page_url: str, client: httpx.AsyncClie
         path = OG_IMAGES_DIR / filename
         img.save(path, "JPEG", quality=82)
         return filename
-    except Exception as e:
-        logger.debug("og image fetch failed for %s: %s", image_url, e)
-    return None
