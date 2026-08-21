@@ -52,6 +52,14 @@ struct TagReviewSheet: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .padding(.top, 4)
+            if payload.draft.omittedTags > 0 {
+                Label(
+                    "\(payload.draft.omittedTags) less-used tags omitted",
+                    systemImage: "line.3.horizontal.decrease.circle"
+                )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(18)
     }

@@ -55,12 +55,26 @@ struct TaxonomyDraft: Decodable, Identifiable, Hashable {
     let total: Int
     let assigned: Int
     let withoutTags: Int
+    let omittedTags: Int
     let tags: [TaxonomyDraftTag]
     let untagged: [TaxonomyUntaggedBookmark]
 
     enum CodingKeys: String, CodingKey {
         case id, language, total, assigned, tags, untagged
         case withoutTags = "without_tags"
+        case omittedTags = "omitted_tags"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        language = try container.decode(String.self, forKey: .language)
+        total = try container.decode(Int.self, forKey: .total)
+        assigned = try container.decode(Int.self, forKey: .assigned)
+        withoutTags = try container.decode(Int.self, forKey: .withoutTags)
+        omittedTags = try container.decodeIfPresent(Int.self, forKey: .omittedTags) ?? 0
+        tags = try container.decode([TaxonomyDraftTag].self, forKey: .tags)
+        untagged = try container.decode([TaxonomyUntaggedBookmark].self, forKey: .untagged)
     }
 }
 

@@ -209,6 +209,53 @@ async def test_generate_draft_classifies_in_bounded_batches_with_stable_labels(m
     assert {bookmark_id for tag in draft["tags"] for bookmark_id in tag["bookmark_ids"]} == {
         bookmark.id for bookmark in bookmarks
     }
+    assert draft["omitted_tags"] == 0
+
+
+@pytest.mark.asyncio
+async def test_generate_draft_prunes_weak_categories_instead_of_failing(monkeypatch, db):
+    bookmarks = [
+        Bookmark(
+            title=f"Bookmark {index}",
+            url=f"https://bounded.example/{index}",
+            description="Topic evidence",
+            scraped_content="Cached reader text",
+        )
+        for index in range(6)
+    ]
+    db.add_all(bookmarks)
+    db.commit()
+
+    async def fake_embeddings(texts, **kwargs):
+        return [[1.0, 0.0] for _ in texts]
+
+    async def fake_stream(prompt, records, config, language, stage, progress, response_schema):
+        return json.dumps({
+            "B001": "ki", "B002": "ki",
+            "B003": "softwareentwicklung", "B004": "softwareentwicklung",
+            "B005": "webdesign", "B006": "webdesign",
+        })
+
+    monkeypatch.setattr(taxonomy_service.embedding_service, "get_embeddings", fake_embeddings)
+    monkeypatch.setattr(taxonomy_service, "taxonomy_limits", lambda _: (2, 2))
+    monkeypatch.setattr(taxonomy_service, "_classification_catalog", lambda *_: {
+        "ki": "artificial intelligence",
+        "softwareentwicklung": "software development",
+        "webdesign": "web design",
+    })
+    monkeypatch.setattr(taxonomy_service, "_stream_taxonomy", fake_stream)
+
+    draft = await taxonomy_service.generate_draft(
+        db,
+        bookmarks,
+        {"provider": "ollama", "model": "small-local-model"},
+        "de",
+    )
+
+    assert [tag["name"] for tag in draft["tags"]] == ["ki", "softwareentwicklung"]
+    assert draft["assigned"] == 6
+    assert draft["without_tags"] == 0
+    assert draft["omitted_tags"] == 1
 
 
 @pytest.mark.asyncio
@@ -430,6 +477,7 @@ def test_taxonomy_limits_boundary_values():
 
     # Moderate count
     assert taxonomy_service.taxonomy_limits(10) == (11, 2)
+    assert taxonomy_service.taxonomy_limits(22) == (16, 3)
 
     # High count scaling normally
     assert taxonomy_service.taxonomy_limits(100) == (35, 7)
@@ -437,3 +485,23 @@ def test_taxonomy_limits_boundary_values():
     # 130 bookmarks and up hit the maximum tags cap (40)
     assert taxonomy_service.taxonomy_limits(130) == (40, 8)
     assert taxonomy_service.taxonomy_limits(1000) == (40, 8)
+
+
+def test_limit_categories_caps_the_22_bookmark_case_deterministically():
+    grouped = {
+        f"tag {index:02d}": [f"B{index + 1:03d}", f"B{(index + 6) % 22 + 1:03d}"]
+        for index in range(16)
+    }
+    grouped["rare tag 1"] = ["B021"]
+    grouped["rare tag 2"] = ["B022"]
+    primary_counts = {name: len(keys) for name, keys in grouped.items()}
+    scores = {name: [0.8] * len(keys) for name, keys in grouped.items()}
+
+    limited, omitted = taxonomy_service._limit_categories(
+        grouped, primary_counts, scores, max_tags=16,
+    )
+
+    assert len(limited) == 16
+    assert omitted == 2
+    assert "rare tag 1" not in limited
+    assert "rare tag 2" not in limited

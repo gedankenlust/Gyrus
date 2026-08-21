@@ -250,6 +250,26 @@ final class ModelEncodingTests: XCTestCase {
         XCTAssertEqual(status.model, "qwen3:8b")
         XCTAssertEqual(status.draft?.tags.first?.bookmarkCount, 2)
         XCTAssertEqual(status.draft?.untagged.first?.title, "Three")
+        XCTAssertEqual(status.draft?.omittedTags, 0)
+    }
+
+    func testTaxonomyDraftDecodesOmittedTagCount() throws {
+        let data = """
+        {
+          "id": "draft-2",
+          "language": "de",
+          "total": 22,
+          "assigned": 22,
+          "without_tags": 0,
+          "omitted_tags": 2,
+          "tags": [],
+          "untagged": []
+        }
+        """.data(using: .utf8)!
+
+        let draft = try JSONDecoder().decode(TaxonomyDraft.self, from: data)
+
+        XCTAssertEqual(draft.omittedTags, 2)
     }
 
     // MARK: - Design inspection decoding

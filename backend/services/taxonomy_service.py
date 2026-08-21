@@ -234,6 +234,32 @@ def taxonomy_limits(bookmark_count: int) -> tuple[int, int]:
     return max_tags, singleton_limit
 
 
+def _limit_categories(grouped_keys: dict[str, list[str]],
+                      primary_counts: dict[str, int],
+                      assignment_scores: dict[str, list[float]],
+                      max_tags: int) -> tuple[dict[str, list[str]], int]:
+    """Keep the strongest categories instead of rejecting an oversized draft."""
+    if len(grouped_keys) <= max_tags:
+        return grouped_keys, 0
+
+    def rank(name: str) -> tuple[int, int, float, str]:
+        scores = assignment_scores.get(name, [])
+        average_score = sum(scores) / len(scores) if scores else 0.0
+        return (
+            -primary_counts.get(name, 0),
+            -len(grouped_keys[name]),
+            -average_score,
+            name.casefold(),
+        )
+
+    selected = set(sorted(grouped_keys, key=rank)[:max_tags])
+    limited = {
+        name: keys for name, keys in grouped_keys.items()
+        if name in selected
+    }
+    return limited, len(grouped_keys) - len(limited)
+
+
 def _unit(vector: list[float]) -> list[float]:
     length = math.sqrt(sum(value * value for value in vector)) or 1.0
     return [value / length for value in vector]
@@ -674,6 +700,8 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
     records = _classification_records(bookmarks, bookmark_keys, candidates)
 
     grouped_keys: dict[str, list[str]] = defaultdict(list)
+    primary_counts: dict[str, int] = defaultdict(int)
+    assignment_scores: dict[str, list[float]] = defaultdict(list)
     failed_batches = 0
     for offset in range(0, len(bookmarks), CLASSIFICATION_BATCH_SIZE):
         chunk_keys = bookmark_keys[offset:offset + CLASSIFICATION_BATCH_SIZE]
@@ -710,6 +738,7 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
             if not primary:
                 continue
             selected = [primary]
+            primary_counts[primary] += 1
 
             # Add related secondary topics only when both methods agree on the
             # primary category. This avoids blindly attaching the embedding
@@ -724,6 +753,12 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
                         selected.append(name)
             for name in selected:
                 grouped_keys[name].append(key)
+                score = next((value for value, candidate in ranked if candidate == name), 0.0)
+                assignment_scores[name].append(score)
+
+    grouped_keys, omitted_tags = _limit_categories(
+        grouped_keys, primary_counts, assignment_scores, max_tags,
+    )
 
     # These are controlled, broad categories rather than model-invented labels.
     # They remain reusable even when only one selected bookmark currently fits
@@ -741,6 +776,7 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
         json.dumps({"taxonomy": taxonomy}, ensure_ascii=False),
         keyed, max_tags, max(singleton_limit, len(taxonomy)), language,
     )
+    draft["omitted_tags"] = omitted_tags
 
     _drafts[draft["id"]] = draft
     while len(_drafts) > 3:
