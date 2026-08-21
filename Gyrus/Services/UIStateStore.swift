@@ -70,9 +70,9 @@ final class UIStateStore {
 
     // MARK: - Toasts
 
-    func showError(_ message: String) {
+    func showError(_ message: String, respectingResumeGrace: Bool = true) {
         // Don't alarm the user with transient failures right after resume.
-        if Date() < suppressErrorsUntil { return }
+        if respectingResumeGrace && Date() < suppressErrorsUntil { return }
         errorMessage = message
         errorTask?.cancel()
         errorTask = Task {

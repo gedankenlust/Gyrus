@@ -21,17 +21,28 @@ final class JobPoller<Status: JobStatusReporting> {
         interval: TimeInterval,
         fetch: @escaping () async throws -> Status,
         onTick: @escaping (Status) async -> Void,
-        onFinished: @escaping (Status) async -> Void
+        onFinished: @escaping (Status) async -> Void,
+        onError: @escaping (Error) async -> Void = { _ in }
     ) {
         task?.cancel()
         ticks = 0
         task = Task { [weak self] in
+            var consecutiveFailures = 0
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
                 guard !Task.isCancelled else { return }
-                // A failed fetch (backend briefly restarting after wake) is
-                // transient — keep polling instead of abandoning the job.
-                guard let status = try? await fetch() else { continue }
+                let status: Status
+                do {
+                    status = try await fetch()
+                    consecutiveFailures = 0
+                } catch {
+                    consecutiveFailures += 1
+                    if consecutiveFailures >= 6 {
+                        await onError(error)
+                        return
+                    }
+                    continue
+                }
                 self?.ticks += 1
                 await onTick(status)
                 if !status.running {

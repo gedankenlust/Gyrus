@@ -51,4 +51,35 @@ final class UIStateStoreTests: XCTestCase {
 
         XCTAssertNil(store.infoMessage)
     }
+
+    func testDirectErrorCanBypassResumeGrace() {
+        store.beginResumeGrace(10)
+        store.showError("background")
+        XCTAssertNil(store.errorMessage)
+
+        store.showError("direct", respectingResumeGrace: false)
+        XCTAssertEqual(store.errorMessage, "direct")
+    }
+
+    func testJobPollerStopsAfterRepeatedStatusFailures() async {
+        struct TestStatus: JobStatusReporting { let running: Bool }
+        enum TestError: Error { case unavailable }
+
+        let poller = JobPoller<TestStatus>()
+        let stopped = expectation(description: "poller reports repeated failure")
+        var attempts = 0
+        poller.start(
+            interval: 0.001,
+            fetch: {
+                attempts += 1
+                throw TestError.unavailable
+            },
+            onTick: { _ in },
+            onFinished: { _ in },
+            onError: { _ in stopped.fulfill() }
+        )
+
+        await fulfillment(of: [stopped], timeout: 1)
+        XCTAssertEqual(attempts, 6)
+    }
 }

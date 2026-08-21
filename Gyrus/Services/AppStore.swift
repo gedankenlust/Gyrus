@@ -131,35 +131,30 @@ final class AppStore {
     /// callbacks (e.g. sidebar context-menu actions) can surface failures
     /// instead of swallowing them with `try?`.
     func surfaceError(_ error: Error) {
-        handleUIError(error)
+        handleUIError(error, background: false)
     }
 
-    private func handleUIError(_ error: Error) {
+    private func handleUIError(_ error: Error, background: Bool = false) {
         // Debounced search cancels in-flight tasks — never show that to the user.
         if error is CancellationError { return }
-        // Suppress connection errors while the app is returning from background/sleep,
-        // and cancelled URLSessions (debounce / task cancellation).
-        if case APIError.networkError(let inner) = error,
-           let urlError = inner as? URLError,
-           urlError.code == .cannotConnectToHost ||
-           urlError.code == .notConnectedToInternet ||
-           urlError.code == .networkConnectionLost ||
-           urlError.code == .cancelled {
-            return
+        if background {
+            if case APIError.networkError(let inner) = error,
+               let urlError = inner as? URLError,
+               urlError.code == .cannotConnectToHost ||
+               urlError.code == .notConnectedToInternet ||
+               urlError.code == .networkConnectionLost ||
+               urlError.code == .cancelled {
+                return
+            }
+            if case APIError.serverError(let code) = error,
+               code == 404 || code == 501 || code >= 500 {
+                return
+            }
         }
-        // A background list/count/search refresh that hits a transient
-        // infrastructure error (the backend briefly restarting after the Mac
-        // wakes — 404 on a normally-valid route, 501, or any 5xx) is
-        // self-healing: the poll and recoverConnection() refetch moments later.
-        // These are never actionable, so never toast them. (A genuine backend
-        // outage surfaces via the StartupView / retry path instead.) This is
-        // unconditional on purpose — the old isRecovering/grace check raced with
-        // errors that land at the exact focus moment.
-        if case APIError.serverError(let code) = error,
-           code == 404 || code == 501 || code >= 500 {
-            return
-        }
-        uiStateStore.showError(error.localizedDescription)
+        uiStateStore.showError(
+            error.localizedDescription,
+            respectingResumeGrace: background
+        )
     }
 
     func scheduleSearch(_ query: String) {
@@ -187,7 +182,7 @@ final class AppStore {
                 query: bookmarksStore.searchQuery
             )
         } catch {
-            handleUIError(error)
+            handleUIError(error, background: !showsLoadingIndicator)
         }
     }
 
@@ -301,6 +296,11 @@ final class AppStore {
                         self.bookmarksStore.deadBookmarkCount = d
                     }
                     await self.loadBookmarks()
+                },
+                onError: { [weak self] error in
+                    guard let self else { return }
+                    self.uiStateStore.linkCheckStatus = nil
+                    self.handleUIError(error)
                 }
             )
         } catch {
@@ -333,6 +333,11 @@ final class AppStore {
                     if status.updated > 0 {
                         self.uiStateStore.showInfo(AppSettings.shared.localized("Updated \(status.updated) bookmarks."))
                     }
+                },
+                onError: { [weak self] error in
+                    guard let self else { return }
+                    self.uiStateStore.metadataRefreshStatus = nil
+                    self.handleUIError(error)
                 }
             )
         } catch {
@@ -383,6 +388,12 @@ final class AppStore {
                             "No tag system could be created."
                         )
                     }
+                },
+                onError: { [weak self] error in
+                    guard let self else { return }
+                    self.uiStateStore.batchAutoTagStatus = nil
+                    self.uiStateStore.batchTagFailure = error.localizedDescription
+                    self.handleUIError(error)
                 }
             )
         } catch {
