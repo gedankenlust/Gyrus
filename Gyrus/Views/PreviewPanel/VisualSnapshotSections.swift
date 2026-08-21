@@ -5,10 +5,33 @@ private let designMetricColumns = [GridItem(.adaptive(minimum: 96), spacing: 8)]
 extension VisualSnapshotTabView {
     func styleSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
         VStack(alignment: .leading, spacing: 18) {
+            technologySection(viewport)
             colorsSection
             typographySection(viewport)
             layoutSection(viewport)
             cssVariablesSection(viewport)
+        }
+    }
+
+    func technologySection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+        SnapshotSection(title: "Architecture", icon: "cpu") {
+            if let technologies = viewport.technologies {
+                if technologies.isEmpty {
+                    Text("No technology signatures detected.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
+                        ForEach(technologies) { technology in
+                            TechnologyCard(technology: technology)
+                        }
+                    }
+                }
+            } else {
+                Label("Reinspect this page to detect its technology stack.", systemImage: "arrow.triangle.2.circlepath")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -281,10 +304,84 @@ extension VisualSnapshotTabView {
         }
     }
 
-    func websiteSection(_ viewport: APIClient.VisualViewportDTO) -> some View {
+    func websiteSection(
+        _ viewport: APIClient.VisualViewportDTO,
+        siteStructure: APIClient.VisualSiteStructureDTO?,
+        navigation: [APIClient.VisualNavigationGroupDTO]
+    ) -> some View {
         VStack(alignment: .leading, spacing: 20) {
+            siteStructureSection(siteStructure, navigation: navigation)
             seoSection(viewport)
             assetsSection(viewport)
+        }
+    }
+
+    func siteStructureSection(
+        _ structure: APIClient.VisualSiteStructureDTO?,
+        navigation: [APIClient.VisualNavigationGroupDTO]
+    ) -> some View {
+        SnapshotSection(title: "Site Structure", icon: "point.3.filled.connected.trianglepath.dotted") {
+            VStack(alignment: .leading, spacing: 12) {
+                if let structure {
+                    LazyVGrid(columns: designMetricColumns, spacing: 8) {
+                        MetricPill(label: "Pages found", value: structure.listedPageCount)
+                        MetricPill(label: "Sitemap", value: structure.sitemapPageCount)
+                        MetricPill(label: "Crawled", value: structure.crawledPageCount)
+                        MetricPill(label: "Menus", value: navigation.count)
+                    }
+
+                    Text("Navigation shows the hierarchy rendered by the page. Sitemap shows every same-origin page Gyrus could list or discover.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                    if navigation.isEmpty {
+                        Label("No navigation structure detected.", systemImage: "rectangle.3.group")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(navigation) { group in
+                            NavigationTreeGroup(group: group)
+                        }
+                    }
+
+                    if structure.pageTree.isEmpty {
+                        Label("No sitemap or internal pages were found.", systemImage: "map")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        DisclosureGroup {
+                            OutlineGroup(structure.pageTree, children: \.outlineChildren) { node in
+                                SitePageTreeRow(node: node)
+                            }
+                            .padding(.top, 6)
+                        } label: {
+                            Label("Sitemap and discovered pages", systemImage: "map")
+                                .font(.caption.weight(.semibold))
+                        }
+                    }
+
+                    if structure.sitemapLimitReached == true {
+                        Label("The sitemap inspection limit was reached; additional URLs may exist.", systemImage: "exclamationmark.triangle")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                    } else if structure.crawlLimitReached == true && structure.sitemapPageCount == 0 {
+                        Label("The internal crawl limit was reached; more unlisted pages may exist.", systemImage: "info.circle")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    }
+
+                    if !structure.sitemapSources.isEmpty {
+                        InspectorList(title: "Sitemap sources", values: structure.sitemapSources)
+                    }
+                    if !structure.errors.isEmpty {
+                        InspectorList(title: "Crawler notes", values: structure.errors)
+                    }
+                } else {
+                    Label("Reinspect this page to map its navigation and sitemap.", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 

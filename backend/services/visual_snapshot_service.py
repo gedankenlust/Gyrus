@@ -1,5 +1,7 @@
+import asyncio
 import json
 import logging
+import re
 import shutil
 from collections import Counter
 from datetime import datetime, timezone
@@ -19,19 +21,201 @@ logger = logging.getLogger(__name__)
 
 
 SNAPSHOT_DIR = DATA_DIR / "visual_snapshots"
-# 3: CSS custom properties are ordered by significance before the cap, so a
-#    utility-CSS site no longer spends its whole budget on framework
-#    placeholders. Keep in sync with expectedSnapshotSchemaVersion in
+# 6: Website inspection includes rendered navigation trees and a sitemap-backed
+#    page hierarchy. Keep in sync with
+#    expectedSnapshotSchemaVersion in
 #    Gyrus/Views/PreviewPanel/VisualSnapshotTabView.swift — the app compares the
 #    two and offers a reinspect when a stored snapshot predates the current
 #    capture.
-SNAPSHOT_SCHEMA_VERSION = 3
+SNAPSHOT_SCHEMA_VERSION = 6
 MAX_SNAPSHOT_RUNS = 8
+MAX_TECHNOLOGY_SCRIPT_PROBES = 12
+MAX_TECHNOLOGY_SCRIPT_BYTES = 2_000_000
 VIEWPORTS = [
     {"name": "desktop", "width": 1440, "height": 900, "device_scale_factor": 1},
     {"name": "tablet", "width": 834, "height": 1112, "device_scale_factor": 2},
     {"name": "mobile", "width": 390, "height": 844, "device_scale_factor": 2},
 ]
+DESIGN_INSPECTION_STEPS = len(VIEWPORTS) + 1
+
+
+_TECHNOLOGY_RULES = (
+    ("WordPress", "CMS", ("wp-content", "wp-includes", "wp-json")),
+    ("WooCommerce", "E-Commerce", ("woocommerce", "wc-blocks")),
+    ("Shopify", "E-Commerce", ("shopify", "myshopify", "cdn.shopify.com")),
+    ("Webflow", "Website Builder", ("webflow.js", "webflow.io", "data-wf-page", "data-wf-site")),
+    ("Framer", "Website Builder", ("framerusercontent", "framer.com/m/")),
+    ("Wix", "Website Builder", ("wix.com", "wixstatic", "parastorage", "wix-code")),
+    ("Squarespace", "Website Builder", ("static1.squarespace", "assets.squarespace")),
+    ("STRATO", "Hosting / Builder", ("strato", "strato-editor", "websites-editor")),
+    ("Drupal", "CMS", ("drupalsettings", "sites/default/files", "/core/misc/drupal")),
+    ("TYPO3", "CMS", ("typo3", "typo3temp", "typo3conf")),
+    ("Ghost", "CMS", ("ghost.io", "ghost.org", "/ghost/")),
+    ("Next.js", "Framework", ("__next_data__", "/_next/")),
+    ("Nuxt", "Framework", ("__nuxt__", "/_nuxt/")),
+    ("Astro", "Framework", ("astro-island", "/_astro/")),
+    ("Gatsby", "Framework", ("___gatsby", "/page-data/")),
+    ("SvelteKit", "Framework", ("/_app/immutable/", "data-sveltekit")),
+    ("Angular", "Framework", ("@angular/", "angular.min.js", "ng-version")),
+    ("Vue", "Framework", ("vue.runtime", "vue.global", "vue.min.js", "data-v-app")),
+    ("TanStack Start", "Framework", ("tanstack-start", "tsr-stream-barrier")),
+    ("TanStack Router", "Router", ("tanstack-router", "data-route-announcer", "router-compat")),
+    ("React", "UI Library", ("react-dom", "react.production", "__reactfiber", "__reactcontainer")),
+    ("Vite", "Build Tool", ("vite-build-assets", "/@vite/", "vite/client")),
+    ("Tailwind CSS", "CSS Framework", ("tailwind", "--tw-")),
+    ("Bootstrap", "CSS Framework", ("bootstrap",)),
+    ("Radix UI", "Component Library", ("data-radix", "radix-ui")),
+    ("Lucide", "Icon Library", ("lucide", "createLucideIcon")),
+    ("Motion", "Animation Library", ("/motion-", "motion/react", "framer-motion")),
+    ("Plausible", "Analytics", ("plausible.js", "plausible.io")),
+    ("SSR + Hydration", "Rendering", ("ssr-hydration",)),
+    ("PWA Manifest", "PWA", ("web-app-manifest",)),
+    ("Apache", "Web Server", ("apache",)),
+    ("Plesk", "Server Management", ("plesk", "plesklin")),
+)
+
+
+_SCRIPT_CONTENT_FINGERPRINTS = (
+    ("TanStack Start", ("$tsr-stream-barrier", "tanstack-start", "createserverfn")),
+    ("TanStack Router", ("data-route-announcer", "router-compat", "@tanstack/router")),
+    ("Vite", ("__vite__mapdeps", "vite/modulepreload-polyfill")),
+    ("Radix UI", ("data-radix-collection-item", "radix-ui", "radix-collection")),
+    ("Lucide", ("createlucideicon", "lucide-react", "lucide-vue")),
+    ("Motion", ("framer-motion", "motion/react", "motion-dom", "motionconfigcontext")),
+    ("Plausible", ("/scripts/plausible.js", "plausible.io/js/")),
+)
+
+
+def _script_content_markers(content: bytes) -> list[str]:
+    """Return known library fingerprints without retaining third-party code."""
+    if not content or len(content) > MAX_TECHNOLOGY_SCRIPT_BYTES:
+        return []
+
+    lowered = content.decode("utf-8", errors="ignore").lower()
+    return [
+        name
+        for name, needles in _SCRIPT_CONTENT_FINGERPRINTS
+        if any(needle in lowered for needle in needles)
+    ]
+
+
+def _script_technology_versions(content: bytes) -> dict[str, str]:
+    """Extract versions only from explicit package metadata in loaded scripts."""
+    if not content or len(content) > MAX_TECHNOLOGY_SCRIPT_BYTES:
+        return {}
+
+    text = content.decode("utf-8", errors="ignore")
+    react_match = re.search(
+        r"version\s*:\s*[`\"']([0-9]+(?:\.[0-9]+){1,3}(?:[-+][0-9A-Za-z.-]+)?)"
+        r"[`\"']\s*,\s*rendererPackageName\s*:\s*[`\"']react-dom[`\"']",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return {"React": react_match.group(1)} if react_match else {}
+
+
+def _is_primary_script_bundle(url: str) -> bool:
+    """Keep the entry bundle eligible even when preload chunks fill the probe cap."""
+    path = url.lower().split("?", 1)[0]
+    return bool(
+        re.search(
+            r"/(?:index|main|app)-(?=[a-z0-9_-]{6,}\.m?js$)(?=[a-z0-9_-]*\d)"
+            r"[a-z0-9_-]+\.m?js$",
+            path,
+        )
+    )
+
+
+def _detect_technologies(signals: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Classify rendered-page signals without guessing beyond the evidence."""
+    if not signals:
+        return []
+
+    generator = str(signals.get("generator") or "").strip()
+    marker_names = {
+        str(name).lower()
+        for name in signals.get("runtime_markers") or []
+        if str(name).strip()
+    }
+    script_content_marker_names = {
+        str(name).lower()
+        for name in signals.get("script_content_markers") or []
+        if str(name).strip()
+    }
+    technology_versions = {
+        str(name).lower(): str(version).strip()
+        for name, version in (signals.get("technology_versions") or {}).items()
+        if str(name).strip() and str(version).strip()
+    }
+    sources = [
+        ("Generator", generator),
+        *[("Script", str(value)) for value in signals.get("script_urls") or []],
+        *[("Stylesheet", str(value)) for value in signals.get("stylesheet_urls") or []],
+        *[("Markup", str(value)) for value in signals.get("markup_hints") or []],
+        *[("Header", str(value)) for value in signals.get("response_headers") or []],
+    ]
+
+    technologies: list[dict[str, Any]] = []
+    generator_was_classified = False
+    for name, category, needles in _TECHNOLOGY_RULES:
+        normalized_needles = tuple(needle.lower() for needle in needles)
+        evidence: list[str] = []
+        marker_match = name.lower() in marker_names
+        content_marker_match = name.lower() in script_content_marker_names
+        if marker_match:
+            evidence.append(f"Runtime marker: {name}")
+        if content_marker_match:
+            evidence.append(f"Loaded JavaScript fingerprint: {name}")
+
+        for source, value in sources:
+            if not value:
+                continue
+            lowered = value.lower()
+            matches = (
+                name.lower() in lowered
+                if source == "Generator"
+                else any(needle in lowered for needle in normalized_needles)
+            )
+            if matches:
+                evidence.append(f"{source}: {value[:180]}")
+                if source == "Generator":
+                    generator_was_classified = True
+            if len(evidence) >= 3:
+                break
+
+        if evidence:
+            technology = {
+                "name": name,
+                "category": category,
+                "confidence": "high" if marker_match or content_marker_match or any(
+                    item.startswith(("Generator:", "Header:")) for item in evidence
+                ) else "medium",
+                "evidence": evidence,
+            }
+            version = technology_versions.get(name.lower())
+            if not version and generator:
+                generator_version = re.search(
+                    rf"\b{re.escape(name)}\s+v?([0-9]+(?:\.[0-9]+){{1,3}}(?:[-+][0-9A-Za-z.-]+)?)",
+                    generator,
+                    flags=re.IGNORECASE,
+                )
+                if generator_version:
+                    version = generator_version.group(1)
+            if version:
+                technology["version"] = version
+            technologies.append(technology)
+
+    if generator and not generator_was_classified:
+        technologies.append(
+            {
+                "name": generator[:80],
+                "category": "Site Generator",
+                "confidence": "high",
+                "evidence": [f"Generator: {generator[:180]}"],
+            }
+        )
+
+    return technologies
 
 
 class VisualSnapshotUnavailable(Exception):
@@ -157,12 +341,14 @@ async def capture_snapshot(
         "title": title,
         "captured_at": datetime.now(timezone.utc).isoformat(),
         "status": "running",
+        "navigation": [],
+        "site_structure": None,
         "viewports": [],
         "errors": [],
     }
 
     if on_progress:
-        on_progress("launching", 0, len(VIEWPORTS))
+        on_progress("launching", 0, DESIGN_INSPECTION_STEPS)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -172,7 +358,7 @@ async def capture_snapshot(
                 page = None
                 try:
                     if on_progress:
-                        on_progress(viewport["name"], index, len(VIEWPORTS))
+                        on_progress(viewport["name"], index, DESIGN_INSPECTION_STEPS)
                     context = await browser.new_context(
                         viewport={"width": viewport["width"], "height": viewport["height"]},
                         device_scale_factor=viewport["device_scale_factor"],
@@ -203,6 +389,30 @@ async def capture_snapshot(
                     page = await context.new_page()
                     network_entries: dict[str, dict[str, Any]] = {}
                     console_messages: list[dict[str, Any]] = []
+                    script_content_markers: set[str] = set()
+                    technology_versions: dict[str, str] = {}
+                    script_probe_tasks: list[asyncio.Task] = []
+
+                    async def probe_script_response(response):
+                        try:
+                            headers = response.headers
+                            content_type = headers.get("content-type", "").lower()
+                            is_javascript = (
+                                "javascript" in content_type
+                                or response.url.lower().split("?", 1)[0].endswith((".js", ".mjs"))
+                            )
+                            if not is_javascript:
+                                return
+
+                            content_length = headers.get("content-length", "")
+                            if content_length.isdigit() and int(content_length) > MAX_TECHNOLOGY_SCRIPT_BYTES:
+                                return
+
+                            content = await response.body()
+                            script_content_markers.update(_script_content_markers(content))
+                            technology_versions.update(_script_technology_versions(content))
+                        except Exception as exc:
+                            logger.debug("Could not inspect script fingerprint for %s: %s", response.url, exc)
 
                     def on_request(request):
                         network_entries[request.url] = {
@@ -224,8 +434,20 @@ async def capture_snapshot(
                                 "failed": response.status >= 400,
                                 "content_type": response.headers.get("content-type", ""),
                                 "content_length": response.headers.get("content-length", ""),
+                                "server": response.headers.get("server", ""),
+                                "powered_by": response.headers.get("x-powered-by", ""),
                             }
                         )
+                        content_type = response.headers.get("content-type", "").lower()
+                        response_path = response.url.lower().split("?", 1)[0]
+                        is_javascript = (
+                            "javascript" in content_type
+                            or response_path.endswith((".js", ".mjs"))
+                        )
+                        has_probe_capacity = len(script_probe_tasks) < MAX_TECHNOLOGY_SCRIPT_PROBES
+                        if is_javascript and (has_probe_capacity or _is_primary_script_bundle(response.url)):
+                            task = asyncio.create_task(probe_script_response(response))
+                            script_probe_tasks.append(task)
 
                     def on_request_failed(request):
                         entry = network_entries.setdefault(request.url, {"url": request.url})
@@ -267,6 +489,13 @@ async def capture_snapshot(
                     except Exception as exc:
                         logger.debug("Viewport did not reach network idle: %s", exc)
 
+                    if script_probe_tasks:
+                        await asyncio.gather(*script_probe_tasks, return_exceptions=True)
+
+                    rendered_navigation = []
+                    if viewport["name"] == "desktop":
+                        rendered_navigation = await _capture_rendered_navigation(page)
+
                     screenshot_name = f"{viewport['name']}.png"
                     screenshot_path = out_dir / screenshot_name
                     await page.screenshot(path=str(screenshot_path), full_page=True)
@@ -278,6 +507,27 @@ async def capture_snapshot(
                             "expected_width": viewport["width"],
                         },
                     )
+                    data.pop("navigation", None)
+                    if rendered_navigation and not snapshot["navigation"]:
+                        snapshot["navigation"] = rendered_navigation
+                    technology_signals = data.pop("_technology_signals", None)
+                    if technology_signals is not None:
+                        technology_signals["script_content_markers"] = sorted(script_content_markers)
+                        technology_signals["technology_versions"] = technology_versions
+                        response_headers: list[str] = []
+                        for entry in network_entries.values():
+                            if entry.get("resource_type") != "document":
+                                continue
+                            if entry.get("server"):
+                                response_headers.append(f"Server: {entry['server']}")
+                            if entry.get("powered_by"):
+                                response_headers.append(
+                                    f"X-Powered-By: {entry['powered_by']}"
+                                )
+                        technology_signals["response_headers"] = list(
+                            dict.fromkeys(response_headers)
+                        )
+                    data["technologies"] = _detect_technologies(technology_signals)
                     issues = data.get("responsive_issues") or []
                     _attach_issue_evidence(
                         issues,
@@ -319,6 +569,32 @@ async def capture_snapshot(
         finally:
             await browser.close()
 
+    if on_progress:
+        on_progress("site_structure", len(VIEWPORTS), DESIGN_INSPECTION_STEPS)
+    try:
+        from services.site_structure_service import site_structure_service
+
+        structure_data = await site_structure_service.data_for_url(
+            bookmark_id,
+            url,
+            force_refresh=True,
+        )
+        snapshot["site_structure"] = site_structure_service.snapshot_payload(structure_data)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        logger.warning("Could not map website structure for %s: %s", url, exc)
+        snapshot["site_structure"] = {
+            "origin": url,
+            "listed_page_count": 0,
+            "sitemap_page_count": 0,
+            "crawled_page_count": 0,
+            "pages": [],
+            "page_tree": [],
+            "sitemap_sources": [],
+            "errors": [str(exc)[:1000]],
+        }
+
     snapshot["status"] = (
         "failed" if not snapshot["viewports"] else "partial" if snapshot["errors"] else "completed"
     )
@@ -332,7 +608,7 @@ async def capture_snapshot(
     )
     _prune_snapshot_runs(bookmark_id)
     if on_progress:
-        on_progress("finished", len(VIEWPORTS), len(VIEWPORTS))
+        on_progress("finished", DESIGN_INSPECTION_STEPS, DESIGN_INSPECTION_STEPS)
     return snapshot
 
 
@@ -466,6 +742,187 @@ def _network_item(item: dict[str, Any]) -> dict[str, Any]:
         "content_type": item.get("content_type", ""),
         "failure": item.get("failure", ""),
     }
+
+
+def _merge_navigation_groups(
+    target: list[dict[str, Any]],
+    incoming: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    def merge_items(existing: list[dict[str, Any]], additions: list[dict[str, Any]]) -> None:
+        by_key = {
+            (item.get("url") or "", item.get("label") or ""): item
+            for item in existing
+        }
+        for addition in additions:
+            key = (addition.get("url") or "", addition.get("label") or "")
+            item = by_key.get(key)
+            if item is None:
+                item = {
+                    "label": addition.get("label") or addition.get("url") or "",
+                    "url": addition.get("url") or "",
+                    "children": [],
+                }
+                existing.append(item)
+                by_key[key] = item
+            merge_items(item["children"], addition.get("children") or [])
+
+    groups = {group.get("label") or "Navigation": group for group in target}
+    for addition in incoming:
+        label = addition.get("label") or "Navigation"
+        group = groups.get(label)
+        if group is None:
+            group = {"label": label, "items": []}
+            target.append(group)
+            groups[label] = group
+        merge_items(group["items"], addition.get("items") or [])
+    return target
+
+
+async def _capture_rendered_navigation(page) -> list[dict[str, Any]]:
+    """Reveal menu controls without following links and merge every DOM state."""
+    navigation = await page.evaluate(_NAVIGATION_EXTRACTOR_JS)
+
+    # Open the first navigation level before exploring dynamically mounted
+    # controls. Otherwise a large first submenu can consume the exploration
+    # budget before the remaining top-level entries are ever visited.
+    primary_controls = page.locator(
+        'nav > * > button[aria-expanded], nav > * > * > button[aria-expanded], '
+        '[role="navigation"] > * > button[aria-expanded], '
+        '[role="navigation"] > * > * > button[aria-expanded]'
+    )
+    for index in range(min(await primary_controls.count(), 24)):
+        control = primary_controls.nth(index)
+        try:
+            await control.evaluate(
+                "el => el.setAttribute('data-gyrus-navigation-inspected', 'true')"
+            )
+            await control.locator("xpath=..").hover(timeout=1_000)
+            await page.wait_for_timeout(180)
+            navigation = _merge_navigation_groups(
+                navigation,
+                await page.evaluate(_NAVIGATION_EXTRACTOR_JS),
+            )
+        except Exception as exc:
+            logger.debug("Could not reveal a top-level navigation menu: %s", exc)
+
+    for _ in range(24):
+        controls = page.locator(
+            'nav button[aria-expanded]:not([data-gyrus-navigation-inspected]), '
+            '[role="navigation"] button[aria-expanded]:not([data-gyrus-navigation-inspected])'
+        )
+        if await controls.count() == 0:
+            break
+
+        selected = controls.first
+        try:
+            await selected.evaluate(
+                "el => el.setAttribute('data-gyrus-navigation-inspected', 'true')"
+            )
+            await selected.locator("xpath=..").hover(timeout=1_000)
+            await page.wait_for_timeout(180)
+            if await selected.get_attribute("aria-expanded") == "false":
+                await selected.click(timeout=1_000)
+                await page.wait_for_timeout(120)
+            navigation = _merge_navigation_groups(
+                navigation,
+                await page.evaluate(_NAVIGATION_EXTRACTOR_JS),
+            )
+        except Exception as exc:
+            logger.debug("Could not reveal a navigation menu: %s", exc)
+
+    return navigation
+
+
+_NAVIGATION_EXTRACTOR_JS = r"""
+() => {
+  function textOf(el) {
+    return (el?.innerText || el?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  }
+  function labelOf(el) {
+    return textOf(el) || el?.getAttribute?.('aria-label') || '';
+  }
+  function absoluteUrl(value) {
+    try { return value ? new URL(value, location.href).href : ''; } catch (_) { return value || ''; }
+  }
+  function directContainer(anchor, root) {
+    let current = anchor;
+    while (current.parentElement && current.parentElement !== root) current = current.parentElement;
+    return current;
+  }
+  function itemFromContainer(container) {
+    const control = container.matches?.('a[href]')
+      ? container
+      : container.querySelector(':scope > a[href], :scope > * > a[href]');
+    if (!control) return null;
+    const descendants = Array.from(container.querySelectorAll('a[href]'))
+      .filter((anchor) => anchor !== control);
+    const seen = new Set();
+    const children = descendants.map((anchor) => {
+      const url = absoluteUrl(anchor.getAttribute('href') || '');
+      const label = labelOf(anchor) || url;
+      const key = `${url}|${label}`;
+      if (!label || seen.has(key)) return null;
+      seen.add(key);
+      return {label, url, children: []};
+    }).filter(Boolean).slice(0, 160);
+    const url = absoluteUrl(control.getAttribute('href') || '');
+    return {label: labelOf(control) || url, url, children};
+  }
+  function itemFromListItem(item, depth = 0) {
+    if (depth > 7) return null;
+    const control = item.querySelector(':scope > a[href], :scope > * > a[href]');
+    if (!control) return null;
+    const childList = item.querySelector(':scope > ul, :scope > ol, :scope > * > ul, :scope > * > ol');
+    const children = childList
+      ? Array.from(childList.children)
+          .filter((child) => child.matches('li'))
+          .map((child) => itemFromListItem(child, depth + 1))
+          .filter(Boolean)
+      : [];
+    const url = absoluteUrl(control.getAttribute('href') || '');
+    return {label: labelOf(control) || url, url, children};
+  }
+  function itemsFromContainer(container) {
+    const anchors = Array.from(container.querySelectorAll?.('a[href]') || []);
+    const list = container.matches?.('ul, ol')
+      ? container
+      : container.querySelector?.(':scope > ul, :scope > ol');
+    if (list) {
+      return Array.from(list.children)
+        .filter((child) => child.matches('li'))
+        .map((child) => itemFromListItem(child))
+        .filter(Boolean);
+    }
+    const ownsSubmenu = Array.from(container.querySelectorAll?.('button[aria-expanded]') || [])
+      .some((button) => button.hasAttribute('aria-haspopup') || /menu|menü/i.test(button.getAttribute('aria-label') || ''));
+    if (!ownsSubmenu && anchors.length > 1) {
+      return anchors.map((anchor) => ({
+        label: labelOf(anchor) || absoluteUrl(anchor.getAttribute('href') || ''),
+        url: absoluteUrl(anchor.getAttribute('href') || ''),
+        children: [],
+      }));
+    }
+    const item = itemFromContainer(container);
+    return item ? [item] : [];
+  }
+
+  return Array.from(document.querySelectorAll('nav, [role="navigation"]')).map((root, index) => {
+    const containers = [];
+    const seen = new Set();
+    for (const anchor of root.querySelectorAll('a[href]')) {
+      const container = directContainer(anchor, root);
+      if (!seen.has(container)) {
+        seen.add(container);
+        containers.push(container);
+      }
+    }
+    return {
+      label: root.getAttribute('aria-label') || root.getAttribute('title') || `Navigation ${index + 1}`,
+      items: containers.flatMap(itemsFromContainer).filter(Boolean).slice(0, 80),
+    };
+  }).filter((group) => group.items.length > 0).slice(0, 12);
+}
+"""
 
 
 _VISUAL_EXTRACTOR_JS = r"""
@@ -824,6 +1281,59 @@ _VISUAL_EXTRACTOR_JS = r"""
     (severityOrder[a.severity] ?? 9) - (severityOrder[b.severity] ?? 9)
   );
 
+  const runtimeProbe = Array.from(document.querySelectorAll('*')).slice(0, 500);
+  const runtimeMarkers = [];
+  const mark = (name, condition) => { if (condition) runtimeMarkers.push(name); };
+  mark('WordPress', Boolean(
+    document.querySelector('link[rel="https://api.w.org/"], link[href*="wp-json"], [class*="wp-block-"]')
+  ));
+  mark('Shopify', Boolean(window.Shopify || document.querySelector('[data-shopify]')));
+  mark('Webflow', Boolean(
+    window.Webflow || document.documentElement.hasAttribute('data-wf-page') ||
+    document.documentElement.hasAttribute('data-wf-site')
+  ));
+  mark('Framer', Boolean(document.querySelector('[data-framer-name], [data-framer-component-type]')));
+  mark('Drupal', Boolean(window.drupalSettings || document.querySelector('[data-drupal-selector]')));
+  mark('Next.js', Boolean(document.querySelector('#__next, script#__NEXT_DATA__')));
+  mark('Nuxt', Boolean(document.querySelector('#__nuxt') || window.__NUXT__));
+  mark('Astro', Boolean(document.querySelector('astro-island, astro-slot')));
+  mark('Gatsby', Boolean(document.querySelector('#___gatsby') || window.___gatsby));
+  mark('SvelteKit', Boolean(document.querySelector('[data-sveltekit-preload-data], [data-sveltekit-preload-code]')));
+  mark('Angular', Boolean(document.querySelector('[ng-version], app-root')));
+  mark('Vue', Boolean(
+    window.__VUE__ || document.querySelector('[data-v-app]') ||
+    runtimeProbe.some((el) => Boolean(el.__vue_app__))
+  ));
+  mark('React', runtimeProbe.some((el) =>
+    Object.keys(el).some((key) => key.startsWith('__reactFiber$') || key.startsWith('__reactContainer$'))
+  ));
+  mark('Tailwind CSS', cssVariables.some((item) => item.name.startsWith('--tw-')));
+  const hasTanStackRouter = Boolean(document.querySelector('[data-route-announcer]'));
+  mark('TanStack Router', hasTanStackRouter);
+  mark('TanStack Start', hasTanStackRouter && Boolean(window.$R));
+  mark('SSR + Hydration', hasTanStackRouter && Boolean(window.$R));
+  mark('Radix UI', Boolean(document.querySelector('[data-radix-collection-item], [id^="radix-"]')));
+  mark('Lucide', Boolean(document.querySelector('svg.lucide, [class*="lucide-"]')));
+  mark('Plausible', scriptAssets.some((item) => /plausible(?:\.min)?\.js|plausible\.io/i.test(item.url)));
+  mark('PWA Manifest', Boolean(document.querySelector('link[rel="manifest"]')));
+
+  const markupHints = [];
+  for (const attribute of Array.from(document.documentElement.attributes)) {
+    if (attribute.name.startsWith('data-') || attribute.name === 'class') {
+      markupHints.push(`${attribute.name}=${attribute.value}`.slice(0, 180));
+    }
+  }
+  if (document.body?.className && typeof document.body.className === 'string') {
+    markupHints.push(`body.class=${document.body.className}`.slice(0, 180));
+  }
+  const hasModulePreloads = Boolean(document.querySelector('link[rel="modulepreload"]'));
+  const hasHashedEntry = scriptAssets.some((item) =>
+    /\/assets\/(?:index|main|app)-[A-Za-z0-9_-]{6,}\.js(?:\?|$)/.test(item.url)
+  );
+  if (hasModulePreloads && hasHashedEntry) {
+    markupHints.push('build=vite-build-assets');
+  }
+
   return {
     page_title: document.title || '',
     meta_description: document.querySelector('meta[name="description"]')?.content || document.querySelector('meta[property="og:description"]')?.content || '',
@@ -866,6 +1376,13 @@ _VISUAL_EXTRACTOR_JS = r"""
     observed_fonts: Array.from(fontSet).slice(0, 16),
     element_samples: samples,
     responsive_issues: responsiveIssues.slice(0, 40),
+    _technology_signals: {
+      generator: metaBy('meta[name="generator"], meta[property="generator"]'),
+      runtime_markers: runtimeMarkers,
+      script_urls: scriptAssets.map((item) => item.url).slice(0, 80),
+      stylesheet_urls: styleAssets.map((item) => item.url).slice(0, 80),
+      markup_hints: markupHints.slice(0, 20),
+    },
   };
 }
 """

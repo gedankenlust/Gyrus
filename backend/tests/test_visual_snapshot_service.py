@@ -3,7 +3,152 @@ from PIL import Image
 import json
 
 from services import visual_snapshot_service
-from services.visual_snapshot_service import _attach_issue_evidence, _dominant_colors
+from services.visual_snapshot_service import (
+    _attach_issue_evidence,
+    _detect_technologies,
+    _dominant_colors,
+    _is_primary_script_bundle,
+    _script_content_markers,
+    _script_technology_versions,
+    _merge_navigation_groups,
+)
+
+
+def test_navigation_merge_preserves_parent_and_combines_dynamic_submenus():
+    target = [
+        {
+            "label": "Main",
+            "items": [
+                {"label": "Services", "url": "https://example.com/services", "children": []}
+            ],
+        }
+    ]
+    incoming = [
+        {
+            "label": "Main",
+            "items": [
+                {
+                    "label": "Services",
+                    "url": "https://example.com/services",
+                    "children": [
+                        {"label": "Design", "url": "https://example.com/services/design", "children": []}
+                    ],
+                }
+            ],
+        }
+    ]
+
+    merged = _merge_navigation_groups(target, incoming)
+
+    assert merged[0]["items"][0]["children"][0]["label"] == "Design"
+
+
+def test_technology_detection_combines_runtime_generator_and_assets():
+    technologies = _detect_technologies(
+        {
+            "generator": "WordPress 6.8",
+            "runtime_markers": ["WordPress", "React"],
+            "script_urls": ["https://example.com/wp-content/plugins/app.js"],
+            "stylesheet_urls": ["https://cdn.example.com/bootstrap.min.css"],
+            "markup_hints": [],
+        }
+    )
+
+    by_name = {item["name"]: item for item in technologies}
+    assert by_name["WordPress"]["confidence"] == "high"
+    assert by_name["React"]["category"] == "UI Library"
+    assert by_name["Bootstrap"]["confidence"] == "medium"
+
+
+def test_technology_detection_keeps_unknown_generator_visible():
+    technologies = _detect_technologies({"generator": "Acme Site Engine 2.1"})
+
+    assert technologies == [
+        {
+            "name": "Acme Site Engine 2.1",
+            "category": "Site Generator",
+            "confidence": "high",
+            "evidence": ["Generator: Acme Site Engine 2.1"],
+        }
+    ]
+
+
+def test_technology_detection_does_not_invent_a_stack_without_signals():
+    assert _detect_technologies(None) == []
+    assert _detect_technologies({}) == []
+
+
+def test_technology_detection_ignores_framework_words_in_unrelated_assets():
+    technologies = _detect_technologies(
+        {
+            "script_urls": [
+                "https://example.com/articles/react-to-news.js",
+                "https://example.com/images/ghost-story.js",
+            ],
+            "stylesheet_urls": ["https://example.com/vue-gallery.css"],
+        }
+    )
+
+    assert technologies == []
+
+
+def test_technology_detection_covers_modern_app_architecture_and_server_headers():
+    technologies = _detect_technologies(
+        {
+            "runtime_markers": [
+                "React",
+                "TanStack Start",
+                "TanStack Router",
+                "Tailwind CSS",
+                "SSR + Hydration",
+                "PWA Manifest",
+            ],
+            "script_content_markers": ["Radix UI", "Lucide", "Motion"],
+            "script_urls": ["https://example.com/assets/index-AbCd1234.js"],
+            "markup_hints": ["build=vite-build-assets"],
+            "response_headers": ["Server: Apache", "X-Powered-By: PleskLin"],
+        }
+    )
+
+    by_name = {item["name"]: item for item in technologies}
+    assert {
+        "React",
+        "TanStack Start",
+        "TanStack Router",
+        "Vite",
+        "Tailwind CSS",
+        "Radix UI",
+        "Lucide",
+        "Motion",
+        "SSR + Hydration",
+        "PWA Manifest",
+        "Apache",
+        "Plesk",
+    } <= by_name.keys()
+    assert by_name["Vite"]["confidence"] == "medium"
+    assert by_name["Radix UI"]["confidence"] == "high"
+    assert by_name["Apache"]["confidence"] == "high"
+
+
+def test_script_content_markers_are_bounded_and_use_specific_fingerprints():
+    content = b"createLucideIcon MotionConfigContext data-radix-collection-item /scripts/plausible.js"
+
+    assert _script_content_markers(content) == ["Radix UI", "Lucide", "Motion", "Plausible"]
+    assert _script_content_markers(b"motion is a common English word") == []
+    assert _script_content_markers(b"x" * 2_000_001) == []
+
+
+def test_script_technology_versions_require_explicit_package_metadata():
+    content = b"version:`19.2.8`,rendererPackageName:`react-dom`"
+
+    assert _script_technology_versions(content) == {"React": "19.2.8"}
+    assert _script_technology_versions(b"React 19.2.8 is mentioned in prose") == {}
+
+
+def test_primary_script_bundle_detection_ignores_unrelated_assets():
+    assert _is_primary_script_bundle("https://example.com/assets/index-DH1nRGSA.js")
+    assert _is_primary_script_bundle("https://example.com/main-123456.mjs?v=1")
+    assert not _is_primary_script_bundle("https://example.com/chunks/index-helper.js")
 
 
 def test_dominant_colors_prioritize_design_colors_over_page_chrome(tmp_path):

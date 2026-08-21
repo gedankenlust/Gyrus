@@ -37,6 +37,16 @@ final class AppStoreLogicTests: XCTestCase {
         XCTAssertFalse(state.isRefreshingBookmarks)
     }
 
+    func testCancelledNetworkRequestDoesNotShowErrorToast() {
+        appStore.surfaceError(APIError.networkError(URLError(.cancelled)))
+        XCTAssertNil(appStore.uiStateStore.errorMessage)
+    }
+
+    func testRealNetworkFailureStillShowsErrorToastForDirectAction() {
+        appStore.surfaceError(APIError.networkError(URLError(.cannotConnectToHost)))
+        XCTAssertNotNil(appStore.uiStateStore.errorMessage)
+    }
+
     // MARK: - tagPresence
 
     func testTagPresenceNone() {

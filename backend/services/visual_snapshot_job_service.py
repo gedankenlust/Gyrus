@@ -8,7 +8,7 @@ job = BackgroundJob(
     bookmark_id=None,
     stage="idle",
     completed=0,
-    total=len(visual_snapshot_service.VIEWPORTS),
+    total=visual_snapshot_service.DESIGN_INSPECTION_STEPS,
     snapshot=None,
 )
 
@@ -56,7 +56,7 @@ async def start(bookmark_id: str, url: str, title: str = "") -> dict:
             "bookmark_id": bookmark_id,
             "stage": "queued",
             "completed": 0,
-            "total": len(visual_snapshot_service.VIEWPORTS),
+            "total": visual_snapshot_service.DESIGN_INSPECTION_STEPS,
             "snapshot": None,
         },
     )

@@ -15,6 +15,8 @@ extension APIClient {
         let capturedAt: String
         /// "completed", "partial" (some viewports threw) or "failed" (none captured).
         let status: String?
+        let navigation: [VisualNavigationGroupDTO]?
+        let siteStructure: VisualSiteStructureDTO?
         let viewports: [VisualViewportDTO]
         /// Why individual viewports are missing. The backend has always written
         /// this alongside the viewports; it just had nowhere to go until the
@@ -22,12 +24,73 @@ extension APIClient {
         let errors: [VisualSnapshotErrorDTO]?
 
         enum CodingKeys: String, CodingKey {
-            case url, title, status, viewports, errors
+            case url, title, status, navigation, viewports, errors
             case bookmarkId = "bookmark_id"
             case schemaVersion = "schema_version"
             case runId = "run_id"
             case capturedAt = "captured_at"
+            case siteStructure = "site_structure"
         }
+    }
+
+    struct VisualNavigationGroupDTO: Decodable, Identifiable {
+        var id: String { "\(label)-\(items.first?.url ?? "")" }
+        let label: String
+        let items: [VisualNavigationItemDTO]
+    }
+
+    struct VisualNavigationItemDTO: Decodable, Identifiable {
+        var id: String { "\(label)-\(url ?? "")-\(children.count)" }
+        var outlineChildren: [VisualNavigationItemDTO]? { children.isEmpty ? nil : children }
+        let label: String
+        let url: String?
+        let children: [VisualNavigationItemDTO]
+    }
+
+    struct VisualSiteStructureDTO: Decodable {
+        let origin: String
+        let listedPageCount: Int
+        let sitemapPageCount: Int
+        let crawledPageCount: Int
+        let crawlLimit: Int?
+        let crawlLimitReached: Bool?
+        let sitemapLimit: Int?
+        let sitemapLimitReached: Bool?
+        let sitemapSources: [String]
+        let pages: [VisualSitePageDTO]
+        let pageTree: [VisualSitePageNodeDTO]
+        let errors: [String]
+
+        enum CodingKeys: String, CodingKey {
+            case origin, pages, errors
+            case listedPageCount = "listed_page_count"
+            case sitemapPageCount = "sitemap_page_count"
+            case crawledPageCount = "crawled_page_count"
+            case crawlLimit = "crawl_limit"
+            case crawlLimitReached = "crawl_limit_reached"
+            case sitemapLimit = "sitemap_limit"
+            case sitemapLimitReached = "sitemap_limit_reached"
+            case sitemapSources = "sitemap_sources"
+            case pageTree = "page_tree"
+        }
+    }
+
+    struct VisualSitePageDTO: Decodable, Identifiable {
+        var id: String { url }
+        let url: String
+        let path: String
+        let title: String
+        let source: String
+    }
+
+    struct VisualSitePageNodeDTO: Decodable, Identifiable {
+        var id: String { path }
+        var outlineChildren: [VisualSitePageNodeDTO]? { children.isEmpty ? nil : children }
+        let label: String
+        let path: String
+        let url: String?
+        let source: String?
+        let children: [VisualSitePageNodeDTO]
     }
 
     /// One entry in the capture history. The full snapshot for a run is fetched
@@ -89,12 +152,13 @@ extension APIClient {
         let assets: VisualAssetsDTO?
         let accessibility: VisualAccessibilityDTO?
         let cssVariables: [VisualCSSVariableDTO]?
+        let technologies: [VisualTechnologyDTO]?
         let network: VisualNetworkDTO?
         let consoleMessages: [VisualConsoleMessageDTO]?
         let responsiveIssues: [VisualResponsiveIssueDTO]?
 
         enum CodingKeys: String, CodingKey {
-            case name, width, height, screenshot, structure, seo, assets, accessibility, network
+            case name, width, height, screenshot, structure, seo, assets, accessibility, technologies, network
             case pageTitle = "page_title"
             case metaDescription = "meta_description"
             case screenshotURL = "screenshot_url"
@@ -106,6 +170,15 @@ extension APIClient {
             case consoleMessages = "console_messages"
             case responsiveIssues = "responsive_issues"
         }
+    }
+
+    struct VisualTechnologyDTO: Decodable, Identifiable {
+        var id: String { "\(category)-\(name)" }
+        let name: String
+        let version: String?
+        let category: String
+        let confidence: String
+        let evidence: [String]
     }
 
     struct VisualResponsiveIssueDTO: Decodable, Identifiable {

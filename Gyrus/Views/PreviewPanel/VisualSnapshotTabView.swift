@@ -12,7 +12,7 @@ private let designSections = DesignInspectorSection.allCases
 /// as empty sections with no explanation. Raise both constants together whenever
 /// the capture gains something the inspector depends on; the reinspect notice
 /// then appears on its own.
-private let expectedSnapshotSchemaVersion = 3
+private let expectedSnapshotSchemaVersion = 6
 
 enum DesignInspectorSection: String, CaseIterable, Identifiable {
     case preview
@@ -333,8 +333,11 @@ struct VisualSnapshotTabView: View {
                 compactViewportPicker
                 componentsSection(viewport)
             case .website:
-                compactViewportPicker
-                websiteSection(viewport)
+                websiteSection(
+                    viewport,
+                    siteStructure: snapshot?.siteStructure,
+                    navigation: snapshot?.navigation ?? []
+                )
             }
         }
     }
@@ -342,11 +345,12 @@ struct VisualSnapshotTabView: View {
     private var captureProgressLabel: String {
         guard let status = captureStatus else { return String(localized: "Starting...") }
         let completed = status.completed ?? 0
-        let total = max(status.total ?? 3, 1)
+        let total = max(status.total ?? 4, 1)
         switch status.stage {
         case "desktop": return String(localized: "Inspecting desktop...") + " \(completed + 1)/\(total)"
         case "tablet": return String(localized: "Inspecting tablet...") + " \(completed + 1)/\(total)"
         case "mobile": return String(localized: "Inspecting mobile...") + " \(completed + 1)/\(total)"
+        case "site_structure": return String(localized: "Mapping website structure...") + " \(completed + 1)/\(total)"
         case "cancelling": return String(localized: "Cancelling...")
         default: return String(localized: "Starting design inspection...")
         }

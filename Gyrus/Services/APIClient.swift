@@ -124,6 +124,18 @@ final class APIClient {
 
     // MARK: - HTTP verbs
 
+    /// URLSession reports task cancellation as an NSURLError. Preserve the
+    /// cancellation semantic so callers can silently discard superseded work
+    /// instead of presenting it as a network failure.
+    func transportError(_ error: Error) -> Error {
+        if error is CancellationError { return CancellationError() }
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled {
+            return CancellationError()
+        }
+        return APIError.networkError(error)
+    }
+
     func get<T: Decodable>(_ url: URL) async throws -> T {
         var request = URLRequest(url: url)
         request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
@@ -134,7 +146,7 @@ final class APIClient {
         } catch let e as APIError {
             throw e
         } catch {
-            throw APIError.networkError(error)
+            throw transportError(error)
         }
     }
 
@@ -152,7 +164,7 @@ final class APIClient {
         } catch let e as APIError {
             throw e
         } catch {
-            throw APIError.networkError(error)
+            throw transportError(error)
         }
     }
 
@@ -168,7 +180,7 @@ final class APIClient {
         } catch let e as APIError {
             throw e
         } catch {
-            throw APIError.networkError(error)
+            throw transportError(error)
         }
     }
 
@@ -185,7 +197,7 @@ final class APIClient {
         } catch let e as APIError {
             throw e
         } catch {
-            throw APIError.networkError(error)
+            throw transportError(error)
         }
     }
 
@@ -199,7 +211,7 @@ final class APIClient {
         } catch let e as APIError {
             throw e
         } catch {
-            throw APIError.networkError(error)
+            throw transportError(error)
         }
     }
 

@@ -136,14 +136,13 @@ final class AppStore {
 
     private func handleUIError(_ error: Error, background: Bool = false) {
         // Debounced search cancels in-flight tasks — never show that to the user.
-        if error is CancellationError { return }
+        if Self.isCancellation(error) { return }
         if background {
             if case APIError.networkError(let inner) = error,
                let urlError = inner as? URLError,
                urlError.code == .cannotConnectToHost ||
                urlError.code == .notConnectedToInternet ||
-               urlError.code == .networkConnectionLost ||
-               urlError.code == .cancelled {
+               urlError.code == .networkConnectionLost {
                 return
             }
             if case APIError.serverError(let code) = error,
@@ -155,6 +154,15 @@ final class AppStore {
             error.localizedDescription,
             respectingResumeGrace: background
         )
+    }
+
+    private static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if case APIError.networkError(let inner) = error {
+            return isCancellation(inner)
+        }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
     }
 
     func scheduleSearch(_ query: String) {

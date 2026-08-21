@@ -10477,6 +10477,237 @@
         }
       }
     },
+    "Architecture": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Architektur"
+          }
+        }
+      }
+    },
+    "CMS": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CMS"
+          }
+        }
+      }
+    },
+    "CSS Framework": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CSS-Framework"
+          }
+        }
+      }
+    },
+    "E-Commerce": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-Commerce"
+          }
+        }
+      }
+    },
+    "Framework": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Framework"
+          }
+        }
+      }
+    },
+    "Hosting / Builder": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hosting / Baukasten"
+          }
+        }
+      }
+    },
+    "Router": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Router"
+          }
+        }
+      }
+    },
+    "Build Tool": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build-Werkzeug"
+          }
+        }
+      }
+    },
+    "Component Library": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komponentenbibliothek"
+          }
+        }
+      }
+    },
+    "Icon Library": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Icon-Bibliothek"
+          }
+        }
+      }
+    },
+    "Animation Library": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Animationsbibliothek"
+          }
+        }
+      }
+    },
+    "Analytics": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analytics"
+          }
+        }
+      }
+    },
+    "Rendering": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rendering"
+          }
+        }
+      }
+    },
+    "PWA": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PWA"
+          }
+        }
+      }
+    },
+    "Web Server": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Webserver"
+          }
+        }
+      }
+    },
+    "Server Management": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Serververwaltung"
+          }
+        }
+      }
+    },
+    "No technology signatures detected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine eindeutige Technologie erkannt."
+          }
+        }
+      }
+    },
+    "Reinspect this page to detect its technology stack.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untersuche diese Seite erneut, um ihre Architektur zu erkennen."
+          }
+        }
+      }
+    },
+    "Site Generator": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitengenerator"
+          }
+        }
+      }
+    },
+    "UI Library": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UI-Bibliothek"
+          }
+        }
+      }
+    },
+    "Website Builder": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Website-Baukasten"
+          }
+        }
+      }
+    },
     "Each frame shows the first screenful at that viewport.": {
       "extractionState": "manual",
       "localizations": {
@@ -10486,6 +10717,102 @@
             "value": "Jeder Rahmen zeigt den ersten Bildschirm in diesem Viewport."
           }
         }
+      }
+    },
+    "Site Structure": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Seitenstruktur"}}
+      }
+    },
+    "Pages found": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Seiten gefunden"}}
+      }
+    },
+    "Crawled": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Analysiert"}}
+      }
+    },
+    "Menus": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Menüs"}}
+      }
+    },
+    "Navigation shows the hierarchy rendered by the page. Sitemap shows every same-origin page Gyrus could list or discover.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Navigation zeigt die auf der Seite gerenderte Hierarchie. Sitemap zeigt alle Seiten derselben Domain, die Gyrus auflisten oder finden konnte."}}
+      }
+    },
+    "No navigation structure detected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Keine Navigationsstruktur erkannt."}}
+      }
+    },
+    "No sitemap or internal pages were found.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Keine Sitemap oder internen Seiten gefunden."}}
+      }
+    },
+    "Sitemap and discovered pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Sitemap und gefundene Seiten"}}
+      }
+    },
+    "Sitemap sources": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Sitemap-Quellen"}}
+      }
+    },
+    "Crawler notes": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Crawler-Hinweise"}}
+      }
+    },
+    "Reinspect this page to map its navigation and sitemap.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Untersuche diese Seite erneut, um Navigation und Sitemap zu erfassen."}}
+      }
+    },
+    "Mapping website structure...": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Website-Struktur wird erfasst ..."}}
+      }
+    },
+    "Copied URL.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "URL kopiert."}}
+      }
+    },
+    "Open in browser": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Im Browser öffnen"}}
+      }
+    },
+    "The sitemap inspection limit was reached; additional URLs may exist.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Das Sitemap-Limit der Untersuchung wurde erreicht; weitere URLs können vorhanden sein."}}
+      }
+    },
+    "The internal crawl limit was reached; more unlisted pages may exist.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Das Limit des internen Crawls wurde erreicht; weitere nicht gelistete Seiten können vorhanden sein."}}
       }
     }
   },

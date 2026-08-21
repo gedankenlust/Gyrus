@@ -280,17 +280,45 @@ final class ModelEncodingTests: XCTestCase {
           "running": false,
           "bookmark_id": "bookmark-1",
           "stage": "finished",
-          "completed": 3,
-          "total": 3,
+          "completed": 4,
+          "total": 4,
           "error": null,
           "snapshot": {
             "bookmark_id": "bookmark-1",
-            "schema_version": 2,
+            "schema_version": 6,
             "run_id": "run-1",
             "url": "https://example.com",
             "title": "Example",
             "captured_at": "2026-07-13T12:00:00Z",
             "status": "completed",
+            "navigation": [{
+              "label": "Main menu",
+              "items": [{
+                "label": "Services",
+                "url": "https://example.com/services",
+                "children": [{"label": "Design", "url": "https://example.com/services/design", "children": []}]
+              }]
+            }],
+            "site_structure": {
+              "origin": "https://example.com",
+              "listed_page_count": 2,
+              "sitemap_page_count": 2,
+              "crawled_page_count": 1,
+              "crawl_limit": 80,
+              "crawl_limit_reached": false,
+              "sitemap_limit": 10000,
+              "sitemap_limit_reached": false,
+              "sitemap_sources": ["https://example.com/sitemap.xml"],
+              "pages": [{"url": "https://example.com/services", "path": "/services", "title": "Services", "source": "sitemap"}],
+              "page_tree": [{
+                "label": "Services",
+                "path": "/services",
+                "url": "https://example.com/services",
+                "source": "sitemap",
+                "children": []
+              }],
+              "errors": []
+            },
             "viewports": [{
               "name": "mobile",
               "width": 390,
@@ -300,6 +328,13 @@ final class ModelEncodingTests: XCTestCase {
               "dominant_colors": [],
               "observed_colors": [],
               "observed_fonts": [],
+              "technologies": [{
+                "name": "Astro",
+                "version": "5.0",
+                "category": "Framework",
+                "confidence": "high",
+                "evidence": ["Generator: Astro v5"]
+              }],
               "structure": {"h1": [], "h2": [], "links": 0, "buttons": 0, "images": 0, "svgs": 0, "forms": 0},
               "responsive_issues": [{
                 "id": "overflow:html",
@@ -325,7 +360,12 @@ final class ModelEncodingTests: XCTestCase {
 
         XCTAssertFalse(status.running)
         XCTAssertEqual(status.snapshot?.runId, "run-1")
+        XCTAssertEqual(status.snapshot?.viewports.first?.technologies?.first?.name, "Astro")
+        XCTAssertEqual(status.snapshot?.viewports.first?.technologies?.first?.version, "5.0")
         XCTAssertEqual(status.snapshot?.viewports.first?.responsiveIssues?.first?.kind, "horizontal_overflow")
+        XCTAssertEqual(status.snapshot?.navigation?.first?.items.first?.children.first?.label, "Design")
+        XCTAssertEqual(status.snapshot?.siteStructure?.listedPageCount, 2)
+        XCTAssertEqual(status.snapshot?.siteStructure?.pageTree.first?.path, "/services")
     }
 
     // MARK: - Helpers

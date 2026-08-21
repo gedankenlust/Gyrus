@@ -1,6 +1,132 @@
 import SwiftUI
 import AppKit
 
+struct NavigationTreeGroup: View {
+    let group: APIClient.VisualNavigationGroupDTO
+
+    var body: some View {
+        DisclosureGroup {
+            OutlineGroup(group.items, children: \.outlineChildren) { item in
+                TreeLinkRow(
+                    label: item.label,
+                    detail: item.url,
+                    url: item.url,
+                    icon: item.children.isEmpty ? "link" : "folder"
+                )
+            }
+            .padding(.top, 6)
+        } label: {
+            Label(group.label, systemImage: "rectangle.3.group")
+                .font(.caption.weight(.semibold))
+        }
+    }
+}
+
+struct SitePageTreeRow: View {
+    let node: APIClient.VisualSitePageNodeDTO
+
+    var body: some View {
+        TreeLinkRow(
+            label: node.label,
+            detail: node.path,
+            url: node.url,
+            icon: node.children.isEmpty ? "doc.text" : "folder"
+        )
+    }
+}
+
+private struct TreeLinkRow: View {
+    let label: String
+    let detail: String?
+    let url: String?
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 14)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label)
+                    .font(.caption)
+                    .lineLimit(2)
+                if let detail, !detail.isEmpty, detail != label {
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+
+            Spacer(minLength: 4)
+
+            if let url, !url.isEmpty {
+                Button {
+                    copy(url)
+                    AppStore.shared.uiStateStore.showInfo("Copied URL.")
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.borderless)
+                .help("Copy URL")
+
+                Button {
+                    guard let target = URL(string: url) else { return }
+                    NSWorkspace.shared.open(target)
+                } label: {
+                    Image(systemName: "arrow.up.right.square")
+                }
+                .buttonStyle(.borderless)
+                .help("Open in browser")
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+struct TechnologyCard: View {
+    let technology: APIClient.VisualTechnologyDTO
+
+    private var confidenceColor: Color {
+        technology.confidence == "high" ? .green : .orange
+    }
+
+    private var evidenceSummary: String {
+        technology.evidence.joined(separator: "\n")
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(confidenceColor)
+                .frame(width: 7, height: 7)
+                .padding(.top, 5)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text([technology.name, technology.version].compactMap { $0 }.joined(separator: " "))
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(2)
+                Text(LocalizedStringKey(technology.category))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(9)
+        .frame(maxWidth: .infinity, minHeight: 48, alignment: .topLeading)
+        .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 7))
+        .help(evidenceSummary)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(technology.name), \(technology.category)")
+        .accessibilityHint(evidenceSummary)
+    }
+}
+
 struct SnapshotColorChip: View {
     let color: SnapshotColor
 

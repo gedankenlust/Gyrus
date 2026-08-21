@@ -7,7 +7,7 @@ import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urljoin, urlparse, urlunparse
+from urllib.parse import unquote, urljoin, urlparse, urlunparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -18,7 +18,7 @@ from services.outbound_url_security import request_guard
 
 logger = logging.getLogger(__name__)
 
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 
 
 _ASSET_EXTENSIONS = {
@@ -43,6 +43,12 @@ class SiteStructureService:
         self.cache_dir: Path = DATA_DIR / "site_structure"
         self.cache_ttl_seconds = 24 * 60 * 60
         self.max_pages = 80
+        # A sitemap can legally contain tens of thousands of URLs. Keeping a
+        # generous explicit ceiling prevents a malformed index from exhausting
+        # memory while still representing ordinary company and editorial sites
+        # completely. The result tells callers when this ceiling was reached.
+        self.max_sitemap_pages = 10_000
+        self.max_sitemap_files = 100
         self.deadline_seconds = 16
         self.timeout = httpx.Timeout(7.0, connect=4.0)
         self.headers = {
@@ -140,6 +146,48 @@ class SiteStructureService:
         data = await self.data_for_url(bookmark_id, url, force_refresh=force_refresh)
         return self._format_page_count_answer(data, language=language)
 
+    def snapshot_payload(self, data: dict) -> dict:
+        """Return the compact website map persisted with a design inspection."""
+        crawled_pages = data.get("pages") or []
+        page_by_url = {
+            page.get("url"): page
+            for page in crawled_pages
+            if page.get("url")
+        }
+        sitemap_urls = data.get("sitemap_page_urls") or []
+        ordered_urls = list(dict.fromkeys([*sitemap_urls, *page_by_url.keys()]))
+        sitemap_set = set(sitemap_urls)
+
+        pages = []
+        for url in ordered_urls:
+            page = page_by_url.get(url) or {}
+            pages.append(
+                {
+                    "url": url,
+                    "path": page.get("path") or self._path_label(url),
+                    "title": page.get("title") or "",
+                    "source": "both" if url in sitemap_set and url in page_by_url else (
+                        "sitemap" if url in sitemap_set else "crawl"
+                    ),
+                }
+            )
+
+        return {
+            "origin": data.get("origin") or "",
+            "captured_at": data.get("captured_at"),
+            "listed_page_count": len(pages),
+            "sitemap_page_count": int(data.get("sitemap_pages") or 0),
+            "crawled_page_count": len(crawled_pages),
+            "crawl_limit": int(data.get("limit") or self.max_pages),
+            "crawl_limit_reached": bool(data.get("limit_reached")),
+            "sitemap_limit": int(data.get("sitemap_limit") or self.max_sitemap_pages),
+            "sitemap_limit_reached": bool(data.get("sitemap_limit_reached")),
+            "sitemap_sources": data.get("sitemap_sources") or [],
+            "pages": pages,
+            "page_tree": self._build_page_tree(pages),
+            "errors": data.get("errors") or [],
+        }
+
     async def crawl(self, start_url: str) -> dict:
         parsed = urlparse(start_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
@@ -180,7 +228,9 @@ class SiteStructureService:
             headers=self.headers,
             event_hooks={"request": [request_guard(start_url)]},
         ) as client:
-            sitemap_urls, sitemap_sources = await self._discover_sitemap_urls(client, origin)
+            sitemap_urls, sitemap_sources, sitemap_limit_reached = await self._discover_sitemap_urls(
+                client, origin, deadline=deadline
+            )
             for sitemap_url in sitemap_urls[: self.max_pages]:
                 enqueue(sitemap_url)
 
@@ -233,7 +283,9 @@ class SiteStructureService:
             "limit": self.max_pages,
             "limit_reached": limit_reached,
             "sitemap_pages": len(sitemap_urls),
-            "sitemap_page_urls": sitemap_urls[:300],
+            "sitemap_page_urls": sitemap_urls,
+            "sitemap_limit": self.max_sitemap_pages,
+            "sitemap_limit_reached": sitemap_limit_reached,
             "sitemap_sources": sitemap_sources,
             "errors": errors[:5],
         }
@@ -286,7 +338,13 @@ class SiteStructureService:
             "links": links,
         }
 
-    async def _discover_sitemap_urls(self, client: httpx.AsyncClient, origin: str) -> tuple[list[str], list[str]]:
+    async def _discover_sitemap_urls(
+        self,
+        client: httpx.AsyncClient,
+        origin: str,
+        *,
+        deadline: float,
+    ) -> tuple[list[str], list[str], bool]:
         sitemap_queue = [
             urljoin(origin, "/sitemap.xml"),
             urljoin(origin, "/sitemap_index.xml"),
@@ -297,7 +355,13 @@ class SiteStructureService:
         seen_pages: set[str] = set()
         sources: list[str] = []
 
-        while sitemap_queue and len(seen_sitemaps) < 20:
+        limit_reached = False
+        while (
+            sitemap_queue
+            and len(seen_sitemaps) < self.max_sitemap_files
+            and len(page_urls) < self.max_sitemap_pages
+            and time.monotonic() < deadline
+        ):
             sitemap_url = sitemap_queue.pop(0)
             if sitemap_url in seen_sitemaps:
                 continue
@@ -321,7 +385,56 @@ class SiteStructureService:
                 if page_url and page_url not in seen_pages:
                     seen_pages.add(page_url)
                     page_urls.append(page_url)
-        return page_urls, sources
+                    if len(page_urls) >= self.max_sitemap_pages:
+                        break
+        if sitemap_queue or len(page_urls) >= self.max_sitemap_pages:
+            limit_reached = True
+        return page_urls, sources, limit_reached
+
+    def _build_page_tree(self, pages: list[dict]) -> list[dict]:
+        roots: dict[str, dict] = {}
+
+        for page in pages:
+            url = str(page.get("url") or "")
+            parsed = urlparse(url)
+            path = parsed.path or "/"
+            segments = [segment for segment in path.split("/") if segment]
+            if not segments:
+                segments = ["/"]
+
+            siblings = roots
+            accumulated: list[str] = []
+            for index, segment in enumerate(segments):
+                accumulated.append(segment)
+                node_path = "/" if segment == "/" else "/" + "/".join(accumulated)
+                node = siblings.setdefault(
+                    segment,
+                    {
+                        "label": "Home" if segment == "/" else unquote(segment).replace("-", " "),
+                        "path": node_path,
+                        "url": None,
+                        "source": None,
+                        "children": {},
+                    },
+                )
+                if index == len(segments) - 1:
+                    node["url"] = url
+                    node["source"] = page.get("source")
+                    if page.get("title"):
+                        node["label"] = page["title"]
+                siblings = node["children"]
+
+        def materialize(nodes: dict[str, dict]) -> list[dict]:
+            result = []
+            for node in sorted(
+                nodes.values(),
+                key=lambda item: (0 if item["path"] == "/" else 1, item["path"]),
+            ):
+                children = materialize(node.pop("children"))
+                result.append({**node, "children": children})
+            return result
+
+        return materialize(roots)
 
     def _extract_sitemap_locations(self, xml_text: str) -> list[str]:
         return re.findall(r"<loc>\s*([^<]+?)\s*</loc>", xml_text, flags=re.I)

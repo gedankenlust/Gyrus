@@ -235,7 +235,7 @@ def test_start_visual_snapshot_job_returns_pollable_status(client, monkeypatch):
             "bookmark_id": bookmark_id,
             "stage": "queued",
             "completed": 0,
-            "total": 3,
+            "total": 4,
             "snapshot": None,
             "error": None,
         }
@@ -246,7 +246,7 @@ def test_start_visual_snapshot_job_returns_pollable_status(client, monkeypatch):
 
     assert resp.status_code == 200
     assert resp.json()["running"] is True
-    assert resp.json()["total"] == 3
+    assert resp.json()["total"] == 4
     assert captured == {"bookmark_id": bm["id"], "url": bm["url"], "title": bm["title"]}
 
 

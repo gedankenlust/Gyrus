@@ -299,7 +299,7 @@ def get_visual_snapshot_job(bookmark_id: str, db: Session = Depends(get_db)):
             "bookmark_id": bookmark_id,
             "stage": "idle",
             "completed": 0,
-            "total": len(visual_snapshot_service.VIEWPORTS),
+            "total": visual_snapshot_service.DESIGN_INSPECTION_STEPS,
             "snapshot": None,
             "error": None,
         }

@@ -60,6 +60,12 @@ async def test_site_structure_crawl_counts_same_origin_pages(monkeypatch, tmp_pa
     assert "image.jpg" not in context
     assert "other.test" not in context
 
+    payload = service.snapshot_payload(data)
+    assert payload["listed_page_count"] == 3
+    assert payload["sitemap_page_count"] == 2
+    assert payload["crawled_page_count"] == 3
+    assert [node["path"] for node in payload["page_tree"]] == ["/", "/about", "/contact"]
+
 
 def test_site_structure_prompt_detection():
     service = SiteStructureService()
@@ -132,3 +138,33 @@ async def test_site_structure_reads_sitemap_indexes(monkeypatch, tmp_path):
     assert len(data["sitemap_sources"]) == 2
     assert "Exact discovered/listed page count to report: 2" in context
     assert "Count source: sitemap" in context
+
+
+def test_site_structure_snapshot_builds_nested_page_tree():
+    service = SiteStructureService()
+    payload = service.snapshot_payload(
+        {
+            "origin": "https://example.com",
+            "pages": [
+                {
+                    "url": "https://example.com/services/design",
+                    "path": "/services/design",
+                    "title": "Design",
+                }
+            ],
+            "sitemap_pages": 2,
+            "sitemap_page_urls": [
+                "https://example.com/services",
+                "https://example.com/services/design",
+            ],
+            "sitemap_sources": ["https://example.com/sitemap.xml"],
+            "limit": 80,
+            "limit_reached": False,
+        }
+    )
+
+    services = payload["page_tree"][0]
+    assert services["path"] == "/services"
+    assert services["url"] == "https://example.com/services"
+    assert services["children"][0]["label"] == "Design"
+    assert services["children"][0]["source"] == "both"
