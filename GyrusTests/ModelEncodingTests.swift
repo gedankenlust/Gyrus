@@ -1,4 +1,5 @@
 import XCTest
+import WebKit
 @testable import Gyrus
 
 final class ModelEncodingTests: XCTestCase {
@@ -366,6 +367,67 @@ final class ModelEncodingTests: XCTestCase {
         XCTAssertEqual(status.snapshot?.navigation?.first?.items.first?.children.first?.label, "Design")
         XCTAssertEqual(status.snapshot?.siteStructure?.listedPageCount, 2)
         XCTAssertEqual(status.snapshot?.siteStructure?.pageTree.first?.path, "/services")
+    }
+
+    // MARK: - Web preview security
+
+    func testWebPreviewUsesNonPersistentStorage() {
+        XCTAssertFalse(WebPreviewSecurityPolicy.configuration().websiteDataStore.isPersistent)
+    }
+
+    func testPublicWebPreviewCannotNavigateToPrivateNetwork() {
+        let initial = URL(string: "https://example.com")!
+
+        XCTAssertFalse(WebPreviewSecurityPolicy.allowsNavigation(
+            to: URL(string: "http://127.0.0.1:8080/api/data/backup")!,
+            from: initial,
+            isMainFrame: true
+        ))
+        XCTAssertFalse(WebPreviewSecurityPolicy.allowsNavigation(
+            to: URL(string: "http://192.168.1.1")!,
+            from: initial,
+            isMainFrame: true
+        ))
+        XCTAssertFalse(WebPreviewSecurityPolicy.allowsNavigation(
+            to: URL(string: "http://[::ffff:127.0.0.1]/admin")!,
+            from: initial,
+            isMainFrame: true
+        ))
+        XCTAssertFalse(WebPreviewSecurityPolicy.allowsNavigation(
+            to: URL(string: "http://0177.0.0.1/admin")!,
+            from: initial,
+            isMainFrame: true
+        ))
+    }
+
+    func testLocalWebPreviewStaysOnExplicitLocalHost() {
+        let initial = URL(string: "http://localhost:3000")!
+
+        XCTAssertTrue(WebPreviewSecurityPolicy.allowsNavigation(
+            to: URL(string: "http://localhost:3000/about")!,
+            from: initial,
+            isMainFrame: true
+        ))
+        XCTAssertFalse(WebPreviewSecurityPolicy.allowsNavigation(
+            to: URL(string: "http://127.0.0.1:8080")!,
+            from: initial,
+            isMainFrame: true
+        ))
+    }
+
+    func testWebPreviewBlocksCustomMainFrameSchemes() {
+        let initial = URL(string: "https://example.com")!
+
+        XCTAssertFalse(WebPreviewSecurityPolicy.allowsNavigation(
+            to: URL(string: "file:///etc/passwd")!,
+            from: initial,
+            isMainFrame: true
+        ))
+        XCTAssertTrue(WebPreviewSecurityPolicy.allowsNavigation(
+            to: URL(string: "data:text/html,frame")!,
+            from: initial,
+            isMainFrame: false
+        ))
     }
 
     // MARK: - Helpers

@@ -31,6 +31,36 @@ def test_search_endpoint_no_match(client, db):
     assert response.status_code == 200
     assert response.json() == []
 
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        '" OR 1=1 --',
+        "'; DROP TABLE bookmarks; --",
+        "*) OR (*",
+    ],
+)
+def test_search_treats_sql_and_fts_syntax_as_literal_text(client, query):
+    client.post("/api/bookmarks", json=BOOKMARK_1)
+
+    response = client.get("/api/search", params={"q": query})
+
+    assert response.status_code == 200
+    assert response.json() == []
+    assert client.get("/api/bookmarks").status_code == 200
+
+
+def test_bookmark_sort_parameter_cannot_inject_sql(client):
+    client.post("/api/bookmarks", json=BOOKMARK_1)
+
+    response = client.get(
+        "/api/bookmarks",
+        params={"sort_by": "created_at); DROP TABLE bookmarks; --", "order": "asc"},
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
 def test_search_endpoint_pagination(client, db):
     """The search endpoint should respect limit and offset parameters."""
     # We create a bunch of bookmarks that all match the query

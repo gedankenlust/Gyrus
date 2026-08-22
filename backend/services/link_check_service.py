@@ -14,6 +14,7 @@ from database import SessionLocal
 from models.bookmark import Bookmark
 from services.background_job import BackgroundJob
 from services.outbound_url_security import OutboundURLBlocked, strict_public_request_guard
+from services.safe_egress_proxy import SafeEgressProxy
 
 
 logger = logging.getLogger(__name__)
@@ -174,9 +175,11 @@ async def _run_check(job: BackgroundJob) -> None:
         maxsize=CONCURRENCY * 2
     )
 
-    async with httpx.AsyncClient(
+    async with SafeEgressProxy() as proxy, httpx.AsyncClient(
         headers={"User-Agent": "Gyrus/1.0 LinkCheck"},
         event_hooks={"request": [strict_public_request_guard]},
+        proxy=proxy.url,
+        trust_env=False,
     ) as client:
         async def worker() -> None:
             while True:

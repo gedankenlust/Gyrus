@@ -4,7 +4,11 @@ import json
 
 from services import visual_snapshot_service
 from services.visual_snapshot_service import (
+    MAX_SCREENSHOT_PIXELS,
+    MAX_TECHNOLOGY_SCRIPT_BYTES,
     _attach_issue_evidence,
+    _bounded_screenshot_height,
+    _declared_script_size,
     _detect_technologies,
     _dominant_colors,
     _is_primary_script_bundle,
@@ -191,6 +195,26 @@ def test_script_content_markers_are_bounded_and_use_specific_fingerprints():
     assert _script_content_markers(b"canvas.getContext('2d')") == ["Canvas 2D"]
     assert _script_content_markers(b"gtag('config', measurementId)") == ["Google Analytics 4"]
     assert _script_content_markers(b"x" * 2_000_001) == []
+
+
+def test_script_body_probe_requires_a_small_declared_size():
+    assert _declared_script_size({"content-length": "1024"}) == 1024
+    assert _declared_script_size({}) is None
+    assert _declared_script_size({"content-length": "chunked"}) is None
+    assert _declared_script_size({"content-length": "0"}) is None
+    assert _declared_script_size(
+        {"content-length": str(MAX_TECHNOLOGY_SCRIPT_BYTES + 1)}
+    ) is None
+
+
+def test_screenshot_height_is_bounded_by_decoded_pixel_budget():
+    viewport = {"width": 834, "height": 1112, "device_scale_factor": 2}
+
+    bounded = _bounded_screenshot_height(viewport, 100_000)
+
+    assert bounded >= viewport["height"]
+    assert bounded < 20_000
+    assert bounded * viewport["width"] * 4 <= MAX_SCREENSHOT_PIXELS
 
 
 def test_script_technology_versions_require_explicit_package_metadata():

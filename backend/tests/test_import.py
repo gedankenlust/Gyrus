@@ -1,5 +1,6 @@
 import io
 import pytest
+from services import import_service
 
 
 SIMPLE_HTML = b"""<!DOCTYPE NETSCAPE-Bookmark-file-1>
@@ -59,6 +60,62 @@ def test_import_skips_javascript_urls(client):
     resp = _upload(client, html)
     assert resp.status_code == 200
     assert resp.json()["imported"] == 0
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "file:///Users/example/private.txt",
+        "data:text/html,secret",
+        "ftp://127.0.0.1/private",
+        "https://user:password@example.com/private",
+    ],
+)
+def test_import_skips_urls_not_allowed_by_normal_bookmark_creation(client, url):
+    html = f'<DL><DT><A HREF="{url}">Unsafe</A></DL>'.encode()
+    resp = _upload(client, html)
+    assert resp.status_code == 200
+    assert resp.json()["imported"] == 0
+    assert resp.json()["skipped"] == 1
+
+
+def test_import_rolls_back_when_bookmark_limit_is_exceeded(client, monkeypatch):
+    monkeypatch.setattr(import_service, "MAX_IMPORTED_BOOKMARKS", 2)
+    html = b"<DL>" + b"".join(
+        f'<DT><A HREF="https://example.com/{index}">Item {index}</A>'.encode()
+        for index in range(3)
+    ) + b"</DL>"
+
+    resp = _upload(client, html)
+
+    assert resp.status_code == 413
+    assert client.get("/api/bookmarks").json() == []
+
+
+def test_import_truncates_oversized_display_text(client):
+    title = "A" * (import_service.MAX_IMPORTED_TITLE_CHARS + 100)
+    html = f'<DL><DT><A HREF="https://example.com/long">{title}</A></DL>'.encode()
+
+    resp = _upload(client, html)
+
+    assert resp.status_code == 200
+    bookmark = client.get("/api/bookmarks").json()[0]
+    assert len(bookmark["title"]) == import_service.MAX_IMPORTED_TITLE_CHARS
+
+
+def test_reimport_reuses_truncated_oversized_folder_name(client):
+    folder = "F" * (import_service.MAX_IMPORTED_COLLECTION_NAME_CHARS + 100)
+    html = (
+        f'<DL><DT><H3>{folder}</H3><DL>'
+        '<DT><A HREF="https://example.com/in-folder">Item</A>'
+        "</DL></DL>"
+    ).encode()
+
+    assert _upload(client, html).status_code == 200
+    second = _upload(client, html)
+
+    assert second.status_code == 200
+    assert second.json()["collections_created"] == 0
 
 
 def test_import_merges_folders_by_name(client):

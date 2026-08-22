@@ -14,7 +14,8 @@ from bs4 import BeautifulSoup
 
 from database import DATA_DIR
 from services.scraper_service import _BROWSER_UA
-from services.outbound_url_security import request_guard
+from services.outbound_url_security import explicit_private_hostname, request_guard
+from services.safe_egress_proxy import SafeEgressProxy
 
 logger = logging.getLogger(__name__)
 
@@ -222,11 +223,15 @@ class SiteStructureService:
         start_normalized = self._normalize_internal_url(start_url, origin, start_url) or start_url
         enqueue(start_normalized)
 
-        async with httpx.AsyncClient(
+        async with SafeEgressProxy(
+            allowed_private_host=explicit_private_hostname(start_url)
+        ) as proxy, httpx.AsyncClient(
             timeout=self.timeout,
             follow_redirects=True,
             headers=self.headers,
             event_hooks={"request": [request_guard(start_url)]},
+            proxy=proxy.url,
+            trust_env=False,
         ) as client:
             sitemap_urls, sitemap_sources, sitemap_limit_reached = await self._discover_sitemap_urls(
                 client, origin, deadline=deadline

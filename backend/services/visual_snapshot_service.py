@@ -16,6 +16,7 @@ from services.outbound_url_security import (
     explicit_private_hostname,
     validate_outbound_url,
 )
+from services.safe_egress_proxy import SafeEgressProxy
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,14 @@ SNAPSHOT_DIR = DATA_DIR / "visual_snapshots"
 SNAPSHOT_SCHEMA_VERSION = 7
 MAX_SNAPSHOT_RUNS = 8
 MAX_TECHNOLOGY_SCRIPT_PROBES = 12
+MAX_PRIMARY_SCRIPT_PROBES = 4
 MAX_TECHNOLOGY_SCRIPT_BYTES = 2_000_000
+MAX_TECHNOLOGY_SCRIPT_TOTAL_BYTES = 12_000_000
+MAX_NETWORK_ENTRIES = 2_000
+MAX_CONSOLE_MESSAGES = 200
+MAX_SCREENSHOT_CSS_HEIGHT = 20_000
+MAX_SCREENSHOT_PIXELS = 24_000_000
+MAX_SCREENSHOT_FILE_BYTES = 30_000_000
 VIEWPORTS = [
     {"name": "desktop", "width": 1440, "height": 900, "device_scale_factor": 1},
     {"name": "tablet", "width": 834, "height": 1112, "device_scale_factor": 2},
@@ -120,6 +128,40 @@ def _script_technology_versions(content: bytes) -> dict[str, str]:
         flags=re.IGNORECASE,
     )
     return {"React": react_match.group(1)} if react_match else {}
+
+
+def _declared_script_size(headers: dict[str, str]) -> int | None:
+    """Return a trustworthy, bounded body size for optional script inspection.
+
+    Playwright exposes a completed response body as one bytes object, not a
+    stream. Refusing bodies without a valid Content-Length avoids copying an
+    attacker-controlled chunked response into the Python process.
+    """
+    raw = headers.get("content-length", "").strip()
+    if not raw:
+        return None
+    try:
+        size = int(raw)
+    except ValueError:
+        return None
+    if size <= 0 or size > MAX_TECHNOLOGY_SCRIPT_BYTES:
+        return None
+    return size
+
+
+def _bounded_screenshot_height(viewport: dict[str, Any], document_height: int) -> int:
+    """Cap a full-page capture by CSS height and decoded output pixels."""
+    width = max(1, int(viewport["width"]))
+    scale = max(1, int(viewport.get("device_scale_factor", 1)))
+    viewport_height = max(1, int(viewport["height"]))
+    max_height_by_pixels = max(
+        viewport_height,
+        MAX_SCREENSHOT_PIXELS // (width * scale * scale),
+    )
+    return max(
+        viewport_height,
+        min(int(document_height), MAX_SCREENSHOT_CSS_HEIGHT, max_height_by_pixels),
+    )
 
 
 def _is_primary_script_bundle(url: str) -> bool:
@@ -404,224 +446,270 @@ async def capture_snapshot(
     if on_progress:
         on_progress("launching", 0, DESIGN_INSPECTION_STEPS)
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        try:
-            for index, viewport in enumerate(VIEWPORTS):
-                context = None
-                page = None
-                try:
-                    if on_progress:
-                        on_progress(viewport["name"], index, DESIGN_INSPECTION_STEPS)
-                    context = await browser.new_context(
-                        viewport={"width": viewport["width"], "height": viewport["height"]},
-                        device_scale_factor=viewport["device_scale_factor"],
-                        is_mobile=viewport["name"] in {"tablet", "mobile"},
-                        has_touch=viewport["name"] in {"tablet", "mobile"},
-                        accept_downloads=False,
-                        service_workers="block",
-                        permissions=[],
-                    )
+    async with SafeEgressProxy(allowed_private_host=allowed_private_host) as proxy:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                proxy={"server": proxy.url, "bypass": ""},
+                args=["--proxy-bypass-list=<-loopback>"],
+            )
+            try:
+                for index, viewport in enumerate(VIEWPORTS):
+                    context = None
+                    page = None
+                    try:
+                        if on_progress:
+                            on_progress(viewport["name"], index, DESIGN_INSPECTION_STEPS)
+                        context = await browser.new_context(
+                            viewport={"width": viewport["width"], "height": viewport["height"]},
+                            device_scale_factor=viewport["device_scale_factor"],
+                            is_mobile=viewport["name"] in {"tablet", "mobile"},
+                            has_touch=viewport["name"] in {"tablet", "mobile"},
+                            accept_downloads=False,
+                            service_workers="block",
+                            permissions=[],
+                        )
 
-                    async def guard_route(route):
-                        request_url = route.request.url
-                        if request_url.startswith(("data:", "blob:", "about:")):
+                        async def guard_route(route):
+                            request_url = route.request.url
+                            if request_url.startswith(("data:", "blob:", "about:")):
+                                await route.continue_()
+                                return
+                            try:
+                                await validate_outbound_url(
+                                    request_url,
+                                    allowed_private_host=allowed_private_host,
+                                    dns_cache=dns_cache,
+                                )
+                            except ValueError:
+                                await route.abort("blockedbyclient")
+                                return
                             await route.continue_()
-                            return
-                        try:
-                            await validate_outbound_url(
-                                request_url,
-                                allowed_private_host=allowed_private_host,
-                                dns_cache=dns_cache,
-                            )
-                        except ValueError:
-                            await route.abort("blockedbyclient")
-                            return
-                        await route.continue_()
 
-                    await context.route("**/*", guard_route)
-                    page = await context.new_page()
-                    network_entries: dict[str, dict[str, Any]] = {}
-                    console_messages: list[dict[str, Any]] = []
-                    script_content_markers: set[str] = set()
-                    technology_versions: dict[str, str] = {}
-                    script_probe_tasks: list[asyncio.Task] = []
+                        await context.route("**/*", guard_route)
+                        page = await context.new_page()
+                        network_entries: dict[str, dict[str, Any]] = {}
+                        console_messages: list[dict[str, Any]] = []
+                        script_content_markers: set[str] = set()
+                        technology_versions: dict[str, str] = {}
+                        script_probe_tasks: list[asyncio.Task] = []
+                        primary_script_probes = 0
+                        reserved_script_bytes = 0
 
-                    async def probe_script_response(response):
-                        try:
-                            headers = response.headers
-                            content_type = headers.get("content-type", "").lower()
-                            is_javascript = (
-                                "javascript" in content_type
-                                or response.url.lower().split("?", 1)[0].endswith((".js", ".mjs"))
-                            )
-                            if not is_javascript:
+                        async def probe_script_response(response):
+                            nonlocal reserved_script_bytes
+                            try:
+                                headers = response.headers
+                                content_type = headers.get("content-type", "").lower()
+                                is_javascript = (
+                                    "javascript" in content_type
+                                    or response.url.lower().split("?", 1)[0].endswith((".js", ".mjs"))
+                                )
+                                if not is_javascript:
+                                    return
+
+                                declared_size = _declared_script_size(headers)
+                                if declared_size is None:
+                                    return
+                                if reserved_script_bytes + declared_size > MAX_TECHNOLOGY_SCRIPT_TOTAL_BYTES:
+                                    return
+                                reserved_script_bytes += declared_size
+
+                                content = await asyncio.wait_for(response.body(), timeout=5.0)
+                                if len(content) > declared_size or len(content) > MAX_TECHNOLOGY_SCRIPT_BYTES:
+                                    return
+                                script_content_markers.update(_script_content_markers(content))
+                                technology_versions.update(_script_technology_versions(content))
+                            except Exception as exc:
+                                logger.debug("Could not inspect script fingerprint for %s: %s", response.url, exc)
+
+                        def on_request(request):
+                            if request.url not in network_entries and len(network_entries) >= MAX_NETWORK_ENTRIES:
                                 return
-
-                            content_length = headers.get("content-length", "")
-                            if content_length.isdigit() and int(content_length) > MAX_TECHNOLOGY_SCRIPT_BYTES:
-                                return
-
-                            content = await response.body()
-                            script_content_markers.update(_script_content_markers(content))
-                            technology_versions.update(_script_technology_versions(content))
-                        except Exception as exc:
-                            logger.debug("Could not inspect script fingerprint for %s: %s", response.url, exc)
-
-                    def on_request(request):
-                        network_entries[request.url] = {
-                            "url": request.url,
-                            "method": request.method,
-                            "resource_type": request.resource_type,
-                            "status": None,
-                            "failed": False,
-                            "failure": None,
-                        }
-
-                    def on_response(response):
-                        entry = network_entries.setdefault(response.url, {"url": response.url})
-                        entry.update(
-                            {
-                                "status": response.status,
-                                "resource_type": response.request.resource_type,
-                                "method": response.request.method,
-                                "failed": response.status >= 400,
-                                "content_type": response.headers.get("content-type", ""),
-                                "content_length": response.headers.get("content-length", ""),
-                                "server": response.headers.get("server", ""),
-                                "powered_by": response.headers.get("x-powered-by", ""),
-                            }
-                        )
-                        content_type = response.headers.get("content-type", "").lower()
-                        response_path = response.url.lower().split("?", 1)[0]
-                        is_javascript = (
-                            "javascript" in content_type
-                            or response_path.endswith((".js", ".mjs"))
-                        )
-                        has_probe_capacity = len(script_probe_tasks) < MAX_TECHNOLOGY_SCRIPT_PROBES
-                        if is_javascript and (has_probe_capacity or _is_primary_script_bundle(response.url)):
-                            task = asyncio.create_task(probe_script_response(response))
-                            script_probe_tasks.append(task)
-
-                    def on_request_failed(request):
-                        entry = network_entries.setdefault(request.url, {"url": request.url})
-                        failure = request.failure or ""
-                        entry.update(
-                            {
+                            network_entries[request.url] = {
+                                "url": request.url,
                                 "method": request.method,
                                 "resource_type": request.resource_type,
-                                "failed": True,
-                                "failure": failure,
+                                "status": None,
+                                "failed": False,
+                                "failure": None,
                             }
+
+                        def on_response(response):
+                            nonlocal primary_script_probes
+                            if response.url not in network_entries and len(network_entries) >= MAX_NETWORK_ENTRIES:
+                                return
+                            entry = network_entries.setdefault(response.url, {"url": response.url})
+                            entry.update(
+                                {
+                                    "status": response.status,
+                                    "resource_type": response.request.resource_type,
+                                    "method": response.request.method,
+                                    "failed": response.status >= 400,
+                                    "content_type": response.headers.get("content-type", ""),
+                                    "content_length": response.headers.get("content-length", ""),
+                                    "server": response.headers.get("server", ""),
+                                    "powered_by": response.headers.get("x-powered-by", ""),
+                                }
+                            )
+                            content_type = response.headers.get("content-type", "").lower()
+                            response_path = response.url.lower().split("?", 1)[0]
+                            is_javascript = (
+                                "javascript" in content_type
+                                or response_path.endswith((".js", ".mjs"))
+                            )
+                            has_probe_capacity = len(script_probe_tasks) < MAX_TECHNOLOGY_SCRIPT_PROBES
+                            is_primary = _is_primary_script_bundle(response.url)
+                            has_primary_capacity = is_primary and primary_script_probes < MAX_PRIMARY_SCRIPT_PROBES
+                            if is_javascript and (has_probe_capacity or has_primary_capacity):
+                                if not has_probe_capacity:
+                                    primary_script_probes += 1
+                                task = asyncio.create_task(probe_script_response(response))
+                                script_probe_tasks.append(task)
+
+                        def on_request_failed(request):
+                            if request.url not in network_entries and len(network_entries) >= MAX_NETWORK_ENTRIES:
+                                return
+                            entry = network_entries.setdefault(request.url, {"url": request.url})
+                            failure = request.failure or ""
+                            entry.update(
+                                {
+                                    "method": request.method,
+                                    "resource_type": request.resource_type,
+                                    "failed": True,
+                                    "failure": failure,
+                                }
+                            )
+
+                        def on_console(message):
+                            if len(console_messages) >= MAX_CONSOLE_MESSAGES:
+                                return
+                            console_messages.append(
+                                {
+                                    "type": message.type,
+                                    "text": message.text[:1000],
+                                    "location": message.location,
+                                }
+                            )
+
+                        page.on("request", on_request)
+                        page.on("response", on_response)
+                        page.on("requestfailed", on_request_failed)
+                        page.on("console", on_console)
+                        async def dismiss_dialog(dialog):
+                            await dialog.dismiss()
+
+                        async def close_popup(popup):
+                            await popup.close()
+
+                        page.on("dialog", dismiss_dialog)
+                        page.on("popup", close_popup)
+
+                        await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+                        try:
+                            await page.wait_for_load_state("networkidle", timeout=5_000)
+                        except Exception as exc:
+                            logger.debug("Viewport did not reach network idle: %s", exc)
+
+                        if script_probe_tasks:
+                            await asyncio.gather(*script_probe_tasks, return_exceptions=True)
+
+                        rendered_navigation = []
+                        if viewport["name"] == "desktop":
+                            rendered_navigation = await _capture_rendered_navigation(page)
+
+                        screenshot_name = f"{viewport['name']}.png"
+                        screenshot_path = out_dir / screenshot_name
+                        document_height = await page.evaluate(
+                            "Math.max(document.body?.scrollHeight || 0, "
+                            "document.documentElement?.scrollHeight || 0)"
                         )
-
-                    def on_console(message):
-                        console_messages.append(
-                            {
-                                "type": message.type,
-                                "text": message.text[:1000],
-                                "location": message.location,
-                            }
-                        )
-
-                    page.on("request", on_request)
-                    page.on("response", on_response)
-                    page.on("requestfailed", on_request_failed)
-                    page.on("console", on_console)
-                    async def dismiss_dialog(dialog):
-                        await dialog.dismiss()
-
-                    async def close_popup(popup):
-                        await popup.close()
-
-                    page.on("dialog", dismiss_dialog)
-                    page.on("popup", close_popup)
-
-                    await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-                    try:
-                        await page.wait_for_load_state("networkidle", timeout=5_000)
-                    except Exception as exc:
-                        logger.debug("Viewport did not reach network idle: %s", exc)
-
-                    if script_probe_tasks:
-                        await asyncio.gather(*script_probe_tasks, return_exceptions=True)
-
-                    rendered_navigation = []
-                    if viewport["name"] == "desktop":
-                        rendered_navigation = await _capture_rendered_navigation(page)
-
-                    screenshot_name = f"{viewport['name']}.png"
-                    screenshot_path = out_dir / screenshot_name
-                    await page.screenshot(path=str(screenshot_path), full_page=True)
-
-                    data = await page.evaluate(
-                        _VISUAL_EXTRACTOR_JS,
-                        {
-                            "is_touch": viewport["name"] in {"tablet", "mobile"},
-                            "expected_width": viewport["width"],
-                        },
-                    )
-                    data.pop("navigation", None)
-                    if rendered_navigation and not snapshot["navigation"]:
-                        snapshot["navigation"] = rendered_navigation
-                    technology_signals = data.pop("_technology_signals", None)
-                    if technology_signals is not None:
-                        technology_signals["script_content_markers"] = sorted(script_content_markers)
-                        technology_signals["technology_versions"] = technology_versions
-                        response_headers: list[str] = []
-                        for entry in network_entries.values():
-                            if entry.get("resource_type") != "document":
-                                continue
-                            if entry.get("server"):
-                                response_headers.append(f"Server: {entry['server']}")
-                            if entry.get("powered_by"):
-                                response_headers.append(
-                                    f"X-Powered-By: {entry['powered_by']}"
-                                )
-                        technology_signals["response_headers"] = list(
-                            dict.fromkeys(response_headers)
-                        )
-                    data["technologies"] = _detect_technologies(technology_signals)
-                    issues = data.get("responsive_issues") or []
-                    _attach_issue_evidence(
-                        issues,
-                        screenshot_path,
-                        out_dir,
-                        bookmark_id,
-                        run_id,
-                        viewport["name"],
-                        viewport["device_scale_factor"],
-                    )
-                    data.update(
-                        {
-                            "name": viewport["name"],
-                            "width": viewport["width"],
-                            "height": viewport["height"],
-                            "screenshot": screenshot_name,
-                            "screenshot_url": (
-                                f"/api/files/visual-snapshots/{bookmark_id}/runs/"
-                                f"{run_id}/{screenshot_name}"
+                        capture_height = _bounded_screenshot_height(viewport, int(document_height or 0))
+                        await asyncio.wait_for(
+                            page.screenshot(
+                                path=str(screenshot_path),
+                                clip={
+                                    "x": 0,
+                                    "y": 0,
+                                    "width": viewport["width"],
+                                    "height": capture_height,
+                                },
                             ),
-                            "dominant_colors": _dominant_colors(screenshot_path),
-                            "network": _network_summary(network_entries),
-                            "console_messages": console_messages[:60],
-                        }
-                    )
-                    snapshot["viewports"].append(data)
-                except Exception as e:
-                    snapshot["errors"].append(
-                        {
-                            "viewport": viewport["name"],
-                            "message": str(e)[:1000],
-                        }
-                    )
-                finally:
-                    if context is not None:
-                        await context.close()
-                    elif page is not None:
-                        await page.close()
-        finally:
-            await browser.close()
+                            timeout=20.0,
+                        )
+                        if screenshot_path.stat().st_size > MAX_SCREENSHOT_FILE_BYTES:
+                            screenshot_path.unlink(missing_ok=True)
+                            raise RuntimeError("Rendered page exceeds the screenshot safety limit")
+
+                        data = await page.evaluate(
+                            _VISUAL_EXTRACTOR_JS,
+                            {
+                                "is_touch": viewport["name"] in {"tablet", "mobile"},
+                                "expected_width": viewport["width"],
+                            },
+                        )
+                        data.pop("navigation", None)
+                        if rendered_navigation and not snapshot["navigation"]:
+                            snapshot["navigation"] = rendered_navigation
+                        technology_signals = data.pop("_technology_signals", None)
+                        if technology_signals is not None:
+                            technology_signals["script_content_markers"] = sorted(script_content_markers)
+                            technology_signals["technology_versions"] = technology_versions
+                            response_headers: list[str] = []
+                            for entry in network_entries.values():
+                                if entry.get("resource_type") != "document":
+                                    continue
+                                if entry.get("server"):
+                                    response_headers.append(f"Server: {entry['server']}")
+                                if entry.get("powered_by"):
+                                    response_headers.append(
+                                        f"X-Powered-By: {entry['powered_by']}"
+                                    )
+                            technology_signals["response_headers"] = list(
+                                dict.fromkeys(response_headers)
+                            )
+                        data["technologies"] = _detect_technologies(technology_signals)
+                        issues = data.get("responsive_issues") or []
+                        _attach_issue_evidence(
+                            issues,
+                            screenshot_path,
+                            out_dir,
+                            bookmark_id,
+                            run_id,
+                            viewport["name"],
+                            viewport["device_scale_factor"],
+                        )
+                        data.update(
+                            {
+                                "name": viewport["name"],
+                                "width": viewport["width"],
+                                "height": viewport["height"],
+                                "screenshot": screenshot_name,
+                                "screenshot_truncated": int(document_height or 0) > capture_height,
+                                "screenshot_url": (
+                                    f"/api/files/visual-snapshots/{bookmark_id}/runs/"
+                                    f"{run_id}/{screenshot_name}"
+                                ),
+                                "dominant_colors": _dominant_colors(screenshot_path),
+                                "network": _network_summary(network_entries),
+                                "console_messages": console_messages[:60],
+                            }
+                        )
+                        snapshot["viewports"].append(data)
+                    except Exception as e:
+                        snapshot["errors"].append(
+                            {
+                                "viewport": viewport["name"],
+                                "message": str(e)[:1000],
+                            }
+                        )
+                    finally:
+                        if context is not None:
+                            await context.close()
+                        elif page is not None:
+                            await page.close()
+            finally:
+                await browser.close()
 
     if on_progress:
         on_progress("site_structure", len(VIEWPORTS), DESIGN_INSPECTION_STEPS)

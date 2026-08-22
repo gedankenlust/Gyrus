@@ -9,7 +9,8 @@ from PIL import Image
 
 from database import DATA_DIR
 from services.bounded_download import get_limited
-from services.outbound_url_security import request_guard
+from services.outbound_url_security import explicit_private_hostname, request_guard
+from services.safe_egress_proxy import SafeEgressProxy
 
 logger = logging.getLogger(__name__)
 
@@ -37,11 +38,15 @@ _UA_HEADERS = {
 async def fetch_metadata(url: str) -> dict:
     result = {"og_image_url": None, "og_image_path": None, "description": None, "favicon_path": None}
     try:
-        async with httpx.AsyncClient(
+        async with SafeEgressProxy(
+            allowed_private_host=explicit_private_hostname(url)
+        ) as proxy, httpx.AsyncClient(
             timeout=TIMEOUT,
             follow_redirects=True,
             headers=_UA_HEADERS,
             event_hooks={"request": [request_guard(url)]},
+            proxy=proxy.url,
+            trust_env=False,
         ) as client:
             from bs4 import BeautifulSoup
 

@@ -16,6 +16,7 @@ from services.outbound_url_security import (
     request_guard,
     validate_outbound_url,
 )
+from services.safe_egress_proxy import SafeEgressProxy
 
 logger = logging.getLogger(__name__)
 
@@ -388,21 +389,25 @@ class ScraperService:
         }
 
         try:
-            async with httpx.AsyncClient(
-                timeout=self.timeout,
-                follow_redirects=True,
-                headers=self.headers,
-                event_hooks={"request": [request_guard(url)]},
-            ) as client:
-                if _is_youtube(url):
-                    yt = await self._extract_youtube(url, client)
-                    if yt.get("content"):
-                        return yt
-                    # Fall through to generic scraping if YouTube extraction
-                    # produced nothing useful.
+            allowed_private_host = explicit_private_hostname(url)
+            async with SafeEgressProxy(allowed_private_host=allowed_private_host) as proxy:
+                async with httpx.AsyncClient(
+                    timeout=self.timeout,
+                    follow_redirects=True,
+                    headers=self.headers,
+                    event_hooks={"request": [request_guard(url)]},
+                    proxy=proxy.url,
+                    trust_env=False,
+                ) as client:
+                    if _is_youtube(url):
+                        yt = await self._extract_youtube(url, client)
+                        if yt.get("content"):
+                            return yt
+                        # Fall through to generic scraping if YouTube extraction
+                        # produced nothing useful.
 
-                html = await _fetch_text(client, url)
-                result.update(await asyncio.to_thread(_parse_reader_document, html))
+                    html = await _fetch_text(client, url)
+                    result.update(await asyncio.to_thread(_parse_reader_document, html))
 
         except Exception as e:
             logger.warning("Error scraping %s: %s", url, e)
@@ -435,61 +440,66 @@ class ScraperService:
         try:
             await validate_outbound_url(url, allowed_private_host=allowed_private_host)
             async with _render_semaphore:
-                async with async_playwright() as playwright:
-                    browser = await playwright.chromium.launch(headless=True)
-                    context = None
-                    try:
-                        context = await browser.new_context(
-                            viewport={"width": 1200, "height": 900},
-                            service_workers="block",
-                            permissions=[],
+                async with SafeEgressProxy(allowed_private_host=allowed_private_host) as proxy:
+                    async with async_playwright() as playwright:
+                        browser = await playwright.chromium.launch(
+                            headless=True,
+                            proxy={"server": proxy.url, "bypass": ""},
+                            args=["--proxy-bypass-list=<-loopback>"],
                         )
+                        context = None
+                        try:
+                            context = await browser.new_context(
+                                viewport={"width": 1200, "height": 900},
+                                service_workers="block",
+                                permissions=[],
+                            )
 
-                        async def guard_route(route):
-                            request_url = route.request.url
-                            if request_url.startswith(("data:", "blob:", "about:")):
+                            async def guard_route(route):
+                                request_url = route.request.url
+                                if request_url.startswith(("data:", "blob:", "about:")):
+                                    await route.continue_()
+                                    return
+                                try:
+                                    await validate_outbound_url(
+                                        request_url,
+                                        allowed_private_host=allowed_private_host,
+                                        dns_cache=dns_cache,
+                                    )
+                                except ValueError:
+                                    await route.abort("blockedbyclient")
+                                    return
                                 await route.continue_()
-                                return
+
+                            await context.route("**/*", guard_route)
+                            page = await context.new_page()
+                            await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
                             try:
-                                await validate_outbound_url(
-                                    request_url,
-                                    allowed_private_host=allowed_private_host,
-                                    dns_cache=dns_cache,
-                                )
-                            except ValueError:
-                                await route.abort("blockedbyclient")
-                                return
-                            await route.continue_()
+                                await page.wait_for_load_state("networkidle", timeout=5_000)
+                            except Exception:
+                                # Long-polling apps often never become idle; their
+                                # visible DOM is still ready after DOMContentLoaded.
+                                pass
 
-                        await context.route("**/*", guard_route)
-                        page = await context.new_page()
-                        await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-                        try:
-                            await page.wait_for_load_state("networkidle", timeout=5_000)
-                        except Exception:
-                            # Long-polling apps often never become idle; their
-                            # visible DOM is still ready after DOMContentLoaded.
-                            pass
-
-                        result["title"] = await page.title()
-                        content = ""
-                        for selector in ("article", "main"):
-                            locator = page.locator(selector).first
-                            if await locator.count():
-                                candidate = (await locator.inner_text()).strip()
-                                if len(candidate) >= 40:
-                                    content = candidate
-                                    break
-                        if not content:
-                            content = (await page.locator("body").inner_text()).strip()
-                        content = re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", content)
-                        result["content"] = content[:12_000]
-                    finally:
-                        try:
-                            if context is not None:
-                                await context.close()
+                            result["title"] = await page.title()
+                            content = ""
+                            for selector in ("article", "main"):
+                                locator = page.locator(selector).first
+                                if await locator.count():
+                                    candidate = (await locator.inner_text()).strip()
+                                    if len(candidate) >= 40:
+                                        content = candidate
+                                        break
+                            if not content:
+                                content = (await page.locator("body").inner_text()).strip()
+                            content = re.sub(r"\n[ \t]*\n(?:[ \t]*\n)+", "\n\n", content)
+                            result["content"] = content[:12_000]
                         finally:
-                            await browser.close()
+                            try:
+                                if context is not None:
+                                    await context.close()
+                            finally:
+                                await browser.close()
         except Exception as exc:
             logger.warning("Rendered Reader extraction failed for %s: %s", url, exc)
             result["error"] = str(exc)
@@ -582,7 +592,7 @@ class ScraperService:
             "category": ["PERFORMANCE"],
             # No API key for now (public usage limits apply)
         }
-        
+
         result = {
             "lcp": None, # Largest Contentful Paint
             "cls": None, # Cumulative Layout Shift
@@ -590,7 +600,7 @@ class ScraperService:
             "score": None,
             "error": None
         }
-        
+
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 payload = await _fetch_text(
@@ -614,7 +624,7 @@ class ScraperService:
         except (ScraperRequestError, json.JSONDecodeError, AttributeError) as exc:
             logger.warning("PageSpeed metrics unavailable for %s: %s", url, exc)
             result["error"] = str(exc)
-            
+
         return result
 
 scraper_service = ScraperService()

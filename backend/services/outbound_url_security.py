@@ -59,22 +59,33 @@ async def validate_outbound_url(
     allowed_private_host: str | None = None,
     dns_cache: dict[tuple[str, int], tuple[str, ...]] | None = None,
 ) -> None:
+    await resolve_outbound_addresses(
+        url,
+        allowed_private_host=allowed_private_host,
+        dns_cache=dns_cache,
+    )
+
+
+async def resolve_outbound_addresses(
+    url: str,
+    *,
+    allowed_private_host: str | None = None,
+    dns_cache: dict[tuple[str, int], tuple[str, ...]] | None = None,
+) -> tuple[str, ...]:
+    """Validate a URL and return the exact addresses approved for connecting."""
     parsed, port = _parsed_http_url(url)
     host = (parsed.hostname or "").lower().rstrip(".")
 
-    # Direct localhost/private bookmarks are an intentional designer feature.
-    # They do not grant a public page permission to redirect to other LAN hosts.
-    if allowed_private_host and host == allowed_private_host:
-        return
+    private_host_allowed = bool(allowed_private_host and host == allowed_private_host)
 
     try:
         literal_address = ipaddress.ip_address(host)
     except ValueError:
         literal_address = None
     if literal_address is not None:
-        if not literal_address.is_global:
+        if not literal_address.is_global and not private_host_allowed:
             raise OutboundURLBlocked("Public pages may not access localhost or private networks")
-        return
+        return (str(literal_address),)
 
     key = (host, port)
     addresses = dns_cache.get(key) if dns_cache is not None else None
@@ -96,8 +107,9 @@ async def validate_outbound_url(
             address = ipaddress.ip_address(value)
         except ValueError as exc:
             raise OutboundURLBlocked(f"Host resolved to an invalid address: {host}") from exc
-        if not address.is_global:
+        if not address.is_global and not private_host_allowed:
             raise OutboundURLBlocked("Public pages may not access localhost or private networks")
+    return addresses
 
 
 def request_guard(initial_url: str):

@@ -6,8 +6,18 @@ from sqlalchemy.orm import Session
 from models.bookmark import Bookmark
 from models.collection import Collection
 from services.url_utils import normalize_url
+from services.outbound_url_security import validate_bookmark_url_syntax
 
 logger = logging.getLogger(__name__)
+
+MAX_IMPORTED_BOOKMARKS = 20_000
+MAX_IMPORTED_COLLECTIONS = 5_000
+MAX_IMPORTED_TITLE_CHARS = 1_000
+MAX_IMPORTED_COLLECTION_NAME_CHARS = 200
+
+
+class ImportLimitExceeded(ValueError):
+    pass
 
 
 def parse_netscape_html(html_content: str, db: Session,
@@ -18,23 +28,22 @@ def parse_netscape_html(html_content: str, db: Session,
     existing: set[str] = {normalize_url(url) for (url,) in db.query(Bookmark.url).all()}
     seen: set[str] = set()
 
-    # Optional wrapper folder — keeps a given import (e.g. one browser)
-    # isolated from others. Reused on re-import so it doesn't duplicate.
-    root_pid = None
-    name = (root_folder_name or "").strip()
-    if name:
-        root_pid = _get_or_create_collection(db, name, None, stats)
-
-    root_dl = soup.find("dl")
-    if root_dl:
-        _walk_dl_iterative(root_dl, parent_id=root_pid, db=db, stats=stats,
-                           existing=existing, seen=seen)
-    else:
-        for a in soup.find_all("a", href=True):
-            _import_anchor(a, parent_id=root_pid, db=db, stats=stats,
-                           existing=existing, seen=seen)
-
     try:
+        # Optional wrapper folder — keeps a given import (e.g. one browser)
+        # isolated from others. Reused on re-import so it doesn't duplicate.
+        root_pid = None
+        name = (root_folder_name or "").strip()[:MAX_IMPORTED_COLLECTION_NAME_CHARS]
+        if name:
+            root_pid = _get_or_create_collection(db, name, None, stats)
+
+        root_dl = soup.find("dl")
+        if root_dl:
+            _walk_dl_iterative(root_dl, parent_id=root_pid, db=db, stats=stats,
+                               existing=existing, seen=seen)
+        else:
+            for a in soup.find_all("a", href=True):
+                _import_anchor(a, parent_id=root_pid, db=db, stats=stats,
+                               existing=existing, seen=seen)
         db.commit()
     except Exception:
         db.rollback()
@@ -56,17 +65,22 @@ def _get_or_create_collection(db: Session, name: str, parent_id, stats: dict):
     Merging by (name, parent) means re-importing a browser export slots new
     bookmarks into the existing folders instead of duplicating the whole tree.
     """
+    safe_name = name.strip()[:MAX_IMPORTED_COLLECTION_NAME_CHARS] or "Unnamed"
     found = db.query(Collection).filter(
-        Collection.name == name,
+        Collection.name == safe_name,
         Collection.parent_id == parent_id,
     ).first()
     if found:
         return found.id
+    if stats["collections_created"] >= MAX_IMPORTED_COLLECTIONS:
+        raise ImportLimitExceeded(
+            f"Bookmark import is limited to {MAX_IMPORTED_COLLECTIONS} folders"
+        )
     # Append to the end of the sibling group so imported order is preserved
     # as the manual order.
     max_pos = (db.query(func.max(Collection.position))
                .filter(Collection.parent_id == parent_id).scalar())
-    col = Collection(name=name, parent_id=parent_id, icon="folder",
+    col = Collection(name=safe_name, parent_id=parent_id, icon="folder",
                      position=0 if max_pos is None else max_pos + 1)
     db.add(col)
     db.flush()
@@ -147,16 +161,22 @@ def _first_dt_in(node: Tag) -> Tag | None:
 def _import_anchor(a: Tag, parent_id, db: Session, stats: dict,
                    existing: set, seen: set) -> None:
     raw = a["href"].strip()
-    if not raw or raw.startswith("javascript:") or raw.startswith("about:"):
+    try:
+        validate_bookmark_url_syntax(raw)
+    except ValueError:
         stats["skipped"] += 1
         return
     url = normalize_url(raw)
     if url in existing or url in seen:
         stats["skipped"] += 1
         return
+    if stats["imported"] >= MAX_IMPORTED_BOOKMARKS:
+        raise ImportLimitExceeded(
+            f"Bookmark import is limited to {MAX_IMPORTED_BOOKMARKS} bookmarks"
+        )
     seen.add(url)
     bookmark = Bookmark(
-        title=a.get_text(strip=True) or url,
+        title=(a.get_text(strip=True) or url)[:MAX_IMPORTED_TITLE_CHARS],
         url=url,
         collection_id=parent_id,
         source="import",

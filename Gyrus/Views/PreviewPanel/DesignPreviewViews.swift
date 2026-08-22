@@ -249,7 +249,7 @@ struct LiveViewportWebView: NSViewRepresentable {
     let viewport: APIClient.VisualViewportDTO
 
     func makeNSView(context: Context) -> WKWebView {
-        let configuration = WKWebViewConfiguration()
+        let configuration = WebPreviewSecurityPolicy.configuration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -283,6 +283,25 @@ struct LiveViewportWebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
             currentURL = webView.url ?? currentURL
+        }
+
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            guard let target = navigationAction.request.url else {
+                decisionHandler(.cancel)
+                return
+            }
+            let isMainFrame = navigationAction.targetFrame?.isMainFrame ?? true
+            decisionHandler(
+                WebPreviewSecurityPolicy.allowsNavigation(
+                    to: target,
+                    from: currentURL,
+                    isMainFrame: isMainFrame
+                ) ? .allow : .cancel
+            )
         }
     }
 }
