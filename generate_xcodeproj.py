@@ -27,8 +27,8 @@ SWIFT_VERSION = "5.9"
 # Chromium 13+). Keep this in sync with LSMinimumSystemVersion in
 # Gyrus/Resources/Info.plist and the requirements in README/GETTING_STARTED.
 MACOS_MIN = "14.0"
-MARKETING_VERSION = "1.4.0"
-BUILD_VERSION = "17"
+MARKETING_VERSION = "1.5.0"
+BUILD_VERSION = "18"
 
 # Everything the "Bundle Python Backend" phase must keep out of the shipped app.
 #

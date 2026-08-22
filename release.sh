@@ -2,12 +2,12 @@
 #
 # Gyrus release script — prepares versions, builds, packages, and publishes.
 #
-#   ./release.sh 1.4.0-beta.2            # bump + build for a release PR
-#   ./release.sh 1.4.0-beta.2 --publish  # build prepared main + tag + upload
+#   ./release.sh 1.5.1            # bump + build for a release PR
+#   ./release.sh 1.5.1 --publish  # build prepared main + tag + upload
 #
 # macOS and Chrome require a numeric app version. A prerelease therefore uses
-# 1.4.0 inside the app and extension, while Git/GitHub include the prerelease
-# suffix, for example v1.4.0-beta.3.
+# 1.6.0 inside the app and extension, while Git/GitHub include the prerelease
+# suffix, for example v1.6.0-beta.1.
 #
 # Version locations kept in sync:
 #   - Gyrus.xcodeproj/project.pbxproj  MARKETING_VERSION (2×) + CURRENT_PROJECT_VERSION (2×)
@@ -33,7 +33,7 @@ if [[ "$RELEASE_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)(-(beta|rc)\.[0-9]+)?$ ]]; 
     RELEASE_CHANNEL="${BASH_REMATCH[2]#-}"
 else
     echo "Usage: ./release.sh <version> [--publish]"
-    echo "Examples: ./release.sh 1.4.0-beta.1  |  ./release.sh 1.4.0"
+    echo "Examples: ./release.sh 1.6.0-beta.1  |  ./release.sh 1.5.1"
     exit 1
 fi
 TAG="v$RELEASE_VERSION"
@@ -112,10 +112,20 @@ PY
     sed -i '' -E "s/^BUILD_VERSION = \"[0-9]+\"/BUILD_VERSION = \"$NEW_BUILD\"/" "$GENERATOR"
     sed -i '' -E "s/^APP_VERSION = \"[^\"]+\"/APP_VERSION = \"$RELEASE_VERSION\"/" "$BACKEND_MAIN"
     BADGE_VERSION="${RELEASE_VERSION/-/--}"
-    sed -i '' -E "s/version-[0-9]+\.[0-9]+\.[0-9]+(--(beta|rc)\.[0-9]+)?-f59e0b/version-$BADGE_VERSION-f59e0b/" "$README"
+    if [[ -n "$RELEASE_CHANNEL" ]]; then
+        BADGE_COLOR="f59e0b"
+        STATUS_BADGE="Early%20Preview"
+        RELEASE_LABEL="preview"
+    else
+        BADGE_COLOR="2ea44f"
+        STATUS_BADGE="Stable%20release"
+        RELEASE_LABEL="release"
+    fi
+    sed -i '' -E "s/status-[A-Za-z0-9%]+-[0-9a-f]+/status-$STATUS_BADGE-$BADGE_COLOR/" "$README"
+    sed -i '' -E "s/version-[0-9]+\.[0-9]+\.[0-9]+(--(beta|rc)\.[0-9]+)?-[0-9a-f]+/version-$BADGE_VERSION-$BADGE_COLOR/" "$README"
     sed -i '' -E "s/Gyrus-Saver-v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?\.zip/Gyrus-Saver-v$RELEASE_VERSION.zip/g" "$README"
     sed -i '' -E "s#/releases/tag/v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?#/releases/tag/$TAG#g" "$README"
-    sed -i '' -E "s/Current preview: v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?/Current preview: $TAG/" "$README"
+    sed -i '' -E "s/Current (preview|release): v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc)\.[0-9]+)?/Current $RELEASE_LABEL: $TAG/" "$README"
 fi
 
 # Verify nothing was missed

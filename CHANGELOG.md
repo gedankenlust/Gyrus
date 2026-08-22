@@ -5,6 +5,35 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.5.0] – 2026-08-22
+
+### Highlights
+- **A complete local web-research workspace.** Gyrus combines bookmark
+  organization, a formatted Reader, notes, full-text and semantic search, and
+  optional page-grounded local AI in one native macOS app.
+- **Chromium-backed website inspection.** Capture and compare desktop, tablet,
+  and mobile layouts; inspect design systems, reusable components, assets,
+  accessibility, SEO, network activity, and console output.
+- **Website intelligence.** Detect supported technologies and rendering
+  patterns, reconstruct rendered navigation, discover sitemaps, and map
+  same-origin pages with a bounded crawl.
+- **Private by design.** User data stays on the Mac, AI runs through local
+  Ollama, the browser extension has narrowly scoped access, and outbound page
+  requests are protected against private-network access.
+
+### Changed
+- Promoted the current release channel from Early Preview to the regular
+  `1.5.0` release line.
+- Page and Design navigation now use their complete visual segment as the
+  click target instead of responding only over the icon or text.
+- Refined the Design workspace hierarchy and component descriptions for faster
+  scanning without hiding technical evidence.
+
+### Verified
+- Full backend and Swift regression suites, secret scanning, bundled dependency
+  auditing, Chromium launch, app signature verification, and DMG validation are
+  release gates.
+
 ## [1.4.0-beta.3] – 2026-08-22
 
 ### Added

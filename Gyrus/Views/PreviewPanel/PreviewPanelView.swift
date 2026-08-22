@@ -268,6 +268,7 @@ struct BookmarkDetailView: View {
                                 pageMode == mode ? Color.accentColor.opacity(0.14) : .clear,
                                 in: RoundedRectangle(cornerRadius: 6)
                             )
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
