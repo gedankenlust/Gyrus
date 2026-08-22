@@ -385,6 +385,10 @@ struct ComponentGroupView: View {
     let screenshotPath: String
     let viewportWidth: Int
 
+    private var summary: LocalizedStringKey {
+        "\(group.variants.count) patterns · \(group.instanceCount) elements"
+    }
+
     var body: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 8) {
@@ -403,16 +407,10 @@ struct ComponentGroupView: View {
                 Label(LocalizedStringKey(group.title), systemImage: group.icon)
                     .font(.caption.bold())
                 Spacer()
-                if group.instanceCount != group.variants.count {
-                    Text(verbatim: "\(group.variants.count) / \(group.instanceCount)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .help("Distinct patterns / instances found")
-                } else {
-                    Text(verbatim: "\(group.variants.count)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+                Text(summary)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .help("Distinct patterns / instances found")
             }
         }
         .padding(8)
@@ -727,6 +725,34 @@ struct ElementSampleRow: View {
         """
     }
 
+    private var componentRole: String {
+        let tag = sample.tag.lowercased()
+        let selector = sample.selectorHint.lowercased()
+
+        if selector.contains("dropdown") || selector.contains("submenu") {
+            return "Dropdown control"
+        }
+        if tag == "header" { return "Page header" }
+        if tag == "nav" { return "Navigation area" }
+        if tag == "footer" { return "Page footer" }
+        if tag == "main" { return "Page content" }
+        if tag == "aside" { return "Sidebar" }
+        if tag == "section" || tag == "article" { return "Content section" }
+        if tag == "form" { return "Form" }
+        if tag == "input" || tag == "textarea" { return "Text field" }
+        if tag == "select" { return "Selection field" }
+        if tag == "label" { return "Form label" }
+        if tag == "button" { return "Button" }
+        if tag == "a" && (selector.contains("btn") || selector.contains("cta")) {
+            return "Call to action"
+        }
+        if tag == "a" && (selector.contains("nav") || selector.contains("menu") || selector.contains("anchor")) {
+            return "Menu link"
+        }
+        if selector.contains("card") || selector.contains("tile") { return "Card" }
+        return "Component"
+    }
+
     var body: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 8) {
@@ -780,25 +806,32 @@ struct ElementSampleRow: View {
                         viewportWidth: viewportWidth
                     )
                 }
-                Text(verbatim: sample.selectorHint)
-                    .font(.system(.caption, design: .monospaced).weight(.semibold))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                Text(verbatim: sample.tag)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                if let variant, variant.count > 1 {
-                    Text(verbatim: "\(variant.count)x")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(Color.accentColor.opacity(0.14), in: Capsule())
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(LocalizedStringKey(componentRole))
+                            .font(.caption.weight(.semibold))
+                        Text(verbatim: "<\(sample.tag)>")
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                    Text(verbatim: sample.selectorHint)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
+                .layoutPriority(1)
                 Spacer()
-                Text(verbatim: "\(sample.width)x\(sample.height)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .trailing, spacing: 3) {
+                    if let variant, variant.count > 1 {
+                        Text("\(variant.count) uses")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    Text(verbatim: "\(sample.width) × \(sample.height) px")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .padding(8)

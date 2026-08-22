@@ -67,6 +67,13 @@ jobs:
       - name: Build the bundled Python runtime
         run: ./build_python_runtime.sh
 
+      - name: Audit the bundled Python runtime
+        run: |
+          python3 -m pip install pip-audit==2.9.0
+          python3 -m pip_audit \
+            --path python-runtime/lib/python3.11/site-packages \
+            --progress-spinner off
+
       - name: Serve the API from the bundled runtime and exercise it
         run: |
           set -euo pipefail

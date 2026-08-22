@@ -15,7 +15,8 @@ cd "$(dirname "$0")"   # backend/
 
 PY_VERSION="3.11.15"
 PY_BUILD_TAG="20260623"
-PIP_VERSION="26.1.2"
+PIP_VERSION="26.2"
+SETUPTOOLS_VERSION="83.0.0"
 RUNTIME_DIR="python-runtime"
 
 ARCH="$(uname -m)"
@@ -56,7 +57,7 @@ rm -f "$TMP_TGZ"
 
 PY="$RUNTIME_DIR/bin/python3"
 echo "→ Installing production dependencies into the runtime…"
-"$PY" -m pip install "pip==$PIP_VERSION" >/dev/null
+"$PY" -m pip install "pip==$PIP_VERSION" "setuptools==$SETUPTOOLS_VERSION" >/dev/null
 # Install everything except the dev/test tools (kept out of the shipped runtime).
 grep -ivE '^(pytest|pytest-asyncio)' requirements.txt > "$RUNTIME_DIR/.prod-requirements.txt"
 "$PY" -m pip install -r "$RUNTIME_DIR/.prod-requirements.txt"

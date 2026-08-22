@@ -54,6 +54,14 @@ private enum PageMode: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var icon: String {
+        switch self {
+        case .overview: "info.circle"
+        case .reader: "book.pages"
+        case .live: "globe"
+        }
+    }
+
     static func fromPreference(_ value: String) -> PageMode {
         switch value {
         case "Reader": .reader
@@ -246,15 +254,28 @@ struct BookmarkDetailView: View {
 
     private var pageView: some View {
         VStack(spacing: 0) {
-            Picker("Page View", selection: $pageMode) {
+            HStack(spacing: 4) {
                 ForEach(PageMode.allCases) { mode in
-                    Text(LocalizedStringKey(mode.rawValue)).tag(mode)
+                    Button {
+                        pageMode = mode
+                    } label: {
+                        Label(LocalizedStringKey(mode.rawValue), systemImage: mode.icon)
+                            .font(.callout.weight(pageMode == mode ? .semibold : .regular))
+                            .foregroundStyle(pageMode == mode ? Color.accentColor : .secondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                pageMode == mode ? Color.accentColor.opacity(0.14) : .clear,
+                                in: RoundedRectangle(cornerRadius: 6)
+                            )
+                    }
+                    .buttonStyle(.plain)
                 }
+                Spacer(minLength: 0)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
             .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.vertical, 7)
+            .background(.bar)
             Divider()
 
             switch pageMode {

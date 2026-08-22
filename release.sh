@@ -6,7 +6,8 @@
 #   ./release.sh 1.4.0-beta.2 --publish  # build prepared main + tag + upload
 #
 # macOS and Chrome require a numeric app version. A prerelease therefore uses
-# 1.4.0 inside the app and extension, while Git/GitHub use v1.4.0-beta.1.
+# 1.4.0 inside the app and extension, while Git/GitHub include the prerelease
+# suffix, for example v1.4.0-beta.3.
 #
 # Version locations kept in sync:
 #   - Gyrus.xcodeproj/project.pbxproj  MARKETING_VERSION (2×) + CURRENT_PROJECT_VERSION (2×)
@@ -144,6 +145,11 @@ echo "✓ Prepared app, backend, extension, generator, and README versions verif
 
 # --- Build + package --------------------------------------------------------
 echo "▶ Security and regression tests…"
+if command -v gitleaks >/dev/null 2>&1; then
+    gitleaks git . --redact --exit-code 1
+else
+    echo "⚠ gitleaks is not installed; skipping the local history secret scan."
+fi
 backend/venv/bin/python -m pytest -q backend/tests
 xcodebuild test -project Gyrus.xcodeproj -scheme Gyrus \
     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO

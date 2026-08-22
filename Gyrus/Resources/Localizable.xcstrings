@@ -10345,6 +10345,204 @@
         }
       }
     },
+    "%lld patterns · %lld elements": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld Muster · %2$lld Elemente"
+          }
+        }
+      }
+    },
+    "%lld uses": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Vorkommen"
+          }
+        }
+      }
+    },
+    "Button": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schaltfläche"
+          }
+        }
+      }
+    },
+    "Call to action": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Handlungsaufruf"
+          }
+        }
+      }
+    },
+    "Card": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Karte"
+          }
+        }
+      }
+    },
+    "Component": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Komponente"
+          }
+        }
+      }
+    },
+    "Content section": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inhaltsbereich"
+          }
+        }
+      }
+    },
+    "Dropdown control": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dropdown-Schalter"
+          }
+        }
+      }
+    },
+    "Form": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formular"
+          }
+        }
+      }
+    },
+    "Form label": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Feldbeschriftung"
+          }
+        }
+      }
+    },
+    "Menu link": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menülink"
+          }
+        }
+      }
+    },
+    "Navigation area": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Navigationsbereich"
+          }
+        }
+      }
+    },
+    "Page content": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seiteninhalt"
+          }
+        }
+      }
+    },
+    "Page footer": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenfuß"
+          }
+        }
+      }
+    },
+    "Page header": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenkopf"
+          }
+        }
+      }
+    },
+    "Selection field": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auswahlfeld"
+          }
+        }
+      }
+    },
+    "Sidebar": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenleiste"
+          }
+        }
+      }
+    },
+    "Text field": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Textfeld"
+          }
+        }
+      }
+    },
     "Copy across instances": {
       "extractionState": "manual",
       "localizations": {

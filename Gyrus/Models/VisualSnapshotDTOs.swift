@@ -6,7 +6,7 @@ import Foundation
 // APIClient+Brain.swift to keep that file about requests, not shapes.
 
 extension APIClient {
-    struct VisualSnapshotDTO: Decodable {
+    struct VisualSnapshotDTO: Decodable, Sendable {
         let bookmarkId: String
         let schemaVersion: Int?
         let runId: String?
@@ -33,13 +33,13 @@ extension APIClient {
         }
     }
 
-    struct VisualNavigationGroupDTO: Decodable, Identifiable {
+    struct VisualNavigationGroupDTO: Decodable, Identifiable, Sendable {
         var id: String { "\(label)-\(items.first?.url ?? "")" }
         let label: String
         let items: [VisualNavigationItemDTO]
     }
 
-    struct VisualNavigationItemDTO: Decodable, Identifiable {
+    struct VisualNavigationItemDTO: Decodable, Identifiable, Sendable {
         var id: String { "\(label)-\(url ?? "")-\(children.count)" }
         var outlineChildren: [VisualNavigationItemDTO]? { children.isEmpty ? nil : children }
         let label: String
@@ -47,7 +47,7 @@ extension APIClient {
         let children: [VisualNavigationItemDTO]
     }
 
-    struct VisualSiteStructureDTO: Decodable {
+    struct VisualSiteStructureDTO: Decodable, Sendable {
         let origin: String
         let listedPageCount: Int
         let sitemapPageCount: Int
@@ -75,7 +75,7 @@ extension APIClient {
         }
     }
 
-    struct VisualSitePageDTO: Decodable, Identifiable {
+    struct VisualSitePageDTO: Decodable, Identifiable, Sendable {
         var id: String { url }
         let url: String
         let path: String
@@ -83,7 +83,7 @@ extension APIClient {
         let source: String
     }
 
-    struct VisualSitePageNodeDTO: Decodable, Identifiable {
+    struct VisualSitePageNodeDTO: Decodable, Identifiable, Sendable {
         var id: String { path }
         var outlineChildren: [VisualSitePageNodeDTO]? { children.isEmpty ? nil : children }
         let label: String
@@ -95,7 +95,7 @@ extension APIClient {
 
     /// One entry in the capture history. The full snapshot for a run is fetched
     /// separately, so the list stays cheap even with several runs on disk.
-    struct VisualSnapshotRunDTO: Decodable, Identifiable {
+    struct VisualSnapshotRunDTO: Decodable, Identifiable, Sendable {
         let runId: String
         let capturedAt: String?
         let status: String?
@@ -113,7 +113,7 @@ extension APIClient {
         }
     }
 
-    struct VisualSnapshotErrorDTO: Decodable, Identifiable {
+    struct VisualSnapshotErrorDTO: Decodable, Identifiable, Sendable {
         let viewport: String?
         let message: String?
 
@@ -135,7 +135,7 @@ extension APIClient {
         }
     }
 
-    struct VisualViewportDTO: Decodable {
+    struct VisualViewportDTO: Decodable, Sendable {
         let pageTitle: String?
         let metaDescription: String?
         let name: String
@@ -172,7 +172,7 @@ extension APIClient {
         }
     }
 
-    struct VisualTechnologyDTO: Decodable, Identifiable {
+    struct VisualTechnologyDTO: Decodable, Identifiable, Sendable {
         var id: String { "\(category)-\(name)" }
         let name: String
         let version: String?
@@ -181,7 +181,7 @@ extension APIClient {
         let evidence: [String]
     }
 
-    struct VisualResponsiveIssueDTO: Decodable, Identifiable {
+    struct VisualResponsiveIssueDTO: Decodable, Identifiable, Sendable {
         let id: String
         let kind: String
         let severity: String
@@ -203,7 +203,7 @@ extension APIClient {
         }
     }
 
-    struct VisualStructureDTO: Decodable {
+    struct VisualStructureDTO: Decodable, Sendable {
         let h1: [String]
         let h2: [String]
         let links: Int
@@ -213,7 +213,7 @@ extension APIClient {
         let forms: Int
     }
 
-    struct VisualSEODTO: Decodable {
+    struct VisualSEODTO: Decodable, Sendable {
         let title: String?
         let metaDescription: String?
         let canonical: String?
@@ -236,26 +236,26 @@ extension APIClient {
         }
     }
 
-    struct VisualMetaDTO: Decodable, Identifiable {
+    struct VisualMetaDTO: Decodable, Identifiable, Sendable {
         var id: String { "\(name ?? "")-\(content ?? "")" }
         let name: String?
         let content: String?
     }
 
-    struct VisualHeadingDTO: Decodable, Identifiable {
+    struct VisualHeadingDTO: Decodable, Identifiable, Sendable {
         var id: String { "\(level)-\(text)" }
         let level: Int
         let text: String
     }
 
-    struct VisualAssetsDTO: Decodable {
+    struct VisualAssetsDTO: Decodable, Sendable {
         let images: [VisualAssetDTO]?
         let icons: [VisualAssetDTO]?
         let stylesheets: [VisualAssetDTO]?
         let scripts: [VisualAssetDTO]?
     }
 
-    struct VisualAssetDTO: Decodable, Identifiable {
+    struct VisualAssetDTO: Decodable, Identifiable, Sendable {
         var id: String { "\(kind ?? "")-\(url ?? "")-\(selectorHint ?? "")" }
         let kind: String?
         let url: String?
@@ -279,7 +279,7 @@ extension APIClient {
         }
     }
 
-    struct VisualAccessibilityDTO: Decodable {
+    struct VisualAccessibilityDTO: Decodable, Sendable {
         let missingAltImages: [VisualAssetDTO]?
         let emptyButtons: [VisualAccessibilityItemDTO]?
         let unlabeledInputs: [VisualAccessibilityItemDTO]?
@@ -293,7 +293,7 @@ extension APIClient {
         }
     }
 
-    struct VisualAccessibilityItemDTO: Decodable, Identifiable {
+    struct VisualAccessibilityItemDTO: Decodable, Identifiable, Sendable {
         var id: String { "\(selectorHint ?? "")-\(text ?? "")-\(name ?? "")-\(placeholder ?? "")" }
         let selectorHint: String?
         let text: String?
@@ -310,19 +310,19 @@ extension APIClient {
         }
     }
 
-    struct VisualHeadingSkipDTO: Decodable, Identifiable {
+    struct VisualHeadingSkipDTO: Decodable, Identifiable, Sendable {
         var id: String { "\(from?.id ?? "")-\(to?.id ?? "")" }
         let from: VisualHeadingDTO?
         let to: VisualHeadingDTO?
     }
 
-    struct VisualCSSVariableDTO: Decodable, Identifiable {
+    struct VisualCSSVariableDTO: Decodable, Identifiable, Sendable {
         var id: String { name }
         let name: String
         let value: String
     }
 
-    struct VisualNetworkDTO: Decodable {
+    struct VisualNetworkDTO: Decodable, Sendable {
         let requestCount: Int?
         let resourceCounts: [VisualResourceCountDTO]?
         let failedRequests: [VisualNetworkRequestDTO]?
@@ -336,13 +336,13 @@ extension APIClient {
         }
     }
 
-    struct VisualResourceCountDTO: Decodable, Identifiable {
+    struct VisualResourceCountDTO: Decodable, Identifiable, Sendable {
         var id: String { type }
         let type: String
         let count: Int
     }
 
-    struct VisualNetworkRequestDTO: Decodable, Identifiable {
+    struct VisualNetworkRequestDTO: Decodable, Identifiable, Sendable {
         var id: String { "\(method ?? "")-\(url ?? "")-\(status ?? 0)" }
         let url: String?
         let method: String?
@@ -360,14 +360,14 @@ extension APIClient {
         }
     }
 
-    struct VisualConsoleMessageDTO: Decodable, Identifiable {
+    struct VisualConsoleMessageDTO: Decodable, Identifiable, Sendable {
         var id: String { "\(type ?? "")-\(text ?? "")-\(location?.url ?? "")-\(location?.lineNumber ?? 0)" }
         let type: String?
         let text: String?
         let location: VisualConsoleLocationDTO?
     }
 
-    struct VisualConsoleLocationDTO: Decodable {
+    struct VisualConsoleLocationDTO: Decodable, Sendable {
         let url: String?
         let lineNumber: Int?
         let columnNumber: Int?
@@ -379,7 +379,7 @@ extension APIClient {
         }
     }
 
-    struct VisualElementSampleDTO: Decodable, Identifiable {
+    struct VisualElementSampleDTO: Decodable, Identifiable, Sendable {
         var id: String {
             "\(selectorHint)-\(x)-\(y)-\(width)-\(height)-\(text)"
         }
@@ -421,7 +421,7 @@ extension APIClient {
         }
     }
 
-    struct BrainMessageDTO: Decodable {
+    struct BrainMessageDTO: Decodable, Sendable {
         let id: String
         let bookmarkId: String
         let role: String

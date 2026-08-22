@@ -466,13 +466,29 @@ struct VisualSnapshotTabView: View {
     }
 
     private var sectionPicker: some View {
-        Picker("Section", selection: $selectedSection) {
+        HStack(spacing: 2) {
             ForEach(designSections) { section in
-                Text(section.title).tag(section)
+                Button {
+                    selectedSection = section
+                } label: {
+                    Label(section.title, systemImage: section.icon)
+                        .font(.caption.weight(selectedSection == section ? .semibold : .medium))
+                        .foregroundStyle(selectedSection == section ? Color.accentColor : .secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                        .frame(maxWidth: .infinity, minHeight: 28)
+                        .padding(.horizontal, 6)
+                        .background(
+                            selectedSection == section ? Color.accentColor.opacity(0.14) : .clear,
+                            in: RoundedRectangle(cornerRadius: 6)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(section.title)
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        .padding(3)
+        .background(Color.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
     }
 
     @ViewBuilder
@@ -524,7 +540,7 @@ struct VisualSnapshotTabView: View {
 
     private var reviewSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 Picker("Mode", selection: $reviewMode) {
                     ForEach(DesignReviewMode.allCases) { mode in
                         Text(LocalizedStringKey(mode.rawValue)).tag(mode)
@@ -532,9 +548,12 @@ struct VisualSnapshotTabView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                // Three segments now, and the German labels are longer than the
-                // English ones.
-                .frame(width: 250)
+                .controlSize(.small)
+                .frame(width: 220)
+
+                if reviewMode != .compare {
+                    reviewViewportMenu
+                }
 
                 Spacer(minLength: 0)
 
@@ -551,12 +570,6 @@ struct VisualSnapshotTabView: View {
                 }
                 .buttonStyle(.borderless)
                 .disabled(snapshot?.viewports.isEmpty ?? true || isExportingPDF)
-            }
-
-            // The per-viewport picker is meaningless while every viewport is on
-            // screen at once.
-            if reviewMode != .compare {
-                reviewViewportPicker
             }
 
             if let snapshot, snapshot.viewports.isEmpty {
@@ -586,32 +599,42 @@ struct VisualSnapshotTabView: View {
     }
 
     @ViewBuilder
-    private var reviewViewportPicker: some View {
-        if let snapshot, snapshot.viewports.count > 1 {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 6)], alignment: .leading, spacing: 6) {
+    private var reviewViewportMenu: some View {
+        if let snapshot, let selectedViewport {
+            Menu {
                 ForEach(snapshot.viewports, id: \.name) { viewport in
                     Button {
                         selectedViewportName = viewport.name
                     } label: {
-                        VStack(spacing: 2) {
-                            Image(systemName: viewportIcon(viewport.name))
-                                .font(.caption2.weight(.semibold))
-                            Text(viewport.name.capitalized)
-                                .font(.caption.weight(.semibold))
-                            Text("\(viewport.width)x\(viewport.height)")
-                                .font(.caption2)
-                                .foregroundStyle((selectedViewport?.name == viewport.name) ? .white.opacity(0.78) : .secondary)
+                        Label {
+                            HStack(spacing: 4) {
+                                Text(LocalizedStringKey(viewport.name.capitalized))
+                                Text(verbatim: "\(viewport.width) × \(viewport.height)")
+                                    .foregroundStyle(.secondary)
+                            }
+                        } icon: {
+                            Image(systemName: selectedViewport.name == viewport.name
+                                  ? "checkmark"
+                                  : viewportIcon(viewport.name))
                         }
-                        .foregroundStyle((selectedViewport?.name == viewport.name) ? .white : .primary)
-                        .frame(maxWidth: .infinity, minHeight: 42)
-                        .background(
-                            (selectedViewport?.name == viewport.name ? Color.accentColor : Color.secondary.opacity(0.16)),
-                            in: RoundedRectangle(cornerRadius: 7)
-                        )
                     }
-                    .buttonStyle(.plain)
                 }
+            } label: {
+                Label {
+                    HStack(spacing: 4) {
+                        Text(LocalizedStringKey(selectedViewport.name.capitalized))
+                        Text(verbatim: "\(selectedViewport.width) × \(selectedViewport.height)")
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: viewportIcon(selectedViewport.name))
+                }
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
             }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Choose viewport")
         }
     }
 

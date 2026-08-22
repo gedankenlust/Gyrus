@@ -5,16 +5,17 @@
 # Gyrus
 
 <p>
-  Gyrus is a private, local-first macOS workspace for collecting and organizing
-  useful web pages, reading articles without clutter, inspecting responsive
-  designs, taking notes, and asking questions with optional local AI. Your
-  bookmarks, extracted content, notes, and conversations stay on your Mac
-  without an account, cloud sync, or telemetry.
+  Gyrus is a private, local-first macOS workspace for collecting useful web
+  pages, reading without clutter, and understanding how websites are built.
+  It combines bookmarks, responsive design inspection, technology and site
+  structure analysis, notes, and optional local AI. Your library, extracted
+  content, captures, and conversations stay on your Mac without an account,
+  cloud sync, or telemetry.
 </p>
 
-[![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-black?logo=apple)](#requirements) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Status](https://img.shields.io/badge/status-Early%20Preview-f59e0b.svg?style=flat-square)](#project-status) [![Version](https://img.shields.io/badge/version-1.4.0--beta.2-f59e0b.svg?style=flat-square)](#project-status) [![Built with Swift](https://img.shields.io/badge/Swift-SwiftUI-fa7343?logo=swift&logoColor=white&style=flat-square)](https://developer.apple.com/swiftui/) [![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)](https://fastapi.tiangolo.com/)
+[![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-black?logo=apple)](#requirements) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Status](https://img.shields.io/badge/status-Early%20Preview-f59e0b.svg?style=flat-square)](#project-status) [![Version](https://img.shields.io/badge/version-1.4.0--beta.3-f59e0b.svg?style=flat-square)](#project-status) [![Built with Swift](https://img.shields.io/badge/Swift-SwiftUI-fa7343?logo=swift&logoColor=white&style=flat-square)](https://developer.apple.com/swiftui/) [![Backend: FastAPI](https://img.shields.io/badge/backend-FastAPI-009688?logo=fastapi&logoColor=white&style=flat-square)](https://fastapi.tiangolo.com/)
 
-[**Download Early Preview**](https://github.com/gedankenlust/Gyrus/releases/tag/v1.4.0-beta.2) · [All releases](https://github.com/gedankenlust/Gyrus/releases) · [Features](#features) · [Browser extension](#browser-extension) · [AI Brain](#ai-brain-optional) · [Build](#building-from-source)
+[**Download Early Preview**](https://github.com/gedankenlust/Gyrus/releases/tag/v1.4.0-beta.3) · [All releases](https://github.com/gedankenlust/Gyrus/releases) · [Features](#features) · [Browser extension](#browser-extension) · [AI Brain](#ai-brain-optional) · [Build](#building-from-source)
 
 </div>
 
@@ -31,13 +32,16 @@
 
 Gyrus is a native macOS app for people who collect useful links and want to do
 more than leave them in an endless list. It combines a fast bookmark library,
-a focused reader, a browser-based design inspector, notes, and an optional
-local AI workspace.
+a focused Reader, and a Chromium-backed website inspector that exposes
+responsive layouts, reusable components, design tokens, technologies,
+navigation, and sitemap structure. Notes and optional local AI keep the
+research attached to the page it came from.
 
 Every selected bookmark opens into four clear top-level areas:
 
 1. **Page** — metadata, a formatted Reader, and the live website.
-2. **Design** — responsive rendering and inspectable design evidence.
+2. **Design** — responsive renders, design evidence, architecture, navigation,
+   and sitemap discovery.
 3. **AI Brain** — page-grounded chat using your local Ollama model.
 4. **Notes** — editable notes stored with the bookmark.
 
@@ -47,9 +51,9 @@ reading, and web-inspection app.
 ## Download and install
 
 Download **`Gyrus.dmg`** from the
-[current Early Preview](https://github.com/gedankenlust/Gyrus/releases/tag/v1.4.0-beta.2),
-open it, and drag Gyrus into Applications. The latest non-preview build remains
-available under [stable releases](https://github.com/gedankenlust/Gyrus/releases/latest).
+[current Early Preview](https://github.com/gedankenlust/Gyrus/releases/tag/v1.4.0-beta.3),
+open it, and drag Gyrus into Applications. Earlier builds remain available in
+the [complete release list](https://github.com/gedankenlust/Gyrus/releases).
 
 Gyrus is distributed with an ad-hoc signature because the project does not use
 a paid Apple Developer membership. On first launch after each update:
@@ -70,9 +74,10 @@ DMG is smaller.
   any time.
 - **Native.** SwiftUI and AppKit provide a responsive three-column workspace,
   native selection, drag and drop, keyboard commands, and a menu-bar quick add.
-- **Useful for web design.** Compare real desktop, tablet, and mobile renders;
-  inspect colors, type, components, assets, layout, SEO, accessibility,
-  network requests, and console output.
+- **Built for web design research.** Compare real desktop, tablet, and mobile
+  renders; inspect colors, type, components, assets, layout, SEO,
+  accessibility, network requests, and console output; then examine the
+  detected technology stack, rendered navigation, and sitemap.
 - **Page-grounded local AI.** For the bookmark you have open, Gyrus supplies
   the model with that page’s extracted text, structured data, site structure,
   and captured design evidence — not a search across your whole library.
@@ -89,8 +94,9 @@ DMG is smaller.
 | **Tag assignment** | Assign existing tags to one or many bookmarks and preserve every manually assigned tag |
 | **Reviewable tag system** | With AI enabled, analyze 10 or more bookmarks together, review a proposed taxonomy, rename or remove categories, then apply it |
 | **Page workspace** | Overview, structured Reader, translation, complete text copy, and a live `WKWebView` |
-| **Design workspace** | Bundled Chromium captures desktop `1440×1200`, tablet `834×1112`, and mobile `390×844` views |
-| **Design evidence** | Colors, typography, components, layout, assets, SEO, accessibility, network, console, raw DOM/CSS evidence, and viewport PDF export |
+| **Design workspace** | Bundled Chromium captures desktop `1440×900`, tablet `834×1112`, and mobile `390×844` views, keeps recent inspections, and compares responsive states |
+| **Design evidence** | Human-readable component patterns, colors, typography, CSS design tokens, layout, assets, SEO, accessibility, network, console, computed styles, and viewport PDF export |
+| **Website intelligence** | Detects CMS, frameworks, builders, analytics, rendering approach, and web server evidence; maps rendered navigation and same-origin pages from sitemaps plus an internal crawl |
 | **Notes** | Per-bookmark notes with auto-save |
 | **AI Brain** | Chat and summaries about the selected bookmark’s page (not library-wide Q&A), plus site-structure awareness and optional Markdown mirroring |
 | **Link maintenance** | Background dead-link checks, manual status correction, metadata refresh, favicons, descriptions, and preview images |
@@ -136,7 +142,7 @@ Arc, and Edge.
 
 ### Install from a release
 
-1. Download **`Gyrus-Saver-v1.4.0-beta.2.zip`** from the same GitHub release as the
+1. Download **`Gyrus-Saver-v1.4.0-beta.3.zip`** from the same GitHub release as the
    DMG and unzip it.
 2. Open `chrome://extensions`, `brave://extensions`, or the equivalent page.
 3. Enable **Developer mode**.
@@ -188,7 +194,7 @@ Gyrus.app (SwiftUI + AppKit)
     v
 FastAPI on 127.0.0.1:8080
     |-- routers and Pydantic request boundaries
-    |-- services for scraping, design capture, search, AI, and jobs
+    |-- services for scraping, responsive capture, site mapping, search, AI, and jobs
     |-- SQLAlchemy + Alembic
     `-- SQLite + FTS5 + sqlite-vec
 
@@ -276,7 +282,7 @@ extension archive, and writes SHA-256 checksums. Build products are written to
 
 ## Project status
 
-**Current preview: v1.4.0-beta.2.** Gyrus is an **Early Preview**: it is used as
+**Current preview: v1.4.0-beta.3.** Gyrus is an **Early Preview**: it is used as
 a real local bookmark and web-research tool and has automated backend and macOS
 tests, but workflows and stored-data formats can still change before the next
 stable milestone.

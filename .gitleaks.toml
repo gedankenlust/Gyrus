@@ -1,0 +1,9 @@
+title = "Gyrus secret scanning"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "The Chrome manifest key is a public key used to keep the extension ID stable."
+regexTarget = "match"
+regexes = ['''MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0PNln/SR8ChJbuEj''']

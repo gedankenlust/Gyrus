@@ -5,6 +5,43 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.4.0-beta.3] – 2026-08-22
+
+### Added
+- **Website architecture detection.** Design inspections now identify supported
+  CMS platforms, frameworks, website builders, analytics, rendering patterns,
+  web servers, self-hosted fonts, custom CSS, and design-token evidence. Generic
+  static sites receive useful classifications without pretending weak signals
+  are certain.
+- **Website structure explorer.** The Design workspace shows the navigation
+  hierarchy rendered by the page and combines sitemap discovery with a bounded
+  same-origin crawl to list internal pages and nested paths.
+- **Design history and comparison.** Recent inspections can be reopened, and
+  responsive desktop, tablet, and mobile captures can be compared without
+  stretching short pages or forcing a long scrolling layout.
+- Visual component samples now expose computed CSS evidence and distinguish
+  repeated patterns from the number of rendered elements.
+
+### Changed
+- Reorganized Design into five focused areas: **Preview, Issues, System,
+  Components, and Website**. Secondary page and design controls are quieter,
+  viewport selection is compact, and component rows use human-readable roles
+  while preserving their technical selector and element type.
+- Desktop inspection now uses `1440×900`; tablet remains `834×1112` and mobile
+  `390×844`.
+- Bulk bookmark operations are atomic, semantic-search results are paginated,
+  network downloads are bounded, and background failures no longer replace
+  user-action errors with unrelated notifications.
+
+### Fixed
+- Oversized generated tag taxonomies are reduced to the supported limit instead
+  of failing the whole organization run.
+- Reader extraction failures now explain what happened and offer a useful retry
+  path.
+- Reset, restore, trash, and bookmark deletion preserve related analysis data
+  consistently; deleted bookmarks no longer leave Design captures behind.
+- Background inspection and enrichment resume more reliably after interruption.
+
 ## [1.4.0-beta.2] – 2026-08-12
 
 ### Changed
