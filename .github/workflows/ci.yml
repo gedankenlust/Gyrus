@@ -73,8 +73,13 @@ jobs:
 
       - name: Audit the bundled Python runtime
         run: |
-          python3 -m pip install pip-audit==2.9.0
-          python3 -m pip_audit \
+          set -euo pipefail
+          # Keep audit tooling out of both Homebrew's managed Python and the
+          # bundled runtime whose installed packages we are checking.
+          audit_env="$RUNNER_TEMP/gyrus-runtime-audit"
+          python3 -m venv "$audit_env"
+          "$audit_env/bin/python" -m pip install pip-audit==2.9.0
+          "$audit_env/bin/python" -m pip_audit \
             --path python-runtime/lib/python3.11/site-packages \
             --progress-spinner off
 
