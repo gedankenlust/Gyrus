@@ -16,10 +16,10 @@ private let expectedSnapshotSchemaVersion = 7
 
 enum DesignInspectorSection: String, CaseIterable, Identifiable {
     case preview
-    case issues
     case system
     case components
     case website
+    case issues
 
     var id: String { rawValue }
 
@@ -322,10 +322,22 @@ struct VisualSnapshotTabView: View {
                 if selectedSection == .preview {
                     reviewSection
                         .frame(maxHeight: .infinity, alignment: .top)
+                } else if selectedSection == .issues {
+                    ScrollView { inspectorContent(selectedViewport).padding(.bottom, 16) }
                 } else {
-                    ScrollView {
-                        inspectorContent(selectedViewport)
-                            .padding(.bottom, 16)
+                    compactViewportPicker
+                    switch selectedSection {
+                    case .system:
+                        DesignSystemBrowser(viewport: selectedViewport)
+                            .id("system-\(bookmark.id)-\(selectedViewport.name)-\(snapshot?.capturedAt ?? "")")
+                    case .components:
+                        DesignComponentsBrowser(viewport: selectedViewport)
+                            .id("components-\(bookmark.id)-\(selectedViewport.name)-\(snapshot?.capturedAt ?? "")")
+                    case .website:
+                        DesignWebsiteBrowser(viewport: selectedViewport, structure: snapshot?.siteStructure,
+                                             navigation: snapshot?.navigation ?? [])
+                            .id("website-\(bookmark.id)-\(selectedViewport.name)-\(snapshot?.capturedAt ?? "")")
+                    default: EmptyView()
                     }
                 }
             }

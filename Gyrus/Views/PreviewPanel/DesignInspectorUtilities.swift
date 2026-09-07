@@ -30,7 +30,7 @@ struct SnapshotColor: Identifiable, Hashable {
                 let chars = Array(hex.dropFirst())
                 hex = "#" + chars.map { "\($0)\($0)" }.joined()
             }
-            guard hex.count == 7 else { return nil }
+            guard hex.count == 7, UInt32(hex.dropFirst(), radix: 16) != nil else { return nil }
             return SnapshotColor(hex: hex.lowercased(), source: raw)
         }
 
@@ -1207,7 +1207,7 @@ func frequency(_ values: [String], limit: Int = 8) -> [String] {
 /// listed under both Cards and CTA and the counts added up to more than the
 /// number of elements on the page. Categories are tried most-specific first and
 /// each element is claimed once.
-func classifyComponents(_ samples: [APIClient.VisualElementSampleDTO]) -> [ComponentGroup] {
+func classifyComponents(_ samples: [APIClient.VisualElementSampleDTO], limit: Int = 12) -> [ComponentGroup] {
     let formTags: Set<String> = ["form", "input", "textarea", "select", "label"]
     let navTags: Set<String> = ["nav", "header"]
     let sectionTags: Set<String> = ["main", "section", "article", "aside", "footer"]
@@ -1239,7 +1239,7 @@ func classifyComponents(_ samples: [APIClient.VisualElementSampleDTO]) -> [Compo
         ComponentGroup(
             title: title,
             icon: icon,
-            variants: members.groupedVariants(),
+            variants: members.groupedVariants(limit: limit),
             instanceCount: members.count
         )
     }

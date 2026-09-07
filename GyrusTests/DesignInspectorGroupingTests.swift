@@ -94,6 +94,42 @@ final class DesignInspectorGroupingTests: XCTestCase {
         groups.first { $0.key == key }?.variables.map(\.name) ?? []
     }
 
+    func testInspectorPaletteSortsByBrightnessAndKeepsAliases() {
+        let entries = [
+            PaletteEntry(hex: "#fff", caption: "--white", area: 1, occurrences: 1),
+            PaletteEntry(hex: "#ffffff", caption: "--surface", area: 1, occurrences: 1),
+            PaletteEntry(hex: "#808080", caption: "--gray", area: 1, occurrences: 1),
+            PaletteEntry(hex: "#000000", caption: "--black", area: 1, occurrences: 1),
+        ]
+        let palette = InspectorPaletteColor.grouped(entries)
+        XCTAssertEqual(palette.map(\.hex), ["#000000", "#808080", "#ffffff"])
+        XCTAssertEqual(palette.last?.labels, ["--surface", "--white"])
+    }
+
+    func testInspectorPaletteUsesPerceivedBrightnessForSaturatedColors() {
+        let palette = InspectorPaletteColor.grouped(["#00ff00", "#ff0000", "#0000ff"].map {
+            PaletteEntry(hex: $0, caption: "", area: 1, occurrences: 1)
+        })
+        XCTAssertEqual(palette.map(\.hex), ["#0000ff", "#ff0000", "#00ff00"])
+        XCTAssertNil(SnapshotColor.normalize("#gggggg"))
+    }
+
+    func testPaletteOverviewIncludesDarkestAndLightestWithBoundedSwatches() {
+        let colors = (0..<40).map { InspectorPaletteColor(hex: String(format: "#%02x%02x%02x", $0*6, $0*6, $0*6), labels: []) }
+        let preview = InspectorPaletteColor.preview(colors)
+        XCTAssertEqual(preview.count, 12)
+        XCTAssertEqual(preview.first?.hex, colors.first?.hex)
+        XCTAssertEqual(preview.last?.hex, colors.last?.hex)
+        XCTAssertEqual(Set(preview.map(\.hex)).count, 12)
+    }
+
+    func testInspectorPaletteIncludesTokensBeyondOldTwentyFourEntryLimit() {
+        let vars = (0..<40).map { variable("--token-\($0)", String(format: "#%02x0000", $0)) }
+        let palette = InspectorPaletteColor.grouped(vars.colorTokens(limit: .max))
+        XCTAssertEqual(palette.count, 40)
+        XCTAssertTrue(palette.contains { $0.labels.contains("--token-39") })
+    }
+
     // MARK: - groupCSSVariables
 
     /// A value ending in the letters "ms" is not a duration. The condition used

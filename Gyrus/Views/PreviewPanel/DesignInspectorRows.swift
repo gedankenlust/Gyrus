@@ -315,8 +315,8 @@ struct ComponentThumbnail: View {
     @State private var image: NSImage?
     @State private var isLoading = true
 
-    private let boxWidth: CGFloat = 92
-    private let boxHeight: CGFloat = 58
+    var boxWidth: CGFloat = 92
+    var boxHeight: CGFloat = 58
 
     var body: some View {
         ZStack {
@@ -339,7 +339,8 @@ struct ComponentThumbnail: View {
             RoundedRectangle(cornerRadius: 5)
                 .stroke(.secondary.opacity(0.22), lineWidth: 1)
         )
-        .task(id: sample.id) {
+        .task(id: "\(screenshotPath)|\(sample.id)") {
+            image = nil
             isLoading = true
             defer { isLoading = false }
             guard let full = await SnapshotImageStore.shared.image(atPath: screenshotPath) else { return }
@@ -704,7 +705,7 @@ struct ElementSampleRow: View {
     var screenshotPath: String = ""
     var viewportWidth: Int = 0
 
-    private var cssText: String {
+    var cssText: String {
         """
         \(sample.selectorHint) {
           display: \(sample.display);
