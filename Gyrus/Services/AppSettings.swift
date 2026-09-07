@@ -244,17 +244,27 @@ public final class AppSettings {
     }
 
     private func syncWithBackend(_ config: AIBrainConfig) {
-        Task {
-            do {
-                try await APIClient.shared.updateAIBrainConfig(config)
-            } catch {
-                // Not user-facing on purpose: this also fires during startup
-                // before the backend is up, and the config is re-pushed on
-                // launch (GyrusApp.task) anyway.
-                Logger(subsystem: "com.gyrus.app", category: "settings")
-                    .warning("Failed to sync AI Brain config: \(error.localizedDescription)")
-            }
+        Task { @MainActor in
+            AIConfigSync.shared.submit(self.aiBrainConfig)
         }
+    }
+
+    @MainActor
+    func resetToDefaults() {
+        if let id = Bundle.main.bundleIdentifier { defaults.removePersistentDomain(forName: id) }
+        appLanguage = "system"
+        appTheme = "system"
+        confirmDelete = true
+        enableReadStatus = true
+        defaultExportFmt = "markdown"
+        defaultPreviewTab = "Page"
+        cardLayout = "titleFirst"
+        tagSortMode = "name"
+        didCompleteBrainOnboarding = false
+        searchHotkey = .defaultSearch
+        quickAddHotkey = .defaultQuickAdd
+        showMenuBarItem = true
+        aiBrainConfig = AIBrainConfig()
     }
 }
 

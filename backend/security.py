@@ -17,6 +17,7 @@ EXTENSION_ORIGINS = tuple(
 # This token lives only for the backend process lifetime. The trusted extension
 # obtains it through a route that browsers can call only from its fixed origin.
 API_TOKEN = os.environ.get("GYRUS_API_TOKEN") or secrets.token_urlsafe(32)
+EXTENSION_TOKEN = secrets.token_urlsafe(32)
 
 
 def is_trusted_extension_origin(origin: str | None) -> bool:
@@ -25,3 +26,7 @@ def is_trusted_extension_origin(origin: str | None) -> bool:
 
 def has_valid_api_token(value: str | None) -> bool:
     return bool(value and hmac.compare_digest(value, API_TOKEN))
+
+
+def has_valid_extension_token(value: str | None) -> bool:
+    return bool(value and hmac.compare_digest(value, EXTENSION_TOKEN))

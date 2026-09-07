@@ -57,9 +57,16 @@ extension APIClient {
         return base.appending(path: "/\(path)")
     }
 
+    func brainIndexPath() async throws -> String {
+        let result: [String: String] = try await get(base.appending(path: "/api/brain/index-path"))
+        guard let path = result["path"] else { throw APIError.decodingError("Missing Brain index path") }
+        return path
+    }
+
     func updateAIBrainConfig(_ config: AIBrainConfig) async throws {
         struct Body: Encodable {
             let root_dir: String?
+            let ai_enabled: Bool
             let is_enabled: Bool
             let llm_provider: String
             let ollama_url: String
@@ -68,7 +75,8 @@ extension APIClient {
         }
         let body = Body(
             root_dir: config.rootDirectoryPath,
-            is_enabled: config.brainMirrorEnabled,
+            ai_enabled: config.aiEnabled,
+            is_enabled: config.aiEnabled && config.brainMirrorEnabled,
             llm_provider: config.llmProvider.rawValue,
             ollama_url: config.ollamaURL,
             ollama_model: config.ollamaModel,

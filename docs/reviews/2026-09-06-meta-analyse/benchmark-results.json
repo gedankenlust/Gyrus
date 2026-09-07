@@ -1,0 +1,50 @@
+[
+  {
+    "bookmarks": 1000,
+    "route": "/api/bookmarks?limit=100",
+    "median_ms": 8.7,
+    "response_bytes": 62101
+  },
+  {
+    "bookmarks": 1000,
+    "route": "/api/bookmarks/counts",
+    "median_ms": 2.3,
+    "response_bytes": 47
+  },
+  {
+    "bookmarks": 1000,
+    "route": "/api/search?q=Benchmark&limit=100",
+    "median_ms": 18.9,
+    "response_bytes": 61881
+  },
+  {
+    "bookmarks": 1000,
+    "route": "/api/data/backup",
+    "median_ms": 21.1,
+    "response_bytes": 1699942
+  },
+  {
+    "bookmarks": 10000,
+    "route": "/api/bookmarks?limit=100",
+    "median_ms": 33.4,
+    "response_bytes": 62301
+  },
+  {
+    "bookmarks": 10000,
+    "route": "/api/bookmarks/counts",
+    "median_ms": 7.0,
+    "response_bytes": 49
+  },
+  {
+    "bookmarks": 10000,
+    "route": "/api/search?q=Benchmark&limit=100",
+    "median_ms": 48.4,
+    "response_bytes": 61881
+  },
+  {
+    "bookmarks": 10000,
+    "route": "/api/data/backup",
+    "median_ms": 227.2,
+    "response_bytes": 17017942
+  }
+]

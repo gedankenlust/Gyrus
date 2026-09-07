@@ -27,7 +27,9 @@ def db():
 @pytest.fixture
 def brain_service(tmp_path):
     # Use a temporary directory for the brain root
-    return BrainSyncService(root_dir=str(tmp_path))
+    service = BrainSyncService(root_dir=str(tmp_path))
+    service.update_config(str(tmp_path), True)
+    return service
 
 def test_sanitize_name(brain_service):
     assert brain_service._sanitize_name("Valid Name") == "Valid Name"

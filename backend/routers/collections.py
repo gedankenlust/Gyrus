@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from services.collection_validation import validate_placement
 from database import get_db
 from models.collection import Collection
 from models.bookmark import Bookmark
@@ -37,7 +39,9 @@ def _next_position(db: Session, parent_id: str | None) -> int:
 def _build_tree(collections: list[Collection], counts: dict[str, int]) -> list[CollectionOut]:
     by_id: dict[str, CollectionOut] = {}
     for c in collections:
-        node = CollectionOut.model_validate(c)
+        node = CollectionOut(**{field: getattr(c, field) for field in (
+            "id", "name", "parent_id", "icon", "color", "created_at"
+        )})
         node.children = []
         node.bookmark_count = counts.get(c.id, 0)
         by_id[c.id] = node
@@ -61,7 +65,11 @@ def _would_create_cycle(db: Session, collection_id: str, new_parent_id: str) -> 
     becomes a root in _build_tree) and make the folder vanish from the sidebar.
     """
     cursor: str | None = new_parent_id
+    visited: set[str] = set()
     while cursor is not None:
+        if cursor in visited:
+            return True
+        visited.add(cursor)
         if cursor == collection_id:
             return True
         row = db.query(Collection.parent_id).filter(Collection.id == cursor).first()
@@ -86,10 +94,11 @@ def list_collections(db: Session = Depends(get_db)):
 
 @router.post("", response_model=CollectionOut, status_code=201)
 def create_collection(data: CollectionCreate, db: Session = Depends(get_db)):
+    validate_placement(db, data.parent_id)
     col = Collection(**data.model_dump())
     col.position = _next_position(db, col.parent_id)
     db.add(col)
-    db.commit()
+    _commit_folder(db)
     db.refresh(col)
     return CollectionOut.model_validate(col)
 
@@ -99,9 +108,20 @@ class ReorderRequest(BaseModel):
     ordered_ids: list[str]
 
 
+def _commit_folder(db):
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "A folder with this name already exists in this location") from exc
+
+
 @router.post("/reorder")
 def reorder_collections(req: ReorderRequest, db: Session = Depends(get_db)):
     """Assign positions 0..n to the given sibling IDs, in the order received."""
+    siblings = {row.id for row in db.query(Collection.id).filter(Collection.parent_id == req.parent_id)}
+    if len(set(req.ordered_ids)) != len(req.ordered_ids) or not set(req.ordered_ids) <= siblings:
+        raise HTTPException(422, "Reordering requires distinct folders with the same parent")
     for index, cid in enumerate(req.ordered_ids):
         col = db.query(Collection).filter(Collection.id == cid).first()
         if col is not None:
@@ -118,6 +138,7 @@ def update_collection(collection_id: str, data: CollectionUpdate, db: Session = 
     fields = data.model_dump(exclude_unset=True)
     if "parent_id" in fields:
         new_parent = fields["parent_id"]
+        validate_placement(db, new_parent, moving_id=collection_id)
         if new_parent is not None and _would_create_cycle(db, collection_id, new_parent):
             raise HTTPException(400, "Cannot move a folder into itself or one of its descendants")
         # Moved to a different parent → append to the end of the new group.
@@ -125,7 +146,7 @@ def update_collection(collection_id: str, data: CollectionUpdate, db: Session = 
             fields["position"] = _next_position(db, new_parent)
     for field, value in fields.items():
         setattr(col, field, value)
-    db.commit()
+    _commit_folder(db)
     db.refresh(col)
     _safe_resync(db)
     return CollectionOut.model_validate(col)

@@ -42,6 +42,11 @@ struct AIBrainTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if let error = chat.errors[bookmark.id] {
+                Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.red)
+            }
+            if chat.clearing.contains(bookmark.id) { ProgressView("Clearing conversation…") }
+
             header
             
             if messages.isEmpty && !isSending {
@@ -200,7 +205,7 @@ struct AIBrainTabView: View {
                             .foregroundStyle(currentPrompt.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
                     }
                     .buttonStyle(.plain)
-                    .disabled(currentPrompt.isEmpty)
+                    .disabled(currentPrompt.isEmpty || chat.clearing.contains(bookmark.id))
                 }
             }
             .padding(12)

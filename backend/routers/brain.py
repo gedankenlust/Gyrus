@@ -1,6 +1,7 @@
 import asyncio
 import httpx
 import aiofiles
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -13,6 +14,7 @@ from schemas.bookmark import BrainMessageOut
 from services.llm_service import LLMService, LLMUnavailableError
 from services.scraper_service import scraper_service, _is_youtube as is_youtube
 from services.brain_sync_service import brain_sync_service
+from services import ai_policy
 from services import brain_chat_service
 from services import visual_snapshot_service
 from services import visual_snapshot_job_service
@@ -29,15 +31,21 @@ SCRAPED_HEADER = "## Content (Scraped)"
 SCRAPE_MARKER = "<!-- gyrus-scrape v4 -->"
 
 
-def _persist_scraped_content(file_path, content: str) -> None:
+def _scrape_source_marker(url: str) -> str:
+    return f"<!-- gyrus-source-url: {quote(url, safe='')} -->"
+
+
+def _persist_scraped_content(file_path, content: str, source_url: str) -> None:
     """Write freshly scraped content into the bookmark's markdown file,
     replacing any previous scraped section while preserving the chat history
     that follows it."""
+    if file_path is None or not brain_sync_service.is_enabled or not brain_sync_service._owns(file_path):
+        return
     try:
         text = file_path.read_text(encoding="utf-8")
     except Exception:
         return
-    section = f"{SCRAPED_HEADER}\n{SCRAPE_MARKER}\n{content}\n"
+    section = f"{SCRAPED_HEADER}\n{SCRAPE_MARKER}\n{_scrape_source_marker(source_url)}\n{content}\n"
     if SCRAPED_HEADER in text:
         before, rest = text.split(SCRAPED_HEADER, 1)
         # Keep any following sections (e.g. "## Chat Interaction ...").
@@ -70,6 +78,7 @@ class ChatResponse(BaseModel):
 class BrainConfigUpdate(BaseModel):
     root_dir: Optional[str] = None
     is_enabled: bool = False
+    ai_enabled: bool = False
     embedding_model: Optional[str] = None
     ollama_url: Optional[str] = None
 
@@ -215,7 +224,8 @@ def _reconcile_brain_blocking():
 
 @router.post("/config")
 async def update_brain_config(config: BrainConfigUpdate):
-    brain_sync_service.update_config(config.root_dir, config.is_enabled)
+    ai_policy.configure(config.ai_enabled)
+    brain_sync_service.update_config(config.root_dir, config.is_enabled and config.ai_enabled)
     # Embeddings run server-side with no per-request model, so remember the
     # chosen embedding model / Ollama URL here. A model change takes effect for
     # new bookmarks immediately; existing ones need a reindex (different vector
@@ -227,9 +237,15 @@ async def update_brain_config(config: BrainConfigUpdate):
     # index can be heavy with many bookmarks, so run it on a worker thread —
     # otherwise it blocks the event loop and the app shows an empty list at
     # startup until it finishes.
-    if config.is_enabled:
-        asyncio.get_event_loop().run_in_executor(None, _reconcile_brain_blocking)
+    if brain_sync_service.is_enabled:
+        from services import background
+        background.schedule(asyncio.to_thread(_reconcile_brain_blocking))
     return {"status": "ok", "root_dir": str(brain_sync_service.root_dir), "is_enabled": brain_sync_service.is_enabled}
+
+
+@router.get("/index-path")
+def brain_index_path():
+    return {"path": str(brain_sync_service.index_path())}
 
 
 @router.get("/bookmarks/{bookmark_id}/messages", response_model=list[BrainMessageOut])
@@ -336,31 +352,32 @@ def get_visual_snapshot_run(bookmark_id: str, run_id: str, db: Session = Depends
     return snapshot
 
 async def _prepare_context(db: Session, bookmark, prompt: str | None = None) -> str:
-    """Build the page context for an LLM chat: read the cached scraped section
-    from the bookmark's markdown file, re-scraping when it's missing/stale.
-    Shared by the blocking and streaming chat endpoints."""
-    file_path = brain_sync_service._get_bookmark_file_path(db, bookmark)
-    if not file_path.exists():
-        brain_sync_service.sync_bookmark(db, bookmark)
-
+    """Use durable Reader text, or a mirror cache tied to this exact URL."""
+    file_path = None
     full_text = ""
-    if file_path.exists():
-        async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
-            full_text = await f.read()
+    if brain_sync_service.is_enabled:
+        try:
+            file_path = brain_sync_service._get_bookmark_file_path(db, bookmark)
+            brain_sync_service.sync_bookmark(db, bookmark)
+            if brain_sync_service._owns(file_path, bookmark.id):
+                async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
+                    full_text = await f.read()
+        except (OSError, ValueError) as exc:
+            logger.warning("Brain mirror unavailable: %s", exc)
+            file_path = None
 
-    context = ""
-    if "## Content (Scraped)" in full_text:
-        sections = full_text.split("## Content (Scraped)")
-        if len(sections) > 1:
-            context = sections[1].split("\n## ")[0].strip()
-
-    needs_scrape = len(context) < 200 or SCRAPE_MARKER not in context
+    context = (bookmark.scraped_content or "").strip()
+    if not context and SCRAPED_HEADER in full_text:
+        cached = full_text.split(SCRAPED_HEADER, 1)[1].split("\n## ")[0].strip()
+        if SCRAPE_MARKER in cached and _scrape_source_marker(bookmark.url) in cached:
+            context = cached.replace(SCRAPE_MARKER, "").replace(_scrape_source_marker(bookmark.url), "").strip()
+    needs_scrape = not context
     if needs_scrape:
         scrape_result = await scraper_service.extract_content(bookmark.url)
         content = scrape_result.get("content", "")
         if content:
             context = content
-            _persist_scraped_content(file_path, content)
+            _persist_scraped_content(file_path, content, bookmark.url)
             from services import bookmark_service, background
             bookmark_service.store_scraped_content(db, bookmark.id, content)
             background.schedule(
@@ -384,7 +401,7 @@ async def _prepare_context(db: Session, bookmark, prompt: str | None = None) -> 
     return context
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat", response_model=ChatResponse, dependencies=[Depends(ai_policy.require_ai)])
 async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)):
     # 1. Fetch bookmark
     bookmark = db.query(Bookmark).filter(Bookmark.id == request.bookmark_id).first()
@@ -437,7 +454,7 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
     return ChatResponse(response=response_text)
 
 
-@router.post("/chat/stream")
+@router.post("/chat/stream", dependencies=[Depends(ai_policy.require_ai)])
 async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(get_db)):
     """Streaming variant: emits the reply token-by-token (text/plain chunks) so
     the UI can render it live. The full reply is saved to the markdown file when
@@ -529,7 +546,7 @@ class SummarizeResponse(BaseModel):
     summary: str
 
 
-@router.post("/summarize/{bookmark_id}", response_model=SummarizeResponse)
+@router.post("/summarize/{bookmark_id}", response_model=SummarizeResponse, dependencies=[Depends(ai_policy.require_ai)])
 async def summarize_bookmark(bookmark_id: str, request: SummarizeRequest = SummarizeRequest(),
                              db: Session = Depends(get_db)):
     """Generate a 2-3 sentence summary of a bookmark's page content using the

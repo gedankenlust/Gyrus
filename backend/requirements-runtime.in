@@ -1,0 +1,19 @@
+# Production inputs; update both lock files after changes.
+fastapi==0.139.2
+uvicorn[standard]==0.32.1
+sqlalchemy==2.0.36
+alembic==1.14.0
+pydantic==2.10.3
+pydantic-settings==2.7.0
+httpx==0.28.1
+beautifulsoup4==4.12.3
+pillow==12.3.0
+playwright==1.61.0
+python-multipart==0.0.31
+aiofiles==24.1.0
+readability-lxml==0.8.1
+lxml_html_clean==0.4.5
+sqlite-vec==0.1.9          # vector similarity search for semantic/embedding search
+apsw==3.53.2.0              # sqlite extension loading on macOS (required for sqlite-vec)
+setuptools==83.0.0
+pip==26.2.1

@@ -13,6 +13,7 @@ private struct CardFramesKey: PreferenceKey {
 struct BookmarkGridView: View {
     @Environment(BookmarkStore.self) private var bookmarkStore
     @Environment(UIStateStore.self) private var uiStateStore
+    @Environment(CollectionStore.self) private var collectionStore
 
     private let columns = [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 12)]
     private let gridSpace = "gridSpace"
@@ -79,7 +80,7 @@ struct BookmarkGridView: View {
                (url.scheme == "https" || url.scheme == "http") {
                 Task {
                     do {
-                        _ = try await bookmarkStore.addBookmarkFromURL(url.absoluteString)
+                        _ = try await bookmarkStore.addBookmarkFromURL(url.absoluteString, collectionId: collectionStore.selectedCollectionId)
                         AppStore.shared.uiStateStore.showInfo("Bookmark added.")
                     } catch APIError.duplicate {
                         AppStore.shared.uiStateStore.showInfo("Already saved.")

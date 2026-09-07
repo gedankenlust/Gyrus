@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from database import get_db
 from models.tag import Tag, BookmarkTag
 from models.bookmark import Bookmark
@@ -228,7 +229,11 @@ def update_tag(tag_id: str, data: TagUpdate, db: Session = Depends(get_db)):
         raise HTTPException(404, "Tag not found")
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(tag, field, value)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(409, "A tag with this name already exists") from exc
     db.refresh(tag)
     return tag
 

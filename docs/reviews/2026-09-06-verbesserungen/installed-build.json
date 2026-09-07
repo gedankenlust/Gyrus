@@ -1,0 +1,12 @@
+{
+  "path": "/Applications/Gyrus.app",
+  "version": "1.5.0",
+  "build": "19",
+  "signature_verified": true,
+  "hardened_runtime": true,
+  "main_window_after_relaunch": "visible",
+  "active_bookmarks": 331,
+  "trash_bookmarks": 1,
+  "app_and_backend_exit_test": "both verified absent after Command-Q",
+  "physical_macOS_restart_test": "not performed"
+}

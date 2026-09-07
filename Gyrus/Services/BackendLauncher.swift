@@ -14,6 +14,8 @@ final class BackendLauncher {
     private var process: Process?
     private var logHandle: FileHandle?
     private var isStarting = false
+    private var isStopping = false
+    private var setupProcess: Process?
 
     private var backendDir: URL {
         let bundled = Bundle.main.resourceURL?.appendingPathComponent("backend")
@@ -91,7 +93,7 @@ final class BackendLauncher {
         )
     }
 
-    private func killExistingBackend() {
+    private func killExistingBackend() async -> Bool {
         // Kill only a process whose executable belongs to Gyrus. PID files can
         // become stale and a recycled PID must never terminate another app.
         if let data = try? Data(contentsOf: pidFile),
@@ -99,8 +101,14 @@ final class BackendLauncher {
            let pid = Int32(pidStr.trimmingCharacters(in: .whitespacesAndNewlines)),
            isGyrusBackend(pid: pid) {
             kill(pid, SIGTERM)
+            for _ in 0..<50 {
+                if !isGyrusBackend(pid: pid) { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            if isGyrusBackend(pid: pid) { return false }
         }
         try? FileManager.default.removeItem(at: pidFile)
+        return true
     }
 
     private func isGyrusBackend(pid: Int32) -> Bool {
@@ -121,10 +129,11 @@ final class BackendLauncher {
         // SwiftUI can restart the scene task when StartupView is replaced by
         // ContentView. Never let that second call kill the healthy backend that
         // the first call has just launched.
+        guard !isStopping else { return }
         if isRunning, (try? await APIClient.shared.health()) == true {
             return
         }
-        guard !isStarting else { return }
+        guard !isStarting, !isStopping else { return }
         isStarting = true
         isRunning = false
         error = nil
@@ -132,8 +141,12 @@ final class BackendLauncher {
 
         try? FileManager.default.createDirectory(at: dataDir, withIntermediateDirectories: true)
         try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: dataDir.path)
-        killExistingBackend()
-        try? await Task.sleep(nanoseconds: 800_000_000)
+        guard await killExistingBackend() else {
+            error = String(localized: "The previous backend is still stopping. Please try again.")
+            return
+        }
+
+        guard !isStopping, !Task.isCancelled else { return }
 
         // With a bundled runtime there's nothing to set up — skip the
         // venv/pip bootstrap entirely (no system Python needed). Otherwise
@@ -147,6 +160,7 @@ final class BackendLauncher {
             }
         }
 
+        guard !isStopping, !Task.isCancelled else { return }
         let python = pythonExecutable
         guard FileManager.default.fileExists(atPath: python.path) else {
             error = "Backend not found at:\n\(backendDir.path)\n\nPython environment missing."
@@ -184,6 +198,13 @@ final class BackendLauncher {
         }
 
         do {
+            proc.terminationHandler = { [weak self] ended in
+                Task { @MainActor in
+                    guard let self, self.process === ended, !self.isStarting else { return }
+                    self.isRunning = false
+                    self.error = String(localized: "The backend stopped. Please try again.")
+                }
+            }
             try proc.run()
             self.process = proc
             try? String(proc.processIdentifier).write(to: pidFile, atomically: true, encoding: .utf8)
@@ -196,7 +217,12 @@ final class BackendLauncher {
         // Poll up to 15s
         for _ in 0..<30 {
             try? await Task.sleep(nanoseconds: 500_000_000)
-            if (try? await APIClient.shared.health()) == true {
+            guard !isStopping, !Task.isCancelled else { return }
+            guard proc.isRunning else {
+                error = String(localized: "The backend could not start. Another program may be using port 8080.")
+                return
+            }
+            if (try? await APIClient.shared.health()) == true, proc.isRunning {
                 isRunning = true
                 return
             }
@@ -204,8 +230,27 @@ final class BackendLauncher {
         error = "Backend did not respond.\nPath: \(backendDir.path)"
     }
 
+    func stopAndWait() async {
+        isStopping = true
+        if setupProcess?.isRunning == true { setupProcess?.terminate() }
+        guard let child = process else { stop(); return }
+        child.terminationHandler = nil
+        if child.isRunning { child.terminate() }
+        for _ in 0..<50 {
+            if !child.isRunning { break }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        if child.isRunning { kill(child.processIdentifier, SIGKILL) }
+        for _ in 0..<20 {
+            if !child.isRunning { break }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        stop()
+    }
+
     func stop() {
-        process?.terminate()
+        process?.terminationHandler = nil
+        if process?.isRunning == true { process?.terminate() }
         try? logHandle?.close()
         logHandle = nil
         try? FileManager.default.removeItem(at: pidFile)
@@ -233,7 +278,7 @@ final class BackendLauncher {
         try await runCommand(executable: "/usr/bin/python3", arguments: ["-m", "venv", venvDir.path], currentDirectory: backendDir)
 
         bootstrapStatus = "Installing dependencies..."
-        try await runCommand(executable: venvPython.path, arguments: ["-m", "pip", "install", "-r", "requirements.txt"], currentDirectory: backendDir)
+        try await runCommand(executable: venvPython.path, arguments: ["-m", "pip", "install", "--require-hashes", "-r", "requirements.lock"], currentDirectory: backendDir)
 
         bootstrapStatus = "Running migrations..."
         try await runCommand(executable: venvPython.path, arguments: ["-m", "alembic", "upgrade", "head"], currentDirectory: backendDir)
@@ -261,10 +306,17 @@ final class BackendLauncher {
         process.standardOutput = output
         process.standardError = output
 
+        guard !isStopping else { throw CancellationError() }
         try process.run()
+        setupProcess = process
+        defer { setupProcess = nil }
 
         let deadline = ContinuousClock.now.advanced(by: .seconds(15 * 60))
         while process.isRunning {
+            if isStopping || Task.isCancelled {
+                process.terminate()
+                throw CancellationError()
+            }
             if ContinuousClock.now >= deadline {
                 process.terminate()
                 throw NSError(

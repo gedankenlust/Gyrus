@@ -9,10 +9,18 @@ final class TagStore {
     var tags: [Tag] = []
     var selectedTagName: String? = nil
 
-    private let api = APIClient.shared
+    private let api: APIClient
+    private var generation = 0
+
+    func resetLocalState() { generation += 1; tags = []; selectedTagName = nil }
+
+    init(api: APIClient = .shared) { self.api = api }
 
     func fetchTags() async throws {
-        tags = try await api.tags()
+        let started = generation
+        let result = try await api.tags()
+        guard started == generation else { return }
+        tags = result
     }
 
     func createTag(name: String, color: String? = nil) async throws -> Tag {
@@ -24,7 +32,7 @@ final class TagStore {
     @discardableResult
     func createTagAndAssign(name: String, color: String?, toBookmarkIds ids: Set<String>, in bookmarks: [Bookmark]) async throws -> [Bookmark] {
         let tag = try await createTag(name: name, color: color)
-        return try await toggleTag(tagId: tag.id, onBookmarkIds: ids, in: bookmarks)
+        return try await api.assignTags(bookmarkIds: Array(ids), addTagIds: [tag.id], removeTagIds: [])
     }
 
     func renameTag(_ id: String, newName: String) async throws {
@@ -58,7 +66,7 @@ final class TagStore {
         guard !selected.isEmpty else { return .none }
         let withTag = selected.filter { bm in bm.tags.contains(where: { $0.id == tagId }) }.count
         if withTag == 0 { return .none }
-        if withTag == selected.count { return .all }
+        if withTag == bookmarkIds.count { return .all }
         return .some
     }
 
@@ -68,18 +76,10 @@ final class TagStore {
     func toggleTag(tagId: String, onBookmarkIds ids: Set<String>, in bookmarks: [Bookmark]) async throws -> [Bookmark] {
         let presence = tagPresence(tagId: tagId, in: bookmarks, forIds: ids)
         let shouldAdd = presence != .all
-        var updated: [Bookmark] = []
-        for id in ids {
-            guard let bm = bookmarks.first(where: { $0.id == id }) else { continue }
-            var current = bm.tags.map { $0.id }
-            if shouldAdd {
-                if !current.contains(tagId) { current.append(tagId) }
-            } else {
-                current.removeAll { $0 == tagId }
-            }
-            var u = BookmarkUpdate(); u.tagIds = current
-            updated.append(try await api.updateBookmark(id: bm.id, body: u))
-        }
-        return updated
+        return try await api.assignTags(
+            bookmarkIds: Array(ids),
+            addTagIds: shouldAdd ? [tagId] : [],
+            removeTagIds: shouldAdd ? [] : [tagId]
+        )
     }
 }

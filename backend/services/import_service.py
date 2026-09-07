@@ -7,13 +7,14 @@ from models.bookmark import Bookmark
 from models.collection import Collection
 from services.url_utils import normalize_url
 from services.outbound_url_security import validate_bookmark_url_syntax
+from services.collection_validation import validate_placement, MAX_NAME_LENGTH
 
 logger = logging.getLogger(__name__)
 
 MAX_IMPORTED_BOOKMARKS = 20_000
 MAX_IMPORTED_COLLECTIONS = 5_000
 MAX_IMPORTED_TITLE_CHARS = 1_000
-MAX_IMPORTED_COLLECTION_NAME_CHARS = 200
+MAX_IMPORTED_COLLECTION_NAME_CHARS = MAX_NAME_LENGTH
 
 
 class ImportLimitExceeded(ValueError):
@@ -49,10 +50,10 @@ def parse_netscape_html(html_content: str, db: Session,
         db.rollback()
         raise
 
-    # Refresh the AI Brain index once after the bulk import (best-effort).
+    # Create imported mirrors and refresh the index once after the bulk import.
     try:
         from services.brain_sync_service import brain_sync_service
-        brain_sync_service.rebuild_index(db)
+        brain_sync_service.resync_all(db)
     except Exception as exc:
         logger.warning("AI Brain index refresh after import failed: %s", exc)
     stats["_imported_ids"] = [bookmark.id for bookmark in stats.pop("_imported_bookmarks")]
@@ -72,6 +73,7 @@ def _get_or_create_collection(db: Session, name: str, parent_id, stats: dict):
     ).first()
     if found:
         return found.id
+    validate_placement(db, parent_id)
     if stats["collections_created"] >= MAX_IMPORTED_COLLECTIONS:
         raise ImportLimitExceeded(
             f"Bookmark import is limited to {MAX_IMPORTED_COLLECTIONS} folders"

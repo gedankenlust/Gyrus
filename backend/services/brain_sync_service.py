@@ -1,6 +1,7 @@
 import os
+import hashlib
+import tempfile
 import re
-import time
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
@@ -19,8 +20,7 @@ class BrainSyncService:
     def __init__(self, root_dir: Optional[str] = None):
         chosen = root_dir or os.getenv("GYRUS_BRAIN_ROOT") or str(self.DEFAULT_ROOT)
         self.root_dir = Path(chosen).expanduser().resolve()
-        self.is_enabled = True
-        self._last_index_rebuild = 0.0
+        self.is_enabled = False
         # The directory is created lazily — on the first write, or when the app
         # pushes an enabled config (update_config). The backend boots with these
         # defaults but the app overrides them on startup, so we must NOT create
@@ -62,7 +62,7 @@ class BrainSyncService:
         # Use a recursive CTE to fetch all ancestors in a single query (N+1 fix)
         cte = select(Collection.id, Collection.name, Collection.parent_id).where(Collection.id == collection_id).cte(name="parent_chain", recursive=True)
         parent = aliased(Collection)
-        cte = cte.union_all(
+        cte = cte.union(
             select(parent.id, parent.name, parent.parent_id).join(cte, parent.id == cte.c.parent_id)
         )
         rows = db.execute(select(cte.c.id, cte.c.name, cte.c.parent_id)).all()
@@ -90,40 +90,97 @@ class BrainSyncService:
     def _get_bookmark_file_path(self, db: Session, bookmark: Bookmark) -> Path:
         """Returns the full Path to the bookmark's markdown file."""
         rel_dir = self._get_collection_path(db, bookmark.collection_id)
-        # Append a short ID suffix to prevent filename collisions when two
-        # bookmarks share the same title in the same folder.
-        short_id = bookmark.id[:8]
-        filename = f"{self._sanitize_name(bookmark.title or 'Untitled')}-{short_id}.md"
-        final_path = (self.root_dir / rel_dir / filename).resolve()
-        
-        # Security Check: Ensure path traversal didn't escape root
-        if not final_path.is_relative_to(self.root_dir):
-            raise ValueError(f"Security error: Target path escapes root directory! {final_path}")
-            
+        filename = self.bookmark_filename(bookmark.id, bookmark.title)
+        candidate = self.root_dir / rel_dir / filename
+        # A legacy or unrelated file is never silently adopted as Gyrus-owned.
+        if candidate.exists() and not self._owns(candidate, bookmark.id):
+            candidate = candidate.with_name(
+                f"{self._sanitize_name(bookmark.title or 'Untitled')}-{bookmark.id}-gyrus.md"
+            )
+        final_path = candidate.resolve()
+        if candidate.is_symlink() or not final_path.is_relative_to(self.root_dir):
+            raise ValueError("Brain file must stay inside the selected folder")
         return final_path
 
+    def bookmark_filename(self, bookmark_id: str, title: str) -> str:
+        return f"{self._sanitize_name(title or 'Untitled')}-{bookmark_id[:8]}.md"
+
+    @staticmethod
+    def _owner(path: Path) -> str | None:
+        if path.is_symlink() or not path.is_file():
+            return None
+        try:
+            with path.open(encoding="utf-8") as handle:
+                header = handle.read(2048)
+            match = re.search(r"^gyrus_bookmark_id: ([A-Za-z0-9_-]{1,128})$", header, re.MULTILINE)
+            if match:
+                return match[1]
+        except (OSError, ValueError):
+            pass
+        return None
+
+    def _owns(self, path: Path, bookmark_id: str | None = None) -> bool:
+        if not path.resolve().is_relative_to(self.root_dir):
+            return False
+        owner = self._owner(path)
+        return owner is not None and (bookmark_id is None or owner == bookmark_id)
+
+    @staticmethod
+    def _write_atomic(path: Path, content: str) -> None:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                         prefix=".gyrus-", delete=False) as handle:
+            temporary = Path(handle.name)
+            try:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            except BaseException:
+                temporary.unlink(missing_ok=True)
+                raise
+        try:
+            os.replace(temporary, path)
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def _generated_section(self, bookmark: Bookmark) -> str:
+        content = self._render_markdown(bookmark)
+        content = content.replace("---\n", f"---\ngyrus_bookmark_id: {bookmark.id}\n", 1)
+        digest = hashlib.sha256(content.encode()).hexdigest()
+        return content + f"<!-- gyrus:generated-end {digest} -->\n"
+
     def sync_bookmark(self, db: Session, bookmark: Bookmark, old_path: Optional[Path] = None):
-        """Creates or moves the bookmark markdown file."""
+        """Refresh our generated section, preserving appended or edited user text."""
         if not self.is_enabled:
             return
-
         new_path = self._get_bookmark_file_path(db, bookmark)
-
-        # Handle move/rename
-        if old_path and old_path.exists() and old_path != new_path:
-            # Ensure new directory exists
-            new_path.parent.mkdir(parents=True, exist_ok=True)
-            old_path.rename(new_path)
-
-        # If the file already exists, don't overwrite it to avoid data loss (e.g. chat history)
-        if new_path.exists():
-            return
-
-        # Ensure directory exists for new file
         new_path.parent.mkdir(parents=True, exist_ok=True)
+        if old_path and old_path != new_path and self._owns(old_path, bookmark.id):
+            if new_path.exists():
+                raise ValueError("The destination Brain file already exists; both files were preserved")
+            old_path.rename(new_path)
+            parent = old_path.parent
+            while parent != self.root_dir and self.root_dir in parent.parents:
+                try:
+                    parent.rmdir()
+                except OSError:
+                    break
+                parent = parent.parent
 
-        with open(new_path, "w", encoding="utf-8") as f:
-            f.write(self._render_markdown(bookmark))
+        generated = self._generated_section(bookmark)
+        if new_path.exists():
+            if not self._owns(new_path, bookmark.id):
+                raise ValueError("The destination belongs to another note; it was preserved")
+            existing = new_path.read_text(encoding="utf-8")
+            match = re.search(r"<!-- gyrus:generated-end ([a-f0-9]{64}) -->\n?", existing)
+            if not match or hashlib.sha256(existing[:match.start()].encode()).hexdigest() != match[1]:
+                # The generated section was edited externally. Preserve that edit.
+                return
+            generated += existing[match.end():]
+            self._write_atomic(new_path, generated)
+        else:
+            # Exclusive creation also protects a file created concurrently by an editor.
+            with new_path.open("x", encoding="utf-8") as handle:
+                handle.write(generated)
 
     @staticmethod
     def _yaml_quote(s: str) -> str:
@@ -192,8 +249,9 @@ class BrainSyncService:
             return
 
         path = self._get_bookmark_file_path(db, bookmark)
-        if not path.exists():
-            self.sync_bookmark(db, bookmark)
+        self.sync_bookmark(db, bookmark)
+        if not self._owns(path, bookmark.id):
+            return
 
         interaction = f"\n\n## Chat Interaction ({datetime.now()})\n**You:** {prompt}\n\n**AI:** {response}\n"
 
@@ -209,7 +267,7 @@ class BrainSyncService:
         if not self.is_enabled:
             return
         path = self._get_bookmark_file_path(db, bookmark)
-        if not path.exists():
+        if not self._owns(path, bookmark.id):
             return
         try:
             text = path.read_text(encoding="utf-8")
@@ -226,24 +284,13 @@ class BrainSyncService:
     def delete_bookmark_file(self, db: Session, bookmark: Bookmark):
         """Removes the bookmark file from disk."""
         path = self._get_bookmark_file_path(db, bookmark)
-        if path.exists():
+        if self._owns(path, bookmark.id):
             path.unlink()
 
     def delete_bookmarks_files(self, db: Session, bookmarks: list[Bookmark]):
-        """Removes multiple bookmark files from disk.
-        Caches collection paths to avoid N+1 DB queries."""
-        collection_paths = {}
+        """Remove only identified Gyrus files for the given bookmarks."""
         for bookmark in bookmarks:
-            if bookmark.collection_id not in collection_paths:
-                collection_paths[bookmark.collection_id] = self._get_collection_path(db, bookmark.collection_id)
-
-            rel_dir = collection_paths[bookmark.collection_id]
-            short_id = bookmark.id[:8]
-            filename = f"{self._sanitize_name(bookmark.title or 'Untitled')}-{short_id}.md"
-            final_path = (self.root_dir / rel_dir / filename).resolve()
-
-            if final_path.is_relative_to(self.root_dir) and final_path.exists():
-                final_path.unlink()
+            self.delete_bookmark_file(db, bookmark)
 
     def clear_all_files(self):
         """Delete only files that can be identified as Gyrus-generated.
@@ -263,66 +310,43 @@ class BrainSyncService:
         if root in protected or len(root.parts) < 3:
             raise ValueError(f"Refusing to clear unsafe Brain root: {root}")
             
-        generated_suffix = re.compile(r"-[0-9a-fA-F]{8}\.md$")
         for item in root.rglob("*.md"):
-            if item.name == self.INDEX_FILENAME or generated_suffix.search(item.name):
+            if self._owns(item) or self._owns_index(item):
                 item.unlink()
-        self._prune_empty_dirs()
+        # Do not prune unrelated empty folders in a user's existing vault.
 
-    @staticmethod
-    def _frontmatter_url(path: Path) -> Optional[str]:
-        """Read the `url:` field from a markdown file's frontmatter."""
+    def _owns_index(self, path: Path) -> bool:
+        if path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(self.root_dir):
+            return False
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                for _ in range(15):
-                    line = f.readline()
-                    if not line:
-                        break
-                    if line.startswith("url:"):
-                        return line[len("url:"):].strip()
-        except Exception:
-            return None
-        return None
+            return path.read_text(encoding="utf-8").startswith("<!-- gyrus:index v1 -->\n")
+        except OSError:
+            return False
 
-    def _prune_empty_dirs(self) -> None:
-        """Remove empty leftover directories (deepest first), keeping the root."""
-        dirs = [p for p in self.root_dir.rglob("*") if p.is_dir()]
-        for d in sorted(dirs, key=lambda p: len(p.parts), reverse=True):
-            try:
-                if not any(d.iterdir()):
-                    d.rmdir()
-            except Exception as exc:
-                logger.debug("Could not prune Brain directory %s: %s", d, exc)
+    def index_path(self) -> Path:
+        for name in [self.INDEX_FILENAME, "_Gyrus-Index.md"] + [f"_Gyrus-Index-{n}.md" for n in range(1, 1000)]:
+            path = self.root_dir / name
+            if path.is_symlink() or not path.resolve().is_relative_to(self.root_dir):
+                continue
+            if not path.exists() or self._owns_index(path):
+                return path
+        raise ValueError("No unused destination for the Brain index")
 
     def resync_all(self, db: Session) -> None:
-        """Reconcile the on-disk structure with the database: move every
-        existing markdown file to the folder its bookmark now belongs to
-        (matched by URL, which is stable across renames), then drop empty
-        directories. This is what keeps the brain mirroring Gyrus after folder
-        renames, moves and deletes."""
+        """Move identified Gyrus files and refresh generated metadata.
+
+        Legacy files without an ownership marker are preserved in place.
+        """
         if not self.is_enabled or not self.root_dir.exists():
             return
 
-        by_url = {bm.url: bm for bm in db.query(Bookmark).filter(Bookmark.deleted_at.is_(None)).all()}
-        for path in [p for p in self.root_dir.rglob("*.md") if p.is_file()]:
-            url = self._frontmatter_url(path)
-            if not url:
-                continue
-            bookmark = by_url.get(url)
-            if bookmark is None:
-                continue
-            correct = self._get_bookmark_file_path(db, bookmark)
-            if correct == path:
-                continue
+        bookmarks = db.query(Bookmark).filter(Bookmark.deleted_at.is_(None)).all()
+        owned = {self._owner(path): path for path in self.root_dir.rglob("*.md") if self._owns(path)}
+        for bookmark in bookmarks:
             try:
-                correct.parent.mkdir(parents=True, exist_ok=True)
-                if correct.exists():
-                    continue  # don't clobber a file already at the target
-                path.rename(correct)
-            except Exception as exc:
-                logger.warning("Could not move Brain file %s to %s: %s", path, correct, exc)
-
-        self._prune_empty_dirs()
+                self.sync_bookmark(db, bookmark, old_path=owned.get(bookmark.id))
+            except (OSError, ValueError) as exc:
+                logger.warning("Could not sync Brain bookmark %s: %s", bookmark.id, exc)
         self.rebuild_index(db, force=True)
 
     INDEX_FILENAME = "_Index.md"
@@ -332,15 +356,11 @@ class BrainSyncService:
         ALL bookmarks (from the database, so it's always complete — even those
         without a chat file yet), grouped by folder, with links and tags.
 
-        Debounced: rapid successive mutations skip the (potentially heavy)
-        rebuild; the next call after the window catches everything up. Pass
-        force=True for the startup/folder reconcile."""
+        Rebuild after each completed mutation. Skipping a last write in a
+        debounce window left links stale indefinitely after a rename. Bulk
+        operations call this once after committing their whole batch."""
         if not self.is_enabled:
             return
-        now = time.monotonic()
-        if not force and (now - self._last_index_rebuild) < 3.0:
-            return
-        self._last_index_rebuild = now
         try:
             self.root_dir.mkdir(parents=True, exist_ok=True)
         except Exception:
@@ -382,6 +402,7 @@ class BrainSyncService:
             groups.setdefault(col_path(cid), []).append((bid, title or "Untitled", url))
 
         lines = [
+            "<!-- gyrus:index v1 -->",
             "# Gyrus Index",
             "",
             f"_Auto-generated · {len(rows)} bookmarks · {datetime.now():%Y-%m-%d %H:%M}_",
@@ -395,7 +416,11 @@ class BrainSyncService:
             lines.append(f"## {display} ({len(items)})")
             for bid, title, url in sorted(items, key=lambda x: x[1].lower()):
                 safe_title = title.replace("[", "(").replace("]", ")")
-                rel_md = quote(f"{rel_dir}/{self._sanitize_name(title)}.md")
+                filename = self.bookmark_filename(bid, title)
+                candidate = self.root_dir / rel_dir / filename
+                if candidate.exists() and not self._owns(candidate, bid):
+                    filename = f"{self._sanitize_name(title)}-{bid}-gyrus.md"
+                rel_md = quote(f"{rel_dir}/{filename}")
                 entry = f"- [{safe_title}]({rel_md}) — {url}"
                 tags = tags_by_bm.get(bid)
                 if tags:
@@ -405,7 +430,14 @@ class BrainSyncService:
 
         content = "\n".join(lines).rstrip() + "\n"
         try:
-            (self.root_dir / self.INDEX_FILENAME).write_text(content, encoding="utf-8")
+            path = self.index_path()
+            if path.exists() and not self._owns_index(path):
+                raise ValueError("The Brain index destination belongs to another note")
+            if path.exists():
+                self._write_atomic(path, content)
+            else:
+                with path.open("x", encoding="utf-8") as handle:
+                    handle.write(content)
         except Exception as e:
             logger.warning(f"Failed to write brain index: {e}")
 

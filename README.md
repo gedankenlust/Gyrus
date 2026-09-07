@@ -43,7 +43,7 @@ Every selected bookmark opens into four clear top-level areas:
 2. **Design** — responsive renders, design evidence, architecture, navigation,
    and sitemap discovery.
 3. **AI Brain** — page-grounded chat using your local Ollama model.
-4. **Notes** — editable notes stored with the bookmark.
+4. **Notes** — save individual notes with each bookmark; drafts stay available during the session if saving fails.
 
 AI is optional. With AI disabled, Gyrus remains a complete local bookmark,
 reading, and web-inspection app.
@@ -97,7 +97,7 @@ DMG is smaller.
 | **Design workspace** | Bundled Chromium captures desktop `1440×900`, tablet `834×1112`, and mobile `390×844` views, keeps recent inspections, and compares responsive states |
 | **Design evidence** | Human-readable component patterns, colors, typography, CSS design tokens, layout, assets, SEO, accessibility, network, console, computed styles, and viewport PDF export |
 | **Website intelligence** | Detects CMS, frameworks, builders, analytics, rendering approach, and web server evidence; maps rendered navigation and same-origin pages from sitemaps plus an internal crawl |
-| **Notes** | Per-bookmark notes with auto-save |
+| **Notes** | Per-bookmark notes with explicit save, draft retention and visible errors |
 | **AI Brain** | Chat and summaries about the selected bookmark’s page (not library-wide Q&A), plus site-structure awareness and optional Markdown mirroring |
 | **Link maintenance** | Background dead-link checks, manual status correction, metadata refresh, favicons, descriptions, and preview images |
 | **Browser extension** | Gyrus Saver sends the active browser tab to the Inbox and enriches it in the background |
@@ -243,22 +243,34 @@ cd Gyrus
 cd backend
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install --require-hashes -r requirements.lock
 cd ..
 
 python3 generate_xcodeproj.py
 open Gyrus.xcodeproj
 ```
 
-Run Gyrus from Xcode with `⌘R`. Development builds use `backend/venv`; release
-builds bundle the self-contained runtime produced by:
+Run Gyrus from Xcode with `⌘R`. Built apps prefer the bundled runtime. Set
+`GYRUS_USE_REPO_BACKEND=1` in the Xcode scheme to use `backend/venv` during
+development. Release builds require the self-contained runtime produced by:
 
 ```sh
 cd backend
 ./build_python_runtime.sh
 ```
 
-The runtime is generated locally and intentionally ignored by Git.
+The runtime is generated locally and intentionally ignored by Git. Production
+inputs are in `backend/requirements-runtime.in`; both runtime and development
+installations use complete, hashed lock files. After dependency changes, run:
+
+```sh
+uv pip compile backend/requirements-runtime.in --python-version 3.11 --universal --generate-hashes -o backend/requirements-runtime.lock
+uv pip compile backend/requirements.txt -c backend/requirements-runtime.lock --python-version 3.11 --universal --generate-hashes -o backend/requirements.lock
+```
+
+Then rebuild the runtime. The build verifies its package manifest, input/lock
+hashes and required browser components, rejecting missing or stale runtimes.
+The manifest is a consistency check; code signing seals the packaged files.
 
 ## Testing
 
@@ -271,7 +283,7 @@ xcodebuild test -project Gyrus.xcodeproj -scheme Gyrus \
 backend/venv/bin/pytest -q
 
 # Dependency audit
-backend/venv/bin/pip-audit -r backend/requirements.txt
+uvx pip-audit -r backend/requirements.lock
 ```
 
 The release script repeats the regression tests, builds the Release app,

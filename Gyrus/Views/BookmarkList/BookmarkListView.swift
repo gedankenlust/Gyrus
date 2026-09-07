@@ -53,6 +53,12 @@ struct BookmarkListView: View {
                     }
                 )
                 .frame(maxWidth: 360)
+                if bookmarkStore.usingKeywordFallback {
+                    Image(systemName: "text.magnifyingglass")
+                        .foregroundStyle(.secondary)
+                        .help("Showing keyword results because semantic search returned no results.")
+                        .accessibilityLabel("Keyword search fallback")
+                }
 
                 ZStack {
                     if uiStateStore.isRefreshingBookmarks {
@@ -80,6 +86,7 @@ struct BookmarkListView: View {
                 .buttonStyle(.bordered)
                 .disabled(bookmarkStore.bookmarks.isEmpty)
                 .help("Select all (⌘A)")
+                .accessibilityLabel("Select all")
 
                 Menu {
                     Section("Sort by Name") {
@@ -122,6 +129,7 @@ struct BookmarkListView: View {
                 }
                 .buttonStyle(.bordered)
                 .help("Add bookmark (⌘N)")
+                .accessibilityLabel("Add bookmark")
 
                 SettingsLink {
                     Image(systemName: "gearshape")
@@ -129,6 +137,7 @@ struct BookmarkListView: View {
                 }
                 .buttonStyle(.bordered)
                 .help("Settings (⌘,)")
+                .accessibilityLabel("Settings")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -239,6 +248,7 @@ struct SearchField: View {
                 }
                 .buttonStyle(.plain)
                 .help("Clear search")
+                .accessibilityLabel("Clear search")
             }
 
             if semanticAvailable {
@@ -254,6 +264,8 @@ struct SearchField: View {
                                     in: RoundedRectangle(cornerRadius: 5))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Semantic search")
+                .accessibilityValue(isSemantic ? String(localized: "On") : String(localized: "Off"))
                 .help(isSemantic
                       ? "Meaning-based search is ON — finds by concept, not just words. Click for keyword search."
                       : "Click to search by meaning (semantic), not just keywords.")
@@ -385,6 +397,7 @@ struct SelectionStatusBar: View {
             }
             .buttonStyle(.plain)
             .help("Deselect all")
+                .accessibilityLabel("Deselect all")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

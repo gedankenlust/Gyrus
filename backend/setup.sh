@@ -13,7 +13,7 @@ fi
 
 echo "--> Installing dependencies..."
 source venv/bin/activate
-pip install -r requirements.txt -q
+pip install --require-hashes -r requirements.lock -q
 
 echo "--> Running database migrations..."
 alembic upgrade head

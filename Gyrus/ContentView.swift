@@ -11,8 +11,11 @@ struct ContentView: View {
     @State private var showImport = false
     @State private var showAddBookmark = false
     @State private var showCommandPalette = false
-    @State private var showBrainOnboarding = false
+    @State private var showWelcome = false
+    @State private var welcomeAction = ""
     @State private var newTagName = ""
+    @State private var newTagError: String?
+    @State private var isSavingTag = false
     @State private var newTagColor: Color = .blue
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
@@ -32,22 +35,36 @@ struct ContentView: View {
 
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(showImport: $showImport)
-                .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 280)
+                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
         } content: {
             BookmarkListView(showAddBookmark: $showAddBookmark)
-                .navigationSplitViewColumnWidth(min: 300, ideal: 420)
+                .navigationSplitViewColumnWidth(min: 280, ideal: 420)
         } detail: {
             PreviewPanelView()
-            .navigationSplitViewColumnWidth(min: 520, ideal: 720)
+            .navigationSplitViewColumnWidth(min: 380, ideal: 720)
         }
+        .disabled(appStore.isReplacingLibrary)
         .sheet(isPresented: $showImport) {
             ImportWizardView(isPresented: $showImport)
         }
         .sheet(isPresented: $showAddBookmark) {
             AddBookmarkView(isPresented: $showAddBookmark)
         }
-        .sheet(isPresented: $showBrainOnboarding) {
-            BrainOnboardingView(isPresented: $showBrainOnboarding)
+        .sheet(isPresented: $showWelcome, onDismiss: {
+            AppSettings.shared.didCompleteBrainOnboarding = true
+            if welcomeAction == "import" { showImport = true }
+            if welcomeAction == "add" { showAddBookmark = true }
+            welcomeAction = ""
+        }) {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Welcome to Gyrus").font(.title2.bold())
+                Text("Keep your bookmarks, folders and notes together on this Mac.")
+                Button("Import existing bookmarks…") { welcomeAction = "import"; showWelcome = false }
+                    .buttonStyle(.borderedProminent)
+                Button("Add your first bookmark…") { welcomeAction = "add"; showWelcome = false }
+                Text("You can enable optional local AI later in Settings.").font(.caption).foregroundStyle(.secondary)
+                HStack { Spacer(); Button("Start exploring") { showWelcome = false } }
+            }.padding(28).frame(width: 430)
         }
         .sheet(isPresented: Binding(
             get: { uiStateStore.newTagForIds != nil },
@@ -58,23 +75,25 @@ struct ContentView: View {
                 name: $newTagName,
                 color: $newTagColor,
                 onSave: {
-                    // Capture the typed values BEFORE resetting state — otherwise
-                    // the async task would read the already-cleared name.
-                    let name = newTagName.trimmingCharacters(in: .whitespaces)
+                    let name = newTagName.trimmingCharacters(in: .whitespacesAndNewlines)
                     let color = newTagColor.toHex()
-                    if let ids = uiStateStore.newTagForIds, !name.isEmpty {
-                        Task {
-                            if let updated = try? await tagStore.createTagAndAssign(
-                                name: name, color: color,
-                                toBookmarkIds: ids, in: bookmarkStore.bookmarks) {
-                                bookmarkStore.applyUpdated(updated)
-                            }
-                        }
+                    guard !isSavingTag, let ids = uiStateStore.newTagForIds, !name.isEmpty else { return }
+                    isSavingTag = true
+                    newTagError = nil
+                    Task {
+                        defer { isSavingTag = false }
+                        do {
+                            let updated = try await tagStore.createTagAndAssign(name: name, color: color,
+                                toBookmarkIds: ids, in: bookmarkStore.bookmarks)
+                            bookmarkStore.applyUpdated(updated)
+                            uiStateStore.newTagForIds = nil
+                            newTagName = ""
+                        } catch { newTagError = error.localizedDescription }
                     }
-                    uiStateStore.newTagForIds = nil
-                    newTagName = ""
                 },
-                onCancel: { uiStateStore.newTagForIds = nil; newTagName = "" }
+                onCancel: { uiStateStore.newTagForIds = nil; newTagName = ""; newTagError = nil },
+                errorMessage: newTagError,
+                isSaving: isSavingTag
             )
         }
         .sheet(isPresented: Binding(
@@ -106,9 +125,9 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            // First launch only: offer to set up the optional AI Brain.
+            // First launch starts with the core bookmark workflow.
             if !AppSettings.shared.didCompleteBrainOnboarding {
-                showBrainOnboarding = true
+                showWelcome = true
             }
         }
         .confirmationDialog(
@@ -143,7 +162,7 @@ struct ContentView: View {
                 appStore.cancelPendingDelete()
             }
         } message: {
-            Text("This permanently deletes \(uiStateStore.pendingBatchDelete?.count ?? 0) bookmarks. You can undo for 5 seconds afterwards.")
+            Text("This moves \(uiStateStore.pendingBatchDelete?.count ?? 0) bookmarks to Trash for 30 days. You can undo for 5 seconds.")
         }
         .alert(
             "Automatic Organization Failed",
@@ -160,6 +179,18 @@ struct ContentView: View {
         }
         .overlay(alignment: .top) {
             VStack(spacing: 6) {
+                if let error = appStore.loadError {
+                    HStack {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                        Button("Retry") { Task { await appStore.loadAll() } }
+                    }.padding(10).background(.regularMaterial)
+                }
+                if let error = bookmarkStore.draftStorageError {
+                    Label(error, systemImage: "exclamationmark.triangle").padding(10).background(.regularMaterial)
+                }
+                if let error = AIConfigSync.shared.error {
+                    Label(error, systemImage: "exclamationmark.triangle").padding(10).background(.regularMaterial)
+                }
                 if let msg = uiStateStore.errorMessage {
                     ErrorToast(message: msg) { uiStateStore.errorMessage = nil }
                         .transition(.move(edge: .top).combined(with: .opacity))

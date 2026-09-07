@@ -23,7 +23,7 @@ class TagUpdate(BaseModel):
     @classmethod
     def clean_name(cls, value: str | None) -> str | None:
         if value is None:
-            return None
+            raise ValueError("Tag name must not be null")
         value = " ".join(value.split())
         if not value:
             raise ValueError("Tag name must not be blank")

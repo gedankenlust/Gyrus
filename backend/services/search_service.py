@@ -27,6 +27,9 @@ async def search_bookmarks_semantic(
         logger.info("semantic search unavailable: %s", e)
         return []
 
+    from services.embedding_service import configuration_key
+    if not vector_store.matches_configuration(configuration_key()):
+        return []
     window = offset + limit
     pairs = vector_store.search(query_vec, k=window * 2)
     if not pairs:
@@ -117,7 +120,10 @@ def search_bookmarks(db: Session, query: str, limit: int = 50, offset: int = 0) 
             seen.add(bookmark_id)
             ids.append(bookmark_id)
 
-    # 5. Paginate the merged id list, then load and return in order.
+    # Remove trash before slicing, so hidden rows never shorten a page.
+    active_ids = {row[0] for row in db.query(Bookmark.id).filter(Bookmark.deleted_at.is_(None))}
+    ids = [ident for ident in ids if ident in active_ids]
+    # 5. Paginate the merged active id list, then load in rank order.
     page_ids = ids[offset: offset + limit]
     if not page_ids:
         return []

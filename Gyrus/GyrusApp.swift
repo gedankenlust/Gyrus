@@ -15,116 +15,6 @@ extension Notification.Name {
     static let bookmarksMoved = Notification.Name("bookmarksMoved")
 }
 
-@MainActor
-final class GyrusApplicationDelegate: NSObject, NSApplicationDelegate {
-    var openMainWindow: (() -> Void)?
-    private var mainWindow: NSWindow?
-    private var mainWindowDelegate: MainWindowDelegateProxy?
-
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        ProcessInfo.processInfo.disableAutomaticTermination(
-            "Gyrus remains available for its menu bar item and global shortcuts"
-        )
-    }
-
-    func applicationDidBecomeActive(_ notification: Notification) {
-        guard mainWindow?.isVisible != true else { return }
-        showMainWindow(activate: false)
-    }
-
-    func applicationWillUnhide(_ notification: Notification) {
-        if mainWindow?.isVisible != true {
-            showMainWindow(activate: false)
-        }
-    }
-
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        false
-    }
-
-    func applicationShouldHandleReopen(
-        _ sender: NSApplication,
-        hasVisibleWindows flag: Bool
-    ) -> Bool {
-        showMainWindow()
-        return false
-    }
-
-    func showMainWindow(activate: Bool = true) {
-        if activate {
-            NSApp.activate(ignoringOtherApps: true)
-        }
-        if let window = mainWindow {
-            if window.isMiniaturized {
-                window.deminiaturize(nil)
-            }
-            window.makeKeyAndOrderFront(nil)
-        } else {
-            openMainWindow?()
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                if let window = NSApp.keyWindow ?? NSApp.windows.first(where: { $0.title == "Gyrus" }) {
-                    self.registerMainWindow(window)
-                    window.makeKeyAndOrderFront(nil)
-                }
-            }
-        }
-    }
-
-    func registerMainWindow(_ window: NSWindow) {
-        guard mainWindow !== window else { return }
-        let proxy = MainWindowDelegateProxy(forwardingTo: window.delegate)
-        mainWindow = window
-        mainWindowDelegate = proxy
-        window.identifier = NSUserInterfaceItemIdentifier("gyrus-main-window")
-        window.isReleasedWhenClosed = false
-        window.delegate = proxy
-    }
-}
-
-@MainActor
-private final class MainWindowDelegateProxy: NSObject, NSWindowDelegate {
-    private weak var forwardedDelegate: NSWindowDelegate?
-
-    init(forwardingTo delegate: NSWindowDelegate?) {
-        forwardedDelegate = delegate
-    }
-
-    func windowShouldClose(_ sender: NSWindow) -> Bool {
-        sender.orderOut(nil)
-        return false
-    }
-
-    override func responds(to selector: Selector!) -> Bool {
-        super.responds(to: selector) || forwardedDelegate?.responds(to: selector) == true
-    }
-
-    override func forwardingTarget(for selector: Selector!) -> Any? {
-        if forwardedDelegate?.responds(to: selector) == true {
-            return forwardedDelegate
-        }
-        return super.forwardingTarget(for: selector)
-    }
-}
-
-private struct MainWindowLifecycleRegistration: ViewModifier {
-    @Environment(\.openWindow) private var openWindow
-    let appDelegate: GyrusApplicationDelegate
-
-    func body(content: Content) -> some View {
-        content.onAppear {
-            DispatchQueue.main.async {
-                if let window = NSApp.keyWindow {
-                    appDelegate.registerMainWindow(window)
-                }
-            }
-            appDelegate.openMainWindow = {
-                openWindow(id: "main")
-            }
-        }
-    }
-}
-
 @main
 struct GyrusApp: App {
     @NSApplicationDelegateAdaptor(GyrusApplicationDelegate.self) private var appDelegate
@@ -137,18 +27,6 @@ struct GyrusApp: App {
     @State private var settings = AppSettings.shared
 
     init() {
-        // Stop backend on app quit
-        let launcher = BackendLauncher.shared
-        NotificationCenter.default.addObserver(
-            forName: NSApplication.willTerminateNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            Task { @MainActor in
-                launcher.stop()
-            }
-        }
-
         // Global search shortcut → open the command palette.
         GlobalHotkey.shared.register(id: GlobalHotkey.searchID,
                                      config: AppSettings.shared.searchHotkey) {
@@ -191,15 +69,16 @@ struct GyrusApp: App {
                 }
             }
             .preferredColorScheme(resolvedScheme)
-            .modifier(MainWindowLifecycleRegistration(appDelegate: appDelegate))
+            .background(MainWindowRegistration(appDelegate: appDelegate).frame(width: 0, height: 0))
             .task {
+                guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
                 await launcher.start()
                 if launcher.isRunning {
                     // The backend boots with default brain settings. Push the
                     // saved config (location + on/off) so the user's choice is
                     // actually applied — otherwise every launch reverts to the
                     // default ~/.gyrus/brain and ignores a disabled brain.
-                    try? await APIClient.shared.updateAIBrainConfig(AppSettings.shared.aiBrainConfig)
+                    await AIConfigSync.shared.synchronize(AppSettings.shared.aiBrainConfig, force: true)
                     await store.loadAll()
                     // Backend is confirmed up now → (re)load any favicons that a
                     // card may have requested before it was ready.
@@ -224,6 +103,7 @@ struct GyrusApp: App {
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
         .commands {
+            MainWindowCommands(appDelegate: appDelegate)
             CommandGroup(after: .newItem) {
                 Button("Import Bookmarks…") {
                     NotificationCenter.default.post(name: .showImport, object: nil)

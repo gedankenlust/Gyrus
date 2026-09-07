@@ -28,7 +28,7 @@ SWIFT_VERSION = "5.9"
 # Gyrus/Resources/Info.plist and the requirements in README/GETTING_STARTED.
 MACOS_MIN = "14.0"
 MARKETING_VERSION = "1.5.0"
-BUILD_VERSION = "18"
+BUILD_VERSION = "19"
 
 # Everything the "Bundle Python Backend" phase must keep out of the shipped app.
 #
@@ -73,6 +73,8 @@ backend_rsync = (
     + f" {_RSYNC_SRC} {_RSYNC_DST}"
     + f"\\nmkdir -p {_LPROJ_DIR}"
 )
+
+backend_rsync = 'set -e\\nif [ \\"${CONFIGURATION}\\" = \\"Release\\" ] || [ -d \\"${SRCROOT}/backend/python-runtime\\" ]; then\\n/usr/bin/python3 \\"${SRCROOT}/backend/runtime_manifest.py\\" verify\\nfi\\n' + backend_rsync
 
 # 1. Collect all Swift files and their directories
 swift_files = []

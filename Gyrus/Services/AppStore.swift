@@ -13,7 +13,10 @@ final class AppStore {
     let uiStateStore = UIStateStore()
 
     let api = APIClient.shared  // internal: AppStore+Tags.swift uses it
-    private var pendingDeleteTask: Task<Void, Never>?
+    private var pendingDeleteTasks: [UUID: Task<Void, Never>] = [:]
+    private(set) var isReplacingLibrary = false
+    private var libraryGeneration = 0
+    var loadError: String?
     private var autoRefreshTask: Task<Void, Never>?
     private let linkCheckPoller = JobPoller<LinkCheckStatus>()
     private let metadataPoller = JobPoller<MetadataRefreshStatus>()
@@ -33,6 +36,7 @@ final class AppStore {
     }
 
     func loadAll() async {
+        let generation = libraryGeneration
         uiStateStore.beginLoading()
         defer { uiStateStore.endLoading() }
 
@@ -40,7 +44,8 @@ final class AppStore {
         // lifetime, unlike NotificationCenter's separate observer token.
         installBookmarksMovedObserver()
 
-        async let bmsResult: Void? = try? await bookmarksStore.loadBookmarks(
+        do {
+        async let bmsResult: Void = await bookmarksStore.loadBookmarks(
             collectionId: collectionsStore.selectedCollectionId,
             tagName: tagsStore.selectedTagName,
             showDeadOnly: collectionsStore.showDeadOnly,
@@ -49,17 +54,20 @@ final class AppStore {
             query: bookmarksStore.searchQuery,
             refreshCount: false
         )
-        async let colsResult: Void? = try? await collectionsStore.fetchCollections()
-        async let tagsResult: Void? = try? await tagsStore.fetchTags()
-        async let countsResult: BookmarkCounts? = try? await api.bookmarkCounts()
+        async let colsResult: Void = await collectionsStore.fetchCollections()
+        async let tagsResult: Void = await tagsStore.fetchTags()
+        async let countsResult: BookmarkCounts = await api.bookmarkCounts()
 
-        let _ = await (bmsResult, colsResult, tagsResult, countsResult)
-
-        if let counts = await countsResult {
-            bookmarksStore.totalBookmarkCount = counts.total
-            bookmarksStore.deadBookmarkCount = counts.dead
-            bookmarksStore.unreadBookmarkCount = counts.unread
-            bookmarksStore.trashCount = counts.trash
+        let (_, _, _, counts) = try await (bmsResult, colsResult, tagsResult, countsResult)
+        guard generation == libraryGeneration else { return }
+        bookmarksStore.totalBookmarkCount = counts.total
+        bookmarksStore.deadBookmarkCount = counts.dead
+        bookmarksStore.unreadBookmarkCount = counts.unread
+        bookmarksStore.trashCount = counts.trash
+        loadError = nil
+        } catch {
+            guard generation == libraryGeneration else { return }
+            loadError = String(localized: "The library could not be fully loaded.") + " " + error.localizedDescription
         }
 
         startAutoRefreshPolling()
@@ -72,13 +80,60 @@ final class AppStore {
         }
     }
 
+    /// Prevent a deferred delete/undo from being applied to the replacement library.
+    func prepareForLibraryReplacement() async {
+        isReplacingLibrary = true
+        libraryGeneration += 1
+        stopAutoRefreshPolling()
+        let tasks = Array(pendingDeleteTasks.values)
+        for task in tasks { task.cancel() }
+        for task in tasks { await task.value }
+        pendingDeleteTasks.removeAll()
+        linkCheckPoller.stop()
+        metadataPoller.stop()
+        batchTagPoller.stop()
+        bookmarksStore.pendingDeletionIds.removeAll()
+        uiStateStore.cancelUndoTimer()
+        uiStateStore.undoGeneration += 1
+        uiStateStore.undoAction = nil
+        uiStateStore.undoMessage = nil
+    }
+
+    func finishLibraryReplacement() {
+        isReplacingLibrary = false
+        startAutoRefreshPolling()
+    }
+
+    func resetLocalLibraryState() {
+        BrainChatStore.shared.resetLocalState()
+        bookmarksStore.resetLocalState()
+        collectionsStore.resetLocalState()
+        collectionsStore.selectedCollectionId = nil
+        collectionsStore.showTrash = false
+        collectionsStore.showDeadOnly = false
+        collectionsStore.showUnreadOnly = false
+        tagsStore.resetLocalState()
+        tagsStore.selectedTagName = nil
+        uiStateStore.pendingBatchDelete = nil
+        uiStateStore.pendingBatchOpen = nil
+        uiStateStore.newTagForIds = nil
+        uiStateStore.tagAssignmentForIds = nil
+        uiStateStore.batchTagReview = nil
+        uiStateStore.linkCheckStatus = nil
+        uiStateStore.metadataRefreshStatus = nil
+        uiStateStore.batchAutoTagStatus = nil
+        uiStateStore.errorMessage = nil
+        uiStateStore.infoMessage = nil
+        loadError = nil
+    }
+
     func stopAutoRefreshPolling() {
         autoRefreshTask?.cancel()
         autoRefreshTask = nil
     }
 
     private func startAutoRefreshPolling() {
-        guard autoRefreshTask == nil else { return }
+        guard autoRefreshTask == nil, !isReplacingLibrary else { return }
         autoRefreshTask = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 5_000_000_000) // poll every 5 seconds
@@ -108,6 +163,9 @@ final class AppStore {
                     // Ignore background-polling errors.
                 }
 
+                if AIConfigSync.shared.error != nil {
+                    AIConfigSync.shared.submit(AppSettings.shared.aiBrainConfig)
+                }
                 // Re-check semantic availability if Ollama wasn't ready at startup.
                 if !bookmarksStore.semanticSearchAvailable {
                     if let status = try? await api.semanticSearchStatus() {
@@ -277,12 +335,13 @@ final class AppStore {
         if !healthy {
             await BackendLauncher.shared.start()
             guard BackendLauncher.shared.isRunning else { return }
-            try? await api.updateAIBrainConfig(AppSettings.shared.aiBrainConfig)
+            await AIConfigSync.shared.synchronize(AppSettings.shared.aiBrainConfig, force: true)
             await loadAll()
             // A real restart briefly failed in-flight requests; keep them muted
             // a moment longer now that the backend is back up.
             uiStateStore.beginResumeGrace(3)
         }
+        await AIConfigSync.shared.synchronize(AppSettings.shared.aiBrainConfig)
         FaviconCache.shared.refresh()
     }
 
@@ -427,7 +486,7 @@ final class AppStore {
     func requestDeleteSelected() {
         let ids = bookmarksStore.selectedIds
         let confirmEnabled = AppSettings.shared.confirmDelete
-        if confirmEnabled && ids.count > batchThreshold {
+        if confirmEnabled && !ids.isEmpty {
             uiStateStore.pendingBatchDelete = ids
         } else {
             Task { await deleteSelected() }
@@ -590,39 +649,30 @@ final class AppStore {
     }
 
     func handleReset(type: ResetType) async throws {
-        switch type {
-        case .cache:
-            try await api.clearCache()
-        case .brain:
-            try await api.clearBrain()
-        case .bookmarks:
-            try await api.clearBookmarks()
-            bookmarksStore.bookmarks = []
-            bookmarksStore.selectedBookmark = nil
-            bookmarksStore.selectedIds = []
-            bookmarksStore.totalBookmarkCount = 0
-            bookmarksStore.deadBookmarkCount = 0
-            collectionsStore.collections = []
-            collectionsStore.selectedCollectionId = nil
-            tagsStore.tags = []
-            tagsStore.selectedTagName = nil
-        case .factory:
-            try await api.factoryReset()
-            BackendLauncher.shared.clearLog()
-            bookmarksStore.bookmarks = []
-            bookmarksStore.selectedBookmark = nil
-            bookmarksStore.selectedIds = []
-            bookmarksStore.totalBookmarkCount = 0
-            bookmarksStore.deadBookmarkCount = 0
-            collectionsStore.collections = []
-            collectionsStore.selectedCollectionId = nil
-            tagsStore.tags = []
-            tagsStore.selectedTagName = nil
-            if let bundleID = Bundle.main.bundleIdentifier {
-                UserDefaults.standard.removePersistentDomain(forName: bundleID)
+        if type == .bookmarks || type == .factory { await prepareForLibraryReplacement() }
+        defer { finishLibraryReplacement() }
+        do {
+            switch type {
+            case .cache:
+                try await api.clearCache()
+                FaviconCache.shared.refresh()
+            case .brain:
+                try await api.clearBrain()
+            case .bookmarks:
+                try await api.clearBookmarks()
+                resetLocalLibraryState()
+            case .factory:
+                try await api.factoryReset()
+                BackendLauncher.shared.clearLog()
+                resetLocalLibraryState()
+                AppSettings.shared.resetToDefaults()
+                await AIConfigSync.shared.synchronize(AppSettings.shared.aiBrainConfig, force: true)
             }
+            await loadAll()
+        } catch {
+            await loadAll()
+            throw error
         }
-        await loadAll()
     }
 
     private func scheduleUndoDelete(removed: [(bookmark: Bookmark, index: Int)],
@@ -632,32 +682,12 @@ final class AppStore {
 
         let count = deleteIds.count
         
-        // Only show Undo and require confirmation for more than 10 bookmarks.
-        // For small deletions, we delete immediately on the server.
-        if count <= 10 {
-            uiStateStore.undoMessage = nil
-            uiStateStore.undoAction = nil
-            
-            pendingDeleteTask = Task { [weak self] in
-                guard let self else { return }
-                do {
-                    try await self.api.deleteBookmarks(ids: deleteIds)
-                } catch {
-                    await MainActor.run { self.uiStateStore.showError(String(localized: "Delete failed: \(error.localizedDescription)")) }
-                }
-                await MainActor.run {
-                    self.bookmarksStore.pendingDeletionIds.subtract(deleteIds)
-                }
-                await self.loadAll()
-            }
-            return
-        }
-
+        let operationID = UUID()
         uiStateStore.undoMessage = AppSettings.shared.localized("Deleted \(count) bookmarks")
 
         uiStateStore.undoAction = { [weak self] in
             guard let self else { return }
-            self.pendingDeleteTask?.cancel()
+            self.pendingDeleteTasks[operationID]?.cancel()
             self.uiStateStore.cancelUndoTimer()
             
             // Clear pending IDs immediately on undo
@@ -679,8 +709,9 @@ final class AppStore {
 
         uiStateStore.startUndoTimer(window: Self.undoWindow)
 
-        pendingDeleteTask = Task { [weak self] in
+        pendingDeleteTasks[operationID] = Task { [weak self] in
             guard let self else { return }
+            defer { self.pendingDeleteTasks[operationID] = nil }
             try? await Task.sleep(nanoseconds: UInt64(Self.undoWindow * 1_000_000_000))
             guard !Task.isCancelled else { return }
             
@@ -688,6 +719,7 @@ final class AppStore {
             let chunkSize = 500
             let allIds = Array(deleteIds)
             for i in stride(from: 0, to: allIds.count, by: chunkSize) {
+                guard !Task.isCancelled else { return }
                 let chunk = Set(allIds[i..<min(i + chunkSize, allIds.count)])
                 do {
                     try await self.api.deleteBookmarks(ids: chunk)

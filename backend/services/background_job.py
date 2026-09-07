@@ -94,7 +94,8 @@ class BackgroundJob:
             self.state["started_at"] = _now()
             self.state["finished_at"] = None
 
-        self._task = asyncio.create_task(self._wrap(runner))
+        from services import background
+        self._task = background.track(asyncio.create_task(self._wrap(runner)))
         return self.get_status()
 
     async def run_noop(self, reset: dict | None = None) -> dict:

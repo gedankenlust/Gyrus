@@ -82,7 +82,13 @@ final class APIClient {
     static let llmTimeout: TimeInterval = 300
 
     // Internal (not private) so the domain extensions in sibling files can use them.
-    let base = Config.backendURL
+    let base: URL
+    let session: URLSession
+
+    init(base: URL = Config.backendURL, session: URLSession = .shared) {
+        self.base = base
+        self.session = session
+    }
 
     let decoder: JSONDecoder = {
         let d = JSONDecoder()
@@ -113,13 +119,14 @@ final class APIClient {
     // MARK: - Health
 
     func health() async throws -> Bool {
-        var request = URLRequest(url: base.appending(path: "/health"))
+        var request = URLRequest(url: base.appending(path: "/api/ready"))
+        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         request.timeoutInterval = 2.0 // Short timeout for health check
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard (response as? HTTPURLResponse)?.statusCode == 200,
               let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return false }
-        return payload["status"] as? String == "ok"
+        return payload["status"] as? String == "ok" && payload["service"] as? String == "gyrus"
     }
 
     // MARK: - HTTP verbs
@@ -140,7 +147,7 @@ final class APIClient {
         var request = URLRequest(url: url)
         request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             try checkStatus(response, data: data)
             return try decode(data, from: url)
         } catch let e as APIError {
@@ -158,7 +165,7 @@ final class APIClient {
         request.httpBody = try encoder.encode(body)
         if let timeout { request.timeoutInterval = timeout }
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             try checkStatus(response, data: data)
             return try decode(data, from: url)
         } catch let e as APIError {
@@ -175,7 +182,7 @@ final class APIClient {
         request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         request.httpBody = try encoder.encode(body)
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             try checkStatus(response, data: data)
         } catch let e as APIError {
             throw e
@@ -191,7 +198,7 @@ final class APIClient {
         request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         request.httpBody = try encoder.encode(body)
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             try checkStatus(response, data: data)
             return try decode(data, from: url)
         } catch let e as APIError {
@@ -206,7 +213,7 @@ final class APIClient {
         request.httpMethod = "DELETE"
         request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             try checkStatus(response, data: data)
         } catch let e as APIError {
             throw e
@@ -217,7 +224,12 @@ final class APIClient {
 
     func checkStatus(_ response: URLResponse, data: Data = Data()) throws {
         guard let http = response as? HTTPURLResponse else { return }
-        if http.statusCode == 409 { throw APIError.duplicate }
+        if http.statusCode == 409 {
+            let detail = serverDetail(from: data)
+            if detail == nil || detail?.lowercased().contains("already exists") == true {
+                throw APIError.duplicate
+            }
+        }
         if !(200...299).contains(http.statusCode) {
             if let message = serverDetail(from: data) {
                 throw APIError.serverMessage(message)

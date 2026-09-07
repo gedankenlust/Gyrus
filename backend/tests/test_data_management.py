@@ -40,7 +40,7 @@ def test_clear_brain(client):
     # Gyrus files are removed, unrelated files in a selected vault are not.
     brain_sync_service.root_dir.mkdir(parents=True, exist_ok=True)
     test_file = brain_sync_service.root_dir / "test-1234abcd.md"
-    test_file.write_text("dummy")
+    test_file.write_text("---\ngyrus_bookmark_id: 1234abcd-1234-1234-1234-123456789abc\n---\n")
     user_file = brain_sync_service.root_dir / "my-own-note.md"
     user_file.write_text("keep")
     
@@ -79,7 +79,7 @@ def test_factory_reset(client):
     
     brain_sync_service.root_dir.mkdir(parents=True, exist_ok=True)
     test_file = brain_sync_service.root_dir / "test-1234abcd.md"
-    test_file.write_text("dummy")
+    test_file.write_text("---\ngyrus_bookmark_id: 1234abcd-1234-1234-1234-123456789abc\n---\n")
 
     generated_files = []
     for relative in (
@@ -184,7 +184,7 @@ def test_backup_restore_roundtrip(client, db):
     assert restored_model.scraped_content == "Durable reader text"
     assert restored_model.metadata_status == "ready"
     assert restored_model.reader_status == "ready"
-    assert restored_model.index_status == "ready"
+    assert restored_model.index_status == "pending"
     assert restored_model.analysis_error == "Previous transient error"
     assert restored_model.analysis_attempts == 3
     assert restored_model.analysis_updated_at is not None

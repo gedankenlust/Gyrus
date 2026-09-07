@@ -13,6 +13,8 @@ from typing import Optional
 
 import httpx
 
+from services import ai_policy
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = "nomic-embed-text"
@@ -30,18 +32,24 @@ _active_base_url = DEFAULT_BASE_URL
 
 def set_active_model(model: Optional[str]) -> None:
     global _active_model
-    if model and model.strip():
+    if model and model.strip() and model.strip() != _active_model:
+        ai_policy.invalidate_requests()
         _active_model = model.strip()
 
 
 def set_active_base_url(url: Optional[str]) -> None:
     global _active_base_url
-    if url and url.strip():
-        _active_base_url = url.strip()
+    if url and url.strip() and url.strip().rstrip("/") != _active_base_url:
+        ai_policy.invalidate_requests()
+        _active_base_url = url.strip().rstrip("/")
 
 
 def current_model() -> str:
     return _active_model
+
+
+def current_base_url() -> str:
+    return _active_base_url
 
 
 class EmbeddingUnavailableError(Exception):
@@ -62,6 +70,9 @@ async def get_embedding(
     if not text or not text.strip():
         raise EmbeddingUnavailableError("Empty text — cannot embed.")
 
+    if not ai_policy.enabled():
+        raise EmbeddingUnavailableError("AI is disabled")
+    policy_generation = ai_policy.generation()
     model = model or _active_model
     base_url = base_url or _active_base_url
 
@@ -79,6 +90,8 @@ async def get_embedding(
     except Exception as e:
         raise EmbeddingUnavailableError(f"Embedding request failed: {e}")
 
+    if not ai_policy.enabled() or policy_generation != ai_policy.generation():
+        raise EmbeddingUnavailableError("AI configuration changed")
     vec = data.get("embedding")
     if not vec:
         raise EmbeddingUnavailableError(
@@ -98,6 +111,9 @@ async def get_embeddings(
     if len(cleaned) != len(texts) or not cleaned:
         raise EmbeddingUnavailableError("Every taxonomy item needs text to embed.")
 
+    if not ai_policy.enabled():
+        raise EmbeddingUnavailableError("AI is disabled")
+    policy_generation = ai_policy.generation()
     model = model or _active_model
     base_url = base_url or _active_base_url
     # Taxonomy generation immediately switches to a language model. Ask Ollama
@@ -125,9 +141,17 @@ async def get_embeddings(
     except Exception as exc:
         raise EmbeddingUnavailableError(f"Embedding request failed: {exc}")
 
+    if not ai_policy.enabled() or policy_generation != ai_policy.generation():
+        raise EmbeddingUnavailableError("AI configuration changed")
     vectors = data.get("embeddings")
     if not isinstance(vectors, list) or len(vectors) != len(texts) or not all(vectors):
         raise EmbeddingUnavailableError(
             f"Ollama returned incomplete embeddings for model '{model}'."
         )
     return vectors
+
+
+def configuration_key():
+    import json
+    model = _active_model if ":" in _active_model else _active_model + ":latest"
+    return json.dumps([_active_base_url.rstrip("/"), model])

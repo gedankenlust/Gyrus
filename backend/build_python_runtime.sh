@@ -4,7 +4,7 @@
 # dependencies pre-installed, so the shipped .app runs on any Mac WITHOUT a
 # system Python or pip (no first-launch bootstrap).
 #
-# Run this once (and again whenever requirements.txt changes):
+# Run this once (and again whenever requirements-runtime.lock changes):
 #   ./build_python_runtime.sh
 #
 # The result lands in backend/python-runtime/ (gitignored). The Xcode build
@@ -15,7 +15,7 @@ cd "$(dirname "$0")"   # backend/
 
 PY_VERSION="3.11.15"
 PY_BUILD_TAG="20260623"
-PIP_VERSION="26.2"
+PIP_VERSION="26.2.1"
 SETUPTOOLS_VERSION="83.0.0"
 RUNTIME_DIR="python-runtime"
 
@@ -58,9 +58,7 @@ rm -f "$TMP_TGZ"
 PY="$RUNTIME_DIR/bin/python3"
 echo "→ Installing production dependencies into the runtime…"
 "$PY" -m pip install "pip==$PIP_VERSION" "setuptools==$SETUPTOOLS_VERSION" >/dev/null
-# Install everything except the dev/test tools (kept out of the shipped runtime).
-grep -ivE '^(pytest|pytest-asyncio)' requirements.txt > "$RUNTIME_DIR/.prod-requirements.txt"
-"$PY" -m pip install -r "$RUNTIME_DIR/.prod-requirements.txt"
+"$PY" -m pip install --require-hashes -r requirements-runtime.lock
 
 echo "→ Installing the bundled Chromium browser…"
 PLAYWRIGHT_BROWSERS_PATH="$RUNTIME_DIR/playwright-browsers" \
@@ -81,6 +79,9 @@ PYTHONDONTWRITEBYTECODE=1 PLAYWRIGHT_BROWSERS_PATH="$RUNTIME_DIR/playwright-brow
 # later seals into the app bundle.
 find "$RUNTIME_DIR" -type d -name "__pycache__" -prune -exec rm -rf {} + 2>/dev/null || true
 find "$RUNTIME_DIR" -type f -name "*.pyc" -delete 2>/dev/null || true
+
+PYTHONDONTWRITEBYTECODE=1 "$PY" runtime_manifest.py create
+python3 runtime_manifest.py verify
 
 SIZE="$(du -sh "$RUNTIME_DIR" | cut -f1)"
 echo "✅ Done. Runtime at backend/$RUNTIME_DIR ($SIZE). Re-run generate_xcodeproj.py is not needed; just rebuild the app."

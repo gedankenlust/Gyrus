@@ -1,0 +1,349 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -xctestrun /tmp/gyrus-improvements/Build/Products/Gyrus-isolated.xctestrun -destination platform=macOS,arch=arm64 -resultBundlePath /tmp/gyrus-improvements-final-tests.xcresult
+
+2026-09-06 15:20:52.638 xcodebuild[12603:307103] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+Writing result bundle at path:
+	/tmp/gyrus-improvements-final-tests.xcresult
+
+2026-09-06 15:20:52.640 xcodebuild[12603:307103] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00006021-000249110AF0C01E, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Mac Catalyst, id:00006021-000249110AF0C01E, name:My Mac }
+{ platform:macOS, arch:arm64, variant:DriverKit, id:00006021-000249110AF0C01E, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00006021-000249110AF0C01E, name:My Mac }
+2026-09-06 15:20:52.898 xcodebuild[12603:307103] [MT] IDERunDestination: Supported platforms for the buildables in the current scheme is empty.
+2026-09-06 15:20:53.509165+0200 Gyrus[12607:307213] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-06 15:20:53.509477+0200 Gyrus[12607:307213] [Application] Error registering app with intents framework: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-06 15:20:53.509611+0200 Gyrus[12607:307205] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-06 15:20:53.509635+0200 Gyrus[12607:307205] [Connection] Unable to re-register with Process Instance Registry, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-06 15:20:53.510575+0200 Gyrus[12607:307204] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-06 15:20:53.510612+0200 Gyrus[12607:307204] [Connection] Unable to re-register with Process Instance Registry, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-06 15:20:53.511069+0200 Gyrus[12607:307204] [Connection] Will NOT re-try to establish the connection
+2026-09-06 15:20:53.511128+0200 Gyrus[12607:307213] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-06 15:20:53.511156+0200 Gyrus[12607:307213] [Connection] Unable to re-register with Process Instance Registry, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-06 15:20:53.547810+0200 Gyrus[12607:307188] ApplePersistenceIgnoreState: Existing state will not be touched. New state will be written to /var/folders/63/0_cxxh4x24514g5fc8_ply4m0000gn/T/com.gyrus.app.savedState
+Test Suite 'All tests' started at 2026-09-06 15:20:53.717.
+Test Suite 'GyrusTests.xctest' started at 2026-09-06 15:20:53.717.
+Test Suite 'AppStoreLogicTests' started at 2026-09-06 15:20:53.717.
+Test Case '-[GyrusTests.AppStoreLogicTests testBatchOpenAboveThresholdSetsPending]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testBatchOpenAboveThresholdSetsPending]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testBatchOpenAtThresholdDoesNotSetPending]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testBatchOpenAtThresholdDoesNotSetPending]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testCancelledNetworkRequestDoesNotShowErrorToast]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testCancelledNetworkRequestDoesNotShowErrorToast]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testCancelPendingOpenClearsState]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testCancelPendingOpenClearsState]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testConfirmPendingOpenClearsState]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testConfirmPendingOpenClearsState]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testFlatCollectionsDepthFirstOrder]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testFlatCollectionsDepthFirstOrder]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testFlatCollectionsEmpty]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testFlatCollectionsEmpty]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testFlatCollectionsFlat]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testFlatCollectionsFlat]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testFlatCollectionsMultipleRoots]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testFlatCollectionsMultipleRoots]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testOverlappingBookmarkRefreshesKeepIndicatorVisible]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testOverlappingBookmarkRefreshesKeepIndicatorVisible]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testOverlappingLoadingOperationsKeepIndicatorVisible]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testOverlappingLoadingOperationsKeepIndicatorVisible]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testRealNetworkFailureStillShowsErrorToastForDirectAction]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testRealNetworkFailureStillShowsErrorToastForDirectAction]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testTagPresenceAll]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testTagPresenceAll]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testTagPresenceEmptySelectionReturnsNone]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testTagPresenceEmptySelectionReturnsNone]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testTagPresenceIgnoresNonSelectedBookmarks]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testTagPresenceIgnoresNonSelectedBookmarks]' passed (0.001 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testTagPresenceNone]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testTagPresenceNone]' passed (0.002 seconds).
+Test Case '-[GyrusTests.AppStoreLogicTests testTagPresenceSome]' started.
+Test Case '-[GyrusTests.AppStoreLogicTests testTagPresenceSome]' passed (0.001 seconds).
+Test Suite 'AppStoreLogicTests' passed at 2026-09-06 15:20:53.737.
+	 Executed 17 tests, with 0 failures (0 unexpected) in 0.013 (0.020) seconds
+Test Suite 'CollectionTreeTests' started at 2026-09-06 15:20:53.737.
+Test Case '-[GyrusTests.CollectionTreeTests testBrainRootWrapsInSubfolder]' started.
+Test Case '-[GyrusTests.CollectionTreeTests testBrainRootWrapsInSubfolder]' passed (0.000 seconds).
+Test Case '-[GyrusTests.CollectionTreeTests testChildIds]' started.
+Test Case '-[GyrusTests.CollectionTreeTests testChildIds]' passed (0.001 seconds).
+Test Case '-[GyrusTests.CollectionTreeTests testInsertBeforeAndAfter]' started.
+Test Case '-[GyrusTests.CollectionTreeTests testInsertBeforeAndAfter]' passed (0.001 seconds).
+Test Case '-[GyrusTests.CollectionTreeTests testInsertNodeAtIndexInChild]' started.
+Test Case '-[GyrusTests.CollectionTreeTests testInsertNodeAtIndexInChild]' passed (0.001 seconds).
+Test Case '-[GyrusTests.CollectionTreeTests testLegacyPreviewTabsMigrateToCurrentTabs]' started.
+Test Case '-[GyrusTests.CollectionTreeTests testLegacyPreviewTabsMigrateToCurrentTabs]' passed (0.001 seconds).
+Test Case '-[GyrusTests.CollectionTreeTests testRemoveNodeFindsNested]' started.
+Test Case '-[GyrusTests.CollectionTreeTests testRemoveNodeFindsNested]' passed (0.000 seconds).
+Test Suite 'CollectionTreeTests' passed at 2026-09-06 15:20:53.746.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.003 (0.009) seconds
+Test Suite 'ColorExtensionTests' started at 2026-09-06 15:20:53.747.
+Test Case '-[GyrusTests.ColorExtensionTests testBlack]' started.
+Test Case '-[GyrusTests.ColorExtensionTests testBlack]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ColorExtensionTests testHexCaseInsensitive]' started.
+Test Case '-[GyrusTests.ColorExtensionTests testHexCaseInsensitive]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ColorExtensionTests testHexEmpty]' started.
+Test Case '-[GyrusTests.ColorExtensionTests testHexEmpty]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ColorExtensionTests testHexInvalidChars]' started.
+Test Case '-[GyrusTests.ColorExtensionTests testHexInvalidChars]' passed (0.000 seconds).
+Test Case '-[GyrusTests.ColorExtensionTests testHexTooLong]' started.
+Test Case '-[GyrusTests.ColorExtensionTests testHexTooLong]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ColorExtensionTests testHexTooShort]' started.
+Test Case '-[GyrusTests.ColorExtensionTests testHexTooShort]' passed (0.000 seconds).
+Test Case '-[GyrusTests.ColorExtensionTests testHexWithHash]' started.
+Test Case '-[GyrusTests.ColorExtensionTests testHexWithHash]' passed (0.000 seconds).
+Test Case '-[GyrusTests.ColorExtensionTests testHexWithoutHash]' started.
+Test Case '-[GyrusTests.ColorExtensionTests testHexWithoutHash]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ColorExtensionTests testLowercaseRoundTrips]' started.
+Test Case '-[GyrusTests.ColorExtensionTests testLowercaseRoundTrips]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ColorExtensionTests testRed]' started.
+Test Case '-[GyrusTests.ColorExtensionTests testRed]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ColorExtensionTests testRoundTrip]' started.
+Test Case '-[GyrusTests.ColorExtensionTests testRoundTrip]' passed (0.000 seconds).
+Test Case '-[GyrusTests.ColorExtensionTests testWhite]' started.
+Test Case '-[GyrusTests.ColorExtensionTests testWhite]' passed (0.001 seconds).
+Test Suite 'ColorExtensionTests' passed at 2026-09-06 15:20:53.758.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.007 (0.011) seconds
+Test Suite 'DesignInspectorGroupingTests' started at 2026-09-06 15:20:53.758.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testColorsAreDetectedAcrossSyntaxes]' started.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testColorsAreDetectedAcrossSyntaxes]' passed (0.001 seconds).
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testDurationsAndEasingsAreMotion]' started.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testDurationsAndEasingsAreMotion]' passed (0.001 seconds).
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testFontStackEndingInMSIsNotMotion]' started.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testFontStackEndingInMSIsNotMotion]' passed (0.000 seconds).
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testFrameworkPlaceholdersAreKeptButSeparated]' started.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testFrameworkPlaceholdersAreKeptButSeparated]' passed (0.001 seconds).
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testMostUsedStepsSurviveTheLimit]' started.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testMostUsedStepsSurviveTheLimit]' passed (0.001 seconds).
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testPrefixedTokensAreClassifiedByValueNotName]' started.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testPrefixedTokensAreClassifiedByValueNotName]' passed (0.001 seconds).
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testScaleIsPresentedAscending]' started.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testScaleIsPresentedAscending]' passed (0.001 seconds).
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testTypeScaleOrderIsStableAcrossRuns]' started.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testTypeScaleOrderIsStableAcrossRuns]' passed (0.001 seconds).
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testTypeScaleOrdersBySizeThenWeightThenFamily]' started.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testTypeScaleOrdersBySizeThenWeightThenFamily]' passed (0.001 seconds).
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testUnitsAreNotConflated]' started.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testUnitsAreNotConflated]' passed (0.001 seconds).
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testWordsContainingEaseAreNotMotion]' started.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testWordsContainingEaseAreNotMotion]' passed (0.000 seconds).
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testZeroLengthsAreIgnored]' started.
+Test Case '-[GyrusTests.DesignInspectorGroupingTests testZeroLengthsAreIgnored]' passed (0.000 seconds).
+Test Suite 'DesignInspectorGroupingTests' passed at 2026-09-06 15:20:53.770.
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.008 (0.013) seconds
+Test Suite 'MainWindowLifecycleTests' started at 2026-09-06 15:20:53.770.
+Test Case '-[GyrusTests.MainWindowLifecycleTests testActivationRestoresHiddenLibraryWithoutOpeningAnotherScene]' started.
+Test Case '-[GyrusTests.MainWindowLifecycleTests testActivationRestoresHiddenLibraryWithoutOpeningAnotherScene]' passed (0.011 seconds).
+Test Case '-[GyrusTests.MainWindowLifecycleTests testAttachmentRegistersItsOwnWindowWhenSettingsIsKey]' started.
+Test Case '-[GyrusTests.MainWindowLifecycleTests testAttachmentRegistersItsOwnWindowWhenSettingsIsKey]' passed (0.017 seconds).
+Test Case '-[GyrusTests.MainWindowLifecycleTests testCloseThenDockReopenShowsSameLibraryWindow]' started.
+Test Case '-[GyrusTests.MainWindowLifecycleTests testCloseThenDockReopenShowsSameLibraryWindow]' passed (0.010 seconds).
+Test Case '-[GyrusTests.MainWindowLifecycleTests testDockReopenBeforeAnyWindowUsesInstalledSceneOpener]' started.
+Test Case '-[GyrusTests.MainWindowLifecycleTests testDockReopenBeforeAnyWindowUsesInstalledSceneOpener]' passed (0.001 seconds).
+Test Case '-[GyrusTests.MainWindowLifecycleTests testEarlyDockEventIsNotSwallowedAndReplayedWhenOpenerArrives]' started.
+Test Case '-[GyrusTests.MainWindowLifecycleTests testEarlyDockEventIsNotSwallowedAndReplayedWhenOpenerArrives]' passed (0.010 seconds).
+Test Case '-[GyrusTests.MainWindowLifecycleTests testSettingsBeingVisibleDoesNotReplaceTheLibrary]' started.
+Test Case '-[GyrusTests.MainWindowLifecycleTests testSettingsBeingVisibleDoesNotReplaceTheLibrary]' passed (0.012 seconds).
+Test Suite 'MainWindowLifecycleTests' passed at 2026-09-06 15:20:53.833.
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.061 (0.063) seconds
+Test Suite 'ModelEncodingTests' started at 2026-09-06 15:20:53.834.
+Test Case '-[GyrusTests.ModelEncodingTests testBatchTagStatusDecodesReviewDraft]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testBatchTagStatusDecodesReviewDraft]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkCreateEncodesAllFields]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkCreateEncodesAllFields]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkCreateEncodesNilOptionals]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkCreateEncodesNilOptionals]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkDecodesPersistentAnalysisStatus]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkDecodesPersistentAnalysisStatus]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkSummaryDecodesWithoutNoteDetails]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkSummaryDecodesWithoutNoteDetails]' passed (0.000 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkUpdateEmptyEncodesNothing]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkUpdateEmptyEncodesNothing]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkUpdateEncodesOnlySetFields]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkUpdateEncodesOnlySetFields]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkUpdateSnakeCaseKeys]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkUpdateSnakeCaseKeys]' passed (0.000 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkUpdateTagIds]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testBookmarkUpdateTagIds]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testCollectionDecodesNestedChildren]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testCollectionDecodesNestedChildren]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testCollectionDefaultsBookmarkCountToZero]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testCollectionDefaultsBookmarkCountToZero]' passed (0.000 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testCollectionDefaultsChildrenToEmpty]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testCollectionDefaultsChildrenToEmpty]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testCollectionUpdateEncodesOnlySetFields]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testCollectionUpdateEncodesOnlySetFields]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testCollectionUpdateParentId]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testCollectionUpdateParentId]' passed (0.000 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testDesignSnapshotReportBundlesEveryInspectorSection]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testDesignSnapshotReportBundlesEveryInspectorSection]' passed (0.002 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testLocalWebPreviewStaysOnExplicitLocalHost]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testLocalWebPreviewStaysOnExplicitLocalHost]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testPendingSemanticIndexKeepsAnalysisPollingActive]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testPendingSemanticIndexKeepsAnalysisPollingActive]' passed (0.000 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testPublicWebPreviewCannotNavigateToPrivateNetwork]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testPublicWebPreviewCannotNavigateToPrivateNetwork]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testTagCreateEncodesAllFields]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testTagCreateEncodesAllFields]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testTagCreateEncodesNilColor]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testTagCreateEncodesNilColor]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testTaxonomyDraftDecodesOmittedTagCount]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testTaxonomyDraftDecodesOmittedTagCount]' passed (0.000 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testVisualSnapshotJobDecodesResponsiveIssue]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testVisualSnapshotJobDecodesResponsiveIssue]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testWebPreviewBlocksCustomMainFrameSchemes]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testWebPreviewBlocksCustomMainFrameSchemes]' passed (0.000 seconds).
+Test Case '-[GyrusTests.ModelEncodingTests testWebPreviewUsesNonPersistentStorage]' started.
+Test Case '-[GyrusTests.ModelEncodingTests testWebPreviewUsesNonPersistentStorage]' passed (0.006 seconds).
+Test Suite 'ModelEncodingTests' passed at 2026-09-06 15:20:53.858.
+	 Executed 24 tests, with 0 failures (0 unexpected) in 0.020 (0.025) seconds
+Test Suite 'ReaderContentParserTests' started at 2026-09-06 15:20:53.858.
+Test Case '-[GyrusTests.ReaderContentParserTests testParsesArticleIntoDistinctReadableBlocks]' started.
+Test Case '-[GyrusTests.ReaderContentParserTests testParsesArticleIntoDistinctReadableBlocks]' passed (0.001 seconds).
+Test Case '-[GyrusTests.ReaderContentParserTests testParsesNumberedListWithoutTreatingProseAsList]' started.
+Test Case '-[GyrusTests.ReaderContentParserTests testParsesNumberedListWithoutTreatingProseAsList]' passed (0.001 seconds).
+Test Suite 'ReaderContentParserTests' passed at 2026-09-06 15:20:53.860.
+	 Executed 2 tests, with 0 failures (0 unexpected) in 0.001 (0.002) seconds
+Test Suite 'SnapshotColorTests' started at 2026-09-06 15:20:53.860.
+Test Case '-[GyrusTests.SnapshotColorTests testAlphaIsNotMistakenForAChannelWhenHueCarriesAUnit]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testAlphaIsNotMistakenForAChannelWhenHueCarriesAUnit]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testFullyTransparentIsDiscarded]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testFullyTransparentIsDiscarded]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testHSLGreyscaleIgnoresHue]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testHSLGreyscaleIgnoresHue]' passed (0.000 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testHSLPrimaries]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testHSLPrimaries]' passed (0.000 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testHSLSpaceSeparatedSyntax]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testHSLSpaceSeparatedSyntax]' passed (0.000 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testHSLWithZeroAlphaIsDiscarded]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testHSLWithZeroAlphaIsDiscarded]' passed (0.000 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testHueAcceptsAngleUnits]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testHueAcceptsAngleUnits]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testKeywordsWithoutAColorAreDiscarded]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testKeywordsWithoutAColorAreDiscarded]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testNegativeAndOversizedHuesWrap]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testNegativeAndOversizedHuesWrap]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHAcceptsPercentageLightness]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHAcceptsPercentageLightness]' passed (0.000 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHBlackAndWhite]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHBlackAndWhite]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHHueAcceptsDegrees]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHHueAcceptsDegrees]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHOutOfGamutIsClamped]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHOutOfGamutIsClamped]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHRedLandsOnRed]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHRedLandsOnRed]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHSmallPercentageLightnessStaysDark]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHSmallPercentageLightnessStaysDark]' passed (0.000 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHWithAlphaSyntax]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testOKLCHWithAlphaSyntax]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testRGBAndRGBAAreParsed]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testRGBAndRGBAAreParsed]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testRGBPercentageChannels]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testRGBPercentageChannels]' passed (0.000 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testSixDigitHexIsLowercased]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testSixDigitHexIsLowercased]' passed (0.000 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testThreeDigitHexIsExpanded]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testThreeDigitHexIsExpanded]' passed (0.000 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testUniqueKeepsFirstOccurrenceAndDropsRepeats]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testUniqueKeepsFirstOccurrenceAndDropsRepeats]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotColorTests testUnparseableComponentsFailRatherThanShift]' started.
+Test Case '-[GyrusTests.SnapshotColorTests testUnparseableComponentsFailRatherThanShift]' passed (0.003 seconds).
+Test Suite 'SnapshotColorTests' passed at 2026-09-06 15:20:53.879.
+	 Executed 22 tests, with 0 failures (0 unexpected) in 0.014 (0.018) seconds
+Test Suite 'SnapshotImageCropTests' started at 2026-09-06 15:20:53.879.
+Test Case '-[GyrusTests.SnapshotImageCropTests testCropClampsAtTheImageEdge]' started.
+Test Case '-[GyrusTests.SnapshotImageCropTests testCropClampsAtTheImageEdge]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotImageCropTests testCropReachesContentBelowTheFold]' started.
+Test Case '-[GyrusTests.SnapshotImageCropTests testCropReachesContentBelowTheFold]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotImageCropTests testCropRejectsDegenerateGeometry]' started.
+Test Case '-[GyrusTests.SnapshotImageCropTests testCropRejectsDegenerateGeometry]' passed (0.001 seconds).
+Test Case '-[GyrusTests.SnapshotImageCropTests testCropScalesByDevicePixelRatio]' started.
+Test Case '-[GyrusTests.SnapshotImageCropTests testCropScalesByDevicePixelRatio]' passed (0.002 seconds).
+Test Case '-[GyrusTests.SnapshotImageCropTests testCropWorksAtOneToOne]' started.
+Test Case '-[GyrusTests.SnapshotImageCropTests testCropWorksAtOneToOne]' passed (0.001 seconds).
+Test Suite 'SnapshotImageCropTests' passed at 2026-09-06 15:20:53.884.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.004 (0.005) seconds
+Test Suite 'StabilizationTests' started at 2026-09-06 15:20:53.884.
+Test Case '-[GyrusTests.StabilizationTests testAIMasterSwitchIsSentSeparatelyAndDisablesMirror]' started.
+Test Case '-[GyrusTests.StabilizationTests testAIMasterSwitchIsSentSeparatelyAndDisablesMirror]' passed (0.006 seconds).
+Test Case '-[GyrusTests.StabilizationTests testAllTagPresenceRequiresEntireSelection]' started.
+Test Case '-[GyrusTests.StabilizationTests testAllTagPresenceRequiresEntireSelection]' passed (0.001 seconds).
+Test Case '-[GyrusTests.StabilizationTests testBackupPreviewReadsCountsWithoutCallingRestore]' started.
+Test Case '-[GyrusTests.StabilizationTests testBackupPreviewReadsCountsWithoutCallingRestore]' passed (0.002 seconds).
+Test Case '-[GyrusTests.StabilizationTests testBusyResponseIsNotMistakenForDuplicateBookmark]' started.
+Test Case '-[GyrusTests.StabilizationTests testBusyResponseIsNotMistakenForDuplicateBookmark]' passed (0.001 seconds).
+Test Case '-[GyrusTests.StabilizationTests testChatClearFailureKeepsConversationAndOffersRetry]' started.
+Test Case '-[GyrusTests.StabilizationTests testChatClearFailureKeepsConversationAndOffersRetry]' passed (0.002 seconds).
+Test Case '-[GyrusTests.StabilizationTests testConfigFailureIsVisibleAndSameValueCanBeRetried]' started.
+Test Case '-[GyrusTests.StabilizationTests testConfigFailureIsVisibleAndSameValueCanBeRetried]' passed (0.001 seconds).
+Test Case '-[GyrusTests.StabilizationTests testConfigWritesAreSerializedAndIntermediateChangesCoalesced]' started.
+Test Case '-[GyrusTests.StabilizationTests testConfigWritesAreSerializedAndIntermediateChangesCoalesced]' passed (0.001 seconds).
+Test Case '-[GyrusTests.StabilizationTests testDraftsSurviveStoreRecreationAndResetClearsDisk]' started.
+Test Case '-[GyrusTests.StabilizationTests testDraftsSurviveStoreRecreationAndResetClearsDisk]' passed (0.003 seconds).
+Test Case '-[GyrusTests.StabilizationTests testDraftWriteFailureIsVisibleAndKeepsTextInMemory]' started.
+Test Case '-[GyrusTests.StabilizationTests testDraftWriteFailureIsVisibleAndKeepsTextInMemory]' passed (0.001 seconds).
+Test Case '-[GyrusTests.StabilizationTests testDroppedURLGetsValidTitleAndFolder]' started.
+Test Case '-[GyrusTests.StabilizationTests testDroppedURLGetsValidTitleAndFolder]' passed (0.001 seconds).
+Test Case '-[GyrusTests.StabilizationTests testExportScopeAndPageLimitAreSentToBothEndpoints]' started.
+Test Case '-[GyrusTests.StabilizationTests testExportScopeAndPageLimitAreSentToBothEndpoints]' passed (0.001 seconds).
+Test Case '-[GyrusTests.StabilizationTests testNoteFailurePreservesDraftAndRetryClearsOnlySavedText]' started.
+Test Case '-[GyrusTests.StabilizationTests testNoteFailurePreservesDraftAndRetryClearsOnlySavedText]' passed (0.001 seconds).
+Test Case '-[GyrusTests.StabilizationTests testReadinessRequiresMatchingSessionAndService]' started.
+Test Case '-[GyrusTests.StabilizationTests testReadinessRequiresMatchingSessionAndService]' passed (0.001 seconds).
+Test Case '-[GyrusTests.StabilizationTests testSemanticFallbackContinuesKeywordPagination]' started.
+Test Case '-[GyrusTests.StabilizationTests testSemanticFallbackContinuesKeywordPagination]' passed (0.015 seconds).
+Test Case '-[GyrusTests.StabilizationTests testSemanticSelectAllUsesSemanticResults]' started.
+Test Case '-[GyrusTests.StabilizationTests testSemanticSelectAllUsesSemanticResults]' passed (0.002 seconds).
+Test Case '-[GyrusTests.StabilizationTests testTagAssignmentIncludesUnloadedSelectionWithoutReplacingOtherTags]' started.
+Test Case '-[GyrusTests.StabilizationTests testTagAssignmentIncludesUnloadedSelectionWithoutReplacingOtherTags]' passed (0.001 seconds).
+Test Suite 'StabilizationTests' passed at 2026-09-06 15:20:53.927.
+	 Executed 16 tests, with 0 failures (0 unexpected) in 0.040 (0.043) seconds
+Test Suite 'UIStateStoreTests' started at 2026-09-06 15:20:53.927.
+Test Case '-[GyrusTests.UIStateStoreTests testDirectErrorCanBypassResumeGrace]' started.
+Test Case '-[GyrusTests.UIStateStoreTests testDirectErrorCanBypassResumeGrace]' passed (0.001 seconds).
+Test Case '-[GyrusTests.UIStateStoreTests testJobPollerStopsAfterRepeatedStatusFailures]' started.
+Test Case '-[GyrusTests.UIStateStoreTests testJobPollerStopsAfterRepeatedStatusFailures]' passed (0.012 seconds).
+Test Case '-[GyrusTests.UIStateStoreTests testShowInfoCancelsPreviousTimer]' started.
+2026-09-06 15:20:54.052119+0200 Gyrus[12607:307188] [NSCGS] Ignoring request to entangle context after pre-commit
+2026-09-06 15:20:54.052187+0200 Gyrus[12607:307188] [NSCGS] Ignoring request to entangle context after pre-commit
+2026-09-06 15:20:54.052205+0200 Gyrus[12607:307188] [NSCGS] Ignoring request to entangle context after pre-commit
+2026-09-06 15:20:54.052246+0200 Gyrus[12607:307188] [NSCGS] Entangling fence requested after pre-commit
+2026-09-06 15:20:54.054350+0200 Gyrus[12607:307188] [API] cannot add handler to 2 from 2 - dropping
+2026-09-06 15:20:54.055047+0200 Gyrus[12607:307188] [NSCGS] Warning: Invalid attempt to open a new transaction during CA commit. This is likely to break AppKit transactional behavior. Break on NSCGSTransactionCreatedDuringCommitError to debug.
+2026-09-06 15:20:54.099905+0200 Gyrus[12607:307188] [NSCGS] Ignoring request to entangle context after pre-commit
+2026-09-06 15:20:54.099971+0200 Gyrus[12607:307188] [NSCGS] Ignoring request to entangle context after pre-commit
+2026-09-06 15:20:54.099990+0200 Gyrus[12607:307188] [NSCGS] Ignoring request to entangle context after pre-commit
+2026-09-06 15:20:54.100005+0200 Gyrus[12607:307188] [NSCGS] Entangling fence requested after pre-commit
+2026-09-06 15:20:54.102228+0200 Gyrus[12607:307188] [NSCGS] Ignoring request to entangle context after pre-commit
+2026-09-06 15:20:54.102267+0200 Gyrus[12607:307188] [NSCGS] Ignoring request to entangle context after pre-commit
+2026-09-06 15:20:54.102282+0200 Gyrus[12607:307188] [NSCGS] Ignoring request to entangle context after pre-commit
+2026-09-06 15:20:54.102327+0200 Gyrus[12607:307188] [NSCGS] Entangling fence requested after pre-commit
+2026-09-06 15:20:54.103594+0200 Gyrus[12607:307188] [API] cannot add handler to 2 from 2 - dropping
+2026-09-06 15:20:54.103626+0200 Gyrus[12607:307188] [NSCGS] Warning: Invalid attempt to open a new transaction during CA commit. This is likely to break AppKit transactional behavior. Break on NSCGSTransactionCreatedDuringCommitError to debug.
+2026-09-06 15:20:54.151700+0200 Gyrus[12607:307188] [NSCGS] Ignoring request to entangle context after pre-commit
+2026-09-06 15:20:54.151766+0200 Gyrus[12607:307188] [NSCGS] Ignoring request to entangle context after pre-commit
+2026-09-06 15:20:54.151785+0200 Gyrus[12607:307188] [NSCGS] Ignoring request to entangle context after pre-commit
+2026-09-06 15:20:54.151803+0200 Gyrus[12607:307188] [NSCGS] Entangling fence requested after pre-commit
+2026-09-06 15:20:54.153379+0200 Gyrus[12607:307188] [API] cannot add handler to 2 from 2 - dropping
+2026-09-06 15:20:54.153437+0200 Gyrus[12607:307188] [NSCGS] Warning: Invalid attempt to open a new transaction during CA commit. This is likely to break AppKit transactional behavior. Break on NSCGSTransactionCreatedDuringCommitError to debug.
+Test Case '-[GyrusTests.UIStateStoreTests testShowInfoCancelsPreviousTimer]' passed (4.856 seconds).
+Test Case '-[GyrusTests.UIStateStoreTests testShowInfoClearsMessageAfterDelay]' started.
+Test Case '-[GyrusTests.UIStateStoreTests testShowInfoClearsMessageAfterDelay]' passed (3.230 seconds).
+Test Case '-[GyrusTests.UIStateStoreTests testShowInfoSetsMessageImmediately]' started.
+Test Case '-[GyrusTests.UIStateStoreTests testShowInfoSetsMessageImmediately]' passed (0.001 seconds).
+Test Suite 'UIStateStoreTests' passed at 2026-09-06 15:21:02.029.
+	 Executed 5 tests, with 0 failures (0 unexpected) in 8.100 (8.102) seconds
+Test Suite 'GyrusTests.xctest' passed at 2026-09-06 15:21:02.029.
+	 Executed 127 tests, with 0 failures (0 unexpected) in 8.270 (8.312) seconds
+Test Suite 'All tests' passed at 2026-09-06 15:21:02.030.
+	 Executed 127 tests, with 0 failures (0 unexpected) in 8.270 (8.313) seconds
+2026-09-06 15:21:02.313 xcodebuild[12603:307103] [MT] IDETestOperationsObserverDebug: 9.414 elapsed -- Testing started completed.
+2026-09-06 15:21:02.313 xcodebuild[12603:307103] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-06 15:21:02.313 xcodebuild[12603:307103] [MT] IDETestOperationsObserverDebug: 9.414 sec, +9.414 sec -- end
+
+Test session results, code coverage, and logs:
+	/tmp/gyrus-improvements-final-tests.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started

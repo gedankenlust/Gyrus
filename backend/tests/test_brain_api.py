@@ -4,7 +4,7 @@ from models.bookmark import Bookmark
 from services.llm_service import LLMService
 from services.scraper_service import scraper_service
 from services.brain_sync_service import brain_sync_service
-from routers.brain import SCRAPE_MARKER
+from routers.brain import SCRAPE_MARKER, _scrape_source_marker
 import os
 import shutil
 
@@ -85,14 +85,7 @@ async def test_chat_optimization_skips_scraping(client, db, temp_brain_root):
     long_content = "This is a very long content that should skip the scraping process. " * 10
     # Include the current scrape version marker so this represents an
     # up-to-date cache (older, marker-less caches are intentionally re-scraped).
-    file_content = f"""---
-title: Optimized
----
-## Content (Scraped)
-{SCRAPE_MARKER}
-{long_content}
-"""
-    file_path.write_text(file_content)
+    file_path.write_text(brain_sync_service._generated_section(bookmark) + f"\n## Content (Scraped)\n{SCRAPE_MARKER}\n{_scrape_source_marker(bookmark.url)}\n{long_content}\n")
 
     # 3. Mock services
     with patch("services.scraper_service.scraper_service.extract_content", new_callable=MagicMock) as mock_scrape, \

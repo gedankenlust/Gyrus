@@ -27,14 +27,20 @@ vector_store.reset_table(768)
 @pytest.fixture(autouse=True)
 def isolated_brain_root():
     """Tests that toggle Brain config must never fall back to the user folder."""
+    from services import ai_policy
+    ai_policy.configure(True)  # Existing AI tests explicitly opt in; production defaults off.
     brain_sync_service.update_config(str(DATA_DIR / "brain"), False)
     yield
+    ai_policy.configure(False)
     brain_sync_service.update_config(str(DATA_DIR / "brain"), False)
 
 
 @asynccontextmanager
 async def _no_op_lifespan(app):
     yield
+    # Let optional indexing settle before TestClient closes its event loop.
+    from services import background
+    await background.drain()
 
 
 _test_app = FastAPI(lifespan=_no_op_lifespan)

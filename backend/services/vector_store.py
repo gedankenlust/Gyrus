@@ -10,13 +10,56 @@ Intentionally simple:
   search(query_vec, k)         — return the k nearest bookmark IDs + distances
 """
 import logging
+import threading
+import functools
+import json
 
 logger = logging.getLogger(__name__)
 
 # Lazy singleton — the apsw connection is opened once on first use.
 _conn = None
+_lock = threading.RLock()
+_invalid = False
 
 
+def serialized(function):
+    @functools.wraps(function)
+    def call(*args, **kwargs):
+        with _lock:
+            return function(*args, **kwargs)
+    return call
+
+
+def _config(conn):
+    conn.execute("CREATE TABLE IF NOT EXISTS gyrus_vector_config (id INTEGER PRIMARY KEY, model_key TEXT, valid INTEGER NOT NULL)")
+    return conn.execute("SELECT model_key, valid FROM gyrus_vector_config WHERE id=1").fetchone()
+
+
+def _set_config(conn, key, valid=True):
+    _config(conn)
+    conn.execute("INSERT OR REPLACE INTO gyrus_vector_config VALUES (1, ?, ?)", (key, int(valid)))
+
+
+def invalidate_for_replacement(db):
+    """Invalidate derived state in the same transaction as a library replacement."""
+    from sqlalchemy import text
+    db.execute(text("CREATE TABLE IF NOT EXISTS gyrus_vector_config (id INTEGER PRIMARY KEY, model_key TEXT, valid INTEGER NOT NULL)"))
+    db.execute(text("INSERT OR REPLACE INTO gyrus_vector_config VALUES (1, NULL, 0)"))
+
+
+@serialized
+def matches_configuration(key):
+    conn = _get_conn()
+    row = _config(conn)
+    if _invalid or (row and not row[1]):
+        return False
+    if not row or row[0] is None:
+        return count() == 0
+    return row[0] == key
+
+
+
+@serialized
 def _get_conn():
     global _conn
     if _conn is not None:
@@ -27,6 +70,7 @@ def _get_conn():
     from database import DB_PATH
 
     conn = apsw.Connection(str(DB_PATH))
+    conn.setbusytimeout(5000)
     conn.enableloadextension(True)
     sqlite_vec.load(conn)
     conn.enableloadextension(False)
@@ -34,7 +78,8 @@ def _get_conn():
     return conn
 
 
-def reset_table(dim: int) -> None:
+@serialized
+def reset_table(dim: int, model_key: str | None = None) -> None:
     """Drop and recreate bookmarks_vec for a given embedding dimension.
 
     Different embedding models output different vector sizes (nomic-embed-text =
@@ -46,39 +91,39 @@ def reset_table(dim: int) -> None:
     dim = int(dim)
     if dim <= 0:
         raise ValueError(f"Invalid embedding dimension: {dim}")
+    global _invalid
     conn = _get_conn()
-    conn.execute("DROP TABLE IF EXISTS bookmarks_vec")
-    conn.execute(
-        f"""
-        CREATE VIRTUAL TABLE bookmarks_vec USING vec0(
-            bookmark_id TEXT PRIMARY KEY,
-            embedding   FLOAT[{dim}]
-        )
-        """
-    )
+    with conn:
+        conn.execute("DROP TABLE IF EXISTS bookmarks_vec")
+        conn.execute(f"CREATE VIRTUAL TABLE bookmarks_vec USING vec0(bookmark_id TEXT PRIMARY KEY, embedding FLOAT[{dim}])")
+        _set_config(conn, model_key)
+    _invalid = False
 
 
-def upsert(bookmark_id: str, vector: list[float]) -> bool:
+@serialized
+def upsert(bookmark_id: str, vector: list[float], *, model_key: str | None = None) -> bool:
     """Store or replace the embedding for a bookmark."""
     if not vector:
         return False
     try:
         import json
         conn = _get_conn()
+        if model_key is not None:
+            if not matches_configuration(model_key):
+                return False
+            if count() == 0:
+                reset_table(len(vector), model_key)
         vec_json = json.dumps(vector)
-        conn.execute(
-            "DELETE FROM bookmarks_vec WHERE bookmark_id = ?", (bookmark_id,)
-        )
-        conn.execute(
-            "INSERT INTO bookmarks_vec(bookmark_id, embedding) VALUES (?, ?)",
-            (bookmark_id, vec_json),
-        )
+        with conn:
+            conn.execute("DELETE FROM bookmarks_vec WHERE bookmark_id = ?", (bookmark_id,))
+            conn.execute("INSERT INTO bookmarks_vec(bookmark_id, embedding) VALUES (?, ?)", (bookmark_id, vec_json))
         return True
     except Exception as e:
         logger.warning("vector_store.upsert failed for %s: %s", bookmark_id, e)
         return False
 
 
+@serialized
 def delete(bookmark_id: str) -> None:
     """Remove the embedding when a bookmark is trashed or deleted."""
     try:
@@ -89,6 +134,7 @@ def delete(bookmark_id: str) -> None:
         logger.warning("vector_store.delete failed for %s: %s", bookmark_id, e)
 
 
+@serialized
 def delete_many(bookmark_ids: list[str]) -> None:
     """Remove embeddings in bulk when bookmarks are trashed or deleted.
 
@@ -110,14 +156,24 @@ def delete_many(bookmark_ids: list[str]) -> None:
         logger.warning("vector_store.delete_many failed: %s", e)
 
 
-def clear() -> None:
+@serialized
+def clear(*, strict: bool = False) -> None:
     """Remove every embedding, including stale rows without a bookmark."""
+    global _invalid
     try:
-        _get_conn().execute("DELETE FROM bookmarks_vec")
+        conn = _get_conn()
+        with conn:
+            conn.execute("DELETE FROM bookmarks_vec")
+            _set_config(conn, None)
+        _invalid = False
     except Exception as e:
+        _invalid = True
         logger.warning("vector_store.clear failed: %s", e)
+        if strict:
+            raise
 
 
+@serialized
 def search(query_vec: list[float], k: int = 20) -> list[tuple[str, float]]:
     """Return up to k (bookmark_id, distance) pairs, closest first."""
     import json
@@ -138,6 +194,7 @@ def search(query_vec: list[float], k: int = 20) -> list[tuple[str, float]]:
         return []
 
 
+@serialized
 def count() -> int:
     """How many embeddings are stored (useful for diagnostics)."""
     try:
@@ -147,3 +204,17 @@ def count() -> int:
         return row[0] if row else 0
     except Exception:
         return 0
+
+
+@serialized
+def replace_all(rows, dimension, model_key):
+    """Commit a fully computed replacement atomically; rollback retains old vectors."""
+    global _invalid
+    conn = _get_conn()
+    with conn:
+        conn.execute("DROP TABLE IF EXISTS bookmarks_vec")
+        conn.execute(f"CREATE VIRTUAL TABLE bookmarks_vec USING vec0(bookmark_id TEXT PRIMARY KEY, embedding FLOAT[{int(dimension)}])")
+        for ident, vector in rows:
+            conn.execute("INSERT INTO bookmarks_vec VALUES (?, ?)", (ident, json.dumps(vector)))
+        _set_config(conn, model_key)
+    _invalid = False

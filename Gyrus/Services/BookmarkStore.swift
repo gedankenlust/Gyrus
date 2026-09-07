@@ -22,15 +22,63 @@ final class BookmarkStore {
     /// Status from /api/search/status (checked once at startup).
     var semanticSearchAvailable: Bool = false
     var searchQuery: String = ""
+    var usingKeywordFallback = false
+    var noteDrafts: [String: String] = [:] { didSet { persistDrafts() } }
+    var draftStorageError: String?
+    var noteErrors: [String: String] = [:]
+    var savingNoteIds: Set<String> = []
 
     /// IDs that are scheduled for deletion (within the Undo window) 
     /// and should be hidden from the UI.
     var pendingDeletionIds: Set<String> = []
 
     private let pageSize = 100
-    private let api = APIClient.shared
+    private let api: APIClient
+    private let draftStorage: NoteDraftStorage?
+
+    init(api: APIClient = .shared, draftStorage: NoteDraftStorage? = .applicationStorage) {
+        self.api = api
+        self.draftStorage = draftStorage
+        do { self.noteDrafts = try draftStorage?.read() ?? [:] }
+        catch { self.draftStorageError = String(localized: "Note drafts could not be loaded.") }
+    }
+
+    private func persistDrafts() {
+        do {
+            try draftStorage?.write(noteDrafts)
+            draftStorageError = nil
+        } catch {
+            draftStorageError = String(localized: "Note drafts could not be saved on this Mac. Keep Gyrus open until they are saved.")
+        }
+    }
+
+    func resetLocalState() {
+        libraryGeneration += 1
+        loadGeneration += 1
+        searchTask?.cancel()
+        bookmarks = []
+        selectedBookmark = nil
+        selectedIds = []
+        noteDrafts = [:]
+        noteErrors = [:]
+        savingNoteIds = []
+        pendingDeletionIds = []
+        metaAttempted = []
+        searchQuery = ""
+        semanticSearchEnabled = false
+        semanticSearchAvailable = false
+        usingKeywordFallback = false
+        totalBookmarkCount = 0
+        deadBookmarkCount = 0
+        unreadBookmarkCount = 0
+        trashCount = 0
+        currentOffset = 0
+        hasMore = false
+        isLoadingMore = false
+    }
     private var searchTask: Task<Void, Never>?
     private var loadGeneration = 0
+    private var libraryGeneration = 0
     private struct LoadContext {
         let collectionId: String?
         let tagName: String?
@@ -38,6 +86,7 @@ final class BookmarkStore {
         let unreadOnly: Bool
         let showTrash: Bool
         let query: String
+        var semantic: Bool
     }
     private var loadContext = LoadContext(
         collectionId: nil,
@@ -45,7 +94,7 @@ final class BookmarkStore {
         showDeadOnly: false,
         unreadOnly: false,
         showTrash: false,
-        query: ""
+        query: "", semantic: false
     )
 
     /// Bookmark IDs we've already tried to fetch metadata for this session, so
@@ -62,12 +111,13 @@ final class BookmarkStore {
             showDeadOnly: showDeadOnly,
             unreadOnly: unreadOnly,
             showTrash: showTrash,
-            query: query
+            query: query, semantic: semanticSearchEnabled
         )
         loadContext = context
         loadGeneration += 1
         let generation = loadGeneration
         searchQuery = query
+        usingKeywordFallback = false
         currentOffset = 0
         isLoadingMore = false
         let page = try await fetchPage(
@@ -77,7 +127,7 @@ final class BookmarkStore {
             showDeadOnly: context.showDeadOnly,
             unreadOnly: context.unreadOnly,
             showTrash: context.showTrash,
-            query: context.query
+            query: context.query, semantic: context.semantic, generation: generation
         )
         guard generation == loadGeneration else { return }
 
@@ -105,8 +155,9 @@ final class BookmarkStore {
 
     func loadDetails(id: String) async throws {
         let trashed = loadContext.showTrash
+        let generation = libraryGeneration
         let details = try await api.bookmark(id: id, trashed: trashed)
-        guard selectedBookmark?.id == id else { return }
+        guard generation == libraryGeneration, selectedBookmark?.id == id else { return }
         applyUpdated([details])
     }
 
@@ -129,7 +180,7 @@ final class BookmarkStore {
                 showDeadOnly: context.showDeadOnly,
                 unreadOnly: context.unreadOnly,
                 showTrash: context.showTrash,
-                query: context.query
+                query: context.query, semantic: context.semantic, generation: generation
             )
             guard generation == loadGeneration else { return }
 
@@ -141,24 +192,26 @@ final class BookmarkStore {
             currentOffset += page.count
             hasMore = page.count == pageSize
         } catch {
-            if generation == loadGeneration {
-                hasMore = false
-            }
             throw error
         }
     }
 
-    func fetchPage(offset: Int, collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "") async throws -> [Bookmark] {
+    func fetchPage(offset: Int, collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "", semantic: Bool? = nil, generation: Int? = nil) async throws -> [Bookmark] {
         if showTrash {
             return try await api.trashedBookmarks(limit: pageSize, offset: offset)
-        } else if !query.isEmpty && semanticSearchEnabled {
+        } else if !query.isEmpty && (semantic ?? loadContext.semantic) {
             // Degrade to keyword search when it returns nothing OR throws
             // (Ollama down only yields [], but network/server errors throw).
             let results = (try? await api.searchSemantic(
                 query: query, limit: pageSize, offset: offset
             )) ?? []
             if results.isEmpty && offset == 0 {
-                return try await api.search(query: query, limit: pageSize, offset: 0)
+                let keywordResults = try await api.search(query: query, limit: pageSize, offset: 0)
+                if generation == nil || generation == loadGeneration {
+                    usingKeywordFallback = true
+                    loadContext.semantic = false
+                }
+                return keywordResults
             }
             return results
         } else if !query.isEmpty {
@@ -178,9 +231,18 @@ final class BookmarkStore {
 
     func selectAllInCurrentView(collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "") async throws {
         let ids: [String]
-        if showTrash {
-            // The Trash list is already fully loaded into `bookmarks` for typical sizes.
-            ids = bookmarks.map { $0.id }
+        let generation = loadGeneration
+        if showTrash || (!query.isEmpty && loadContext.semantic) {
+            var allIds: [String] = []
+            var offset = 0
+            while true {
+                let page = try await fetchPage(offset: offset, showTrash: showTrash, query: query, semantic: loadContext.semantic, generation: generation)
+                guard generation == loadGeneration else { return }
+                allIds.append(contentsOf: page.map(\.id))
+                if page.count < pageSize { break }
+                offset += page.count
+            }
+            ids = allIds
         } else if !query.isEmpty {
             ids = try await api.bookmarkIds(query: query)
         } else if showDeadOnly {
@@ -193,6 +255,7 @@ final class BookmarkStore {
             ids = try await api.bookmarkIds(collectionId: collectionId)
         }
         // Exclude pending deletions from selection too
+        guard generation == loadGeneration else { return }
         selectedIds = Set(ids).subtracting(pendingDeletionIds)
     }
 
@@ -335,8 +398,28 @@ final class BookmarkStore {
         try await updateBookmark(bookmark, update: update)
     }
 
+    func saveNoteDraft(for bookmark: Bookmark) async {
+        let id = bookmark.id
+        let generation = libraryGeneration
+        guard !savingNoteIds.contains(id), let content = noteDrafts[id],
+              !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        savingNoteIds.insert(id)
+        noteErrors[id] = nil
+        defer { if generation == libraryGeneration { savingNoteIds.remove(id) } }
+        do {
+            try await addNote(to: bookmark, content: content, source: "user")
+            guard generation == libraryGeneration else { return }
+            if noteDrafts[id] == content { noteDrafts[id] = nil }
+        } catch {
+            guard generation == libraryGeneration else { return }
+            noteErrors[id] = String(localized: "Note could not be saved. Your draft is preserved.") + " " + error.localizedDescription
+        }
+    }
+
     func addNote(to bookmark: Bookmark, content: String, source: String = "user") async throws {
+        let generation = libraryGeneration
         let note = try await api.addNote(bookmarkId: bookmark.id, content: content, source: source)
+        guard generation == libraryGeneration else { return }
         if let idx = bookmarks.firstIndex(where: { $0.id == bookmark.id }) {
             bookmarks[idx].bookmarkNotes.insert(note, at: 0)
         }
@@ -369,7 +452,7 @@ final class BookmarkStore {
 
     func addBookmarkFromURL(_ urlString: String, collectionId: String? = nil) async throws -> Bookmark {
         let bm = try await api.createBookmark(.init(
-            title: "", url: urlString, description: nil, notes: nil,
+            title: URL(string: urlString)?.host ?? urlString, url: urlString, description: nil, notes: nil,
             collectionId: collectionId, tagIds: [], source: "manual"
         ))
         bookmarks.insert(bm, at: 0)
@@ -410,6 +493,7 @@ final class BookmarkStore {
     func scheduleSearch(_ query: String, onSearch: (() async -> Void)? = nil) {
         searchTask?.cancel()
         searchQuery = query
+        usingKeywordFallback = false
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 250_000_000)
             guard !Task.isCancelled else { return }

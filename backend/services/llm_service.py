@@ -4,6 +4,8 @@ import httpx
 import logging
 from typing import Dict, Any, List, Optional
 
+from services import ai_policy
+
 logger = logging.getLogger(__name__)
 
 
@@ -89,6 +91,8 @@ _shared_client: httpx.AsyncClient | None = None
 
 def _get_client() -> httpx.AsyncClient:
     global _shared_client
+    if not ai_policy.enabled():
+        raise LLMUnavailableError("AI is disabled")
     if _shared_client is None or _shared_client.is_closed:
         _shared_client = httpx.AsyncClient(timeout=120.0)
     return _shared_client
@@ -189,6 +193,7 @@ class LLMService:
         if options:
             payload["options"] = options
 
+        policy_generation = ai_policy.generation()
         client = _get_client()
         try:
             response = await client.post(f"{base_url}/api/chat", json=payload)
@@ -196,9 +201,13 @@ class LLMService:
                 # Some models / older Ollama versions reject the `think` field.
                 # Drop it and retry once so tagging still works on those models.
                 payload.pop("think", None)
+                if not ai_policy.enabled() or policy_generation != ai_policy.generation():
+                    raise LLMUnavailableError("AI configuration changed")
                 response = await client.post(f"{base_url}/api/chat", json=payload)
             response.raise_for_status()
             data = response.json()
+            if not ai_policy.enabled() or policy_generation != ai_policy.generation():
+                raise LLMUnavailableError("AI configuration changed")
             content = data.get("message", {}).get("content", "") or ""
             # Strip any reasoning block, in case a model emits <think>…</think>
             # inline despite think=False.
@@ -252,9 +261,12 @@ class LLMService:
         if response_format is not None:
             payload["format"] = response_format
 
+        policy_generation = ai_policy.generation()
         client = _get_client()
         try:
             for attempt in range(2):
+                if not ai_policy.enabled() or policy_generation != ai_policy.generation():
+                    raise LLMUnavailableError("AI configuration changed")
                 async with client.stream(
                     "POST", f"{base_url}/api/chat", json=payload, timeout=timeout
                 ) as resp:
@@ -281,6 +293,8 @@ class LLMService:
                             continue
                         piece = chunk.get("message", {}).get("content", "")
                         if piece:
+                            if not ai_policy.enabled() or policy_generation != ai_policy.generation():
+                                raise LLMUnavailableError("AI configuration changed")
                             yield piece
                         if chunk.get("done"):
                             return

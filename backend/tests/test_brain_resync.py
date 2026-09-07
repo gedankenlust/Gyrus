@@ -29,7 +29,7 @@ def test_resync_moves_file_to_current_folder_and_prunes(brain, db):
     stale_dir = brain.root_dir / "ordner1"
     stale_dir.mkdir(parents=True)
     stale_file = stale_dir / "Clip.md"
-    stale_file.write_text("---\ntitle: Clip\nurl: https://youtu.be/abc\n---\n\n# Clip\n")
+    stale_file.write_text(brain._generated_section(bm))
 
     brain.resync_all(db)
 
@@ -51,7 +51,7 @@ def test_resync_keeps_chat_history_during_move(brain, db):
     old_dir.mkdir(parents=True)
     old_file = old_dir / "Note.md"
     old_file.write_text(
-        "---\ntitle: Note\nurl: https://example.com/x\n---\n\n# Note\n\n"
+        brain._generated_section(bm) + "\n" +
         "## Chat Interaction (x)\n**You:** hi\n\n**AI:** hello\n"
     )
 

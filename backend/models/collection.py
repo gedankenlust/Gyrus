@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, ForeignKey, DateTime, Integer, Index, func
+from sqlalchemy import String, ForeignKey, DateTime, Integer, Index, func, column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database import Base
 
@@ -9,7 +9,7 @@ class Collection(Base):
     __tablename__ = "collections"
 
     __table_args__ = (
-        Index("idx_collection_name_parent_unique", "name", func.ifnull("parent_id", "root"), unique=True),
+        Index("idx_collection_name_parent_unique", "name", func.ifnull(column("parent_id"), "root"), unique=True),
     )
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

@@ -44,6 +44,8 @@ struct ExportSheet: View {
 
     @State private var selected: Format = .html
     @State private var isExporting = false
+    @State private var exportError: String?
+    @State private var exportTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -56,6 +58,12 @@ struct ExportSheet: View {
                 }
             }
 
+            Text(filterCollectionId == nil ? LocalizedStringKey("All bookmarks, excluding Trash") : LocalizedStringKey("Includes subfolders; excludes Trash"))
+                .font(.caption).foregroundStyle(.secondary)
+            if let exportError {
+                Label(exportError, systemImage: "exclamationmark.triangle")
+                    .font(.callout).foregroundStyle(.red).textSelection(.enabled)
+            }
             VStack(spacing: 6) {
                 ForEach(Format.allCases) { fmt in
                     Button {
@@ -66,7 +74,7 @@ struct ExportSheet: View {
                                 .frame(width: 22)
                                 .foregroundStyle(selected == fmt ? Color.accentColor : .secondary)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(fmt.rawValue).font(.callout.weight(.medium))
+                                Text(LocalizedStringKey(fmt.rawValue)).font(.callout.weight(.medium))
                                 Text(fmt.detail).font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -95,11 +103,13 @@ struct ExportSheet: View {
                 }
             }
 
+            .disabled(isExporting)
+
             HStack {
-                Button("Cancel") { isPresented = false }.buttonStyle(.bordered)
+                Button("Cancel") { exportTask?.cancel(); isPresented = false }.buttonStyle(.bordered)
                 Spacer()
                 Button {
-                    Task { await doExport() }
+                    exportTask = Task { await doExport() }
                 } label: {
                     if isExporting {
                         HStack(spacing: 6) {
@@ -116,6 +126,7 @@ struct ExportSheet: View {
         }
         .padding(24)
         .frame(width: 420)
+        .onDisappear { exportTask?.cancel() }
         .onAppear {
             selected = Format.allCases.first { $0.ext == AppSettings.shared.defaultExportFmt } ?? .html
         }
@@ -123,23 +134,25 @@ struct ExportSheet: View {
 
     // MARK: Export logic
 
+    @MainActor
     private func doExport() async {
         isExporting = true
+        exportError = nil
         defer { isExporting = false }
-        guard let (data, filename) = try? await buildExport() else { return }
-        await MainActor.run {
+        do {
+            let (data, filename) = try await buildExport()
+            try Task.checkCancellation()
             let panel = NSSavePanel()
             panel.nameFieldStringValue = filename
-            switch selected {
-            case .html:     panel.allowedContentTypes = [.html]
-            case .csv:      panel.allowedContentTypes = [UTType(filenameExtension: "csv") ?? .data]
-            case .markdown: panel.allowedContentTypes = [UTType(filenameExtension: "md")  ?? .plainText]
-            case .txt:      panel.allowedContentTypes = [.plainText]
-            }
-            if panel.runModal() == .OK, let url = panel.url {
-                try? data.write(to: url)
-            }
+            panel.allowedContentTypes = [UTType(filenameExtension: selected.ext) ?? .data]
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            try data.write(to: url, options: .atomic)
             isPresented = false
+        } catch is CancellationError {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            exportError = String(localized: "Export failed. Please try again.") + " " + error.localizedDescription
         }
     }
 
@@ -147,7 +160,7 @@ struct ExportSheet: View {
         let suffix = filterCollectionName.map { "-\($0.replacingOccurrences(of: " ", with: "-"))" } ?? ""
         switch selected {
         case .html:
-            let data = try await APIClient.shared.exportHTML()
+            let data = try await APIClient.shared.exportHTML(collectionId: filterCollectionId)
             return (data, "gyrus-export\(suffix).html")
         case .csv:
             let bms = try await fetchAll()
@@ -166,14 +179,11 @@ struct ExportSheet: View {
         var all: [Bookmark] = []
         var offset = 0
         while true {
-            let page = try await APIClient.shared.bookmarks(
-                collectionId: filterCollectionId,
-                limit: 500, offset: offset,
-                sortBy: "created_at", order: "desc"
-            )
+            let page = try await APIClient.shared.exportBookmarks(collectionId: filterCollectionId, limit: 200, offset: offset)
+            try Task.checkCancellation()
             all.append(contentsOf: page)
-            if page.count < 500 { break }
-            offset += 500
+            if page.count < 200 { break }
+            offset += page.count
         }
         return all
     }

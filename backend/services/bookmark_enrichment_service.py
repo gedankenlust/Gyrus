@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from database import SessionLocal
 from models.bookmark import Bookmark
-from services import bookmark_service, metadata_service, visual_snapshot_service
+from services import ai_policy, bookmark_service, metadata_service, visual_snapshot_service
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,7 @@ def _apply_stage(
         stage == "reader"
         and status == "ready"
         and bookmark.index_status != "ready"
+        and ai_policy.enabled()
     ):
         bookmark.index_status = "pending"
 
@@ -154,7 +155,7 @@ def schedule_index(bookmark_id: str, content: str) -> None:
 
 async def index_bookmark(bookmark_id: str, content: str) -> None:
     """Index one bookmark once without losing Reader-triggered work."""
-    if not content.strip():
+    if not ai_policy.enabled() or not content.strip():
         return
     async with _index_active_lock:
         if bookmark_id in _index_active_ids:
@@ -163,6 +164,8 @@ async def index_bookmark(bookmark_id: str, content: str) -> None:
 
     try:
         async with _index_semaphore:
+            if not ai_policy.enabled():
+                return
             _set_stage(bookmark_id, "index", "running")
             indexed = await bookmark_service.index_bookmark_embedding(bookmark_id, content)
             _set_stage(bookmark_id, "index", "ready" if indexed else "unavailable")

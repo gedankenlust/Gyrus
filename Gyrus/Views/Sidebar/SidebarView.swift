@@ -317,6 +317,8 @@ struct TagEditorSheet: View {
     @Binding var color: Color
     let onSave: () -> Void
     let onCancel: () -> Void
+    var errorMessage: String? = nil
+    var isSaving = false
 
     var body: some View {
         VStack(spacing: 20) {
@@ -350,6 +352,10 @@ struct TagEditorSheet: View {
                 }
             }
 
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.triangle").foregroundStyle(.red)
+            }
+            if isSaving { ProgressView() }
             HStack {
                 Button("Cancel") { onCancel() }.buttonStyle(.bordered)
                 Spacer()
@@ -358,6 +364,7 @@ struct TagEditorSheet: View {
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
+        .disabled(isSaving)
         .padding(24)
         .frame(width: 360)
     }

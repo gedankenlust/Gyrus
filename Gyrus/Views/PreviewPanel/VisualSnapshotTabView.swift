@@ -134,6 +134,22 @@ struct VisualSnapshotTabView: View {
                     .buttonStyle(.borderless)
                     .help("Cancel inspection")
                 }
+
+                if let snapshot {
+                    Button {
+                        copy(DesignSnapshotReport.markdown(snapshot: snapshot))
+                        AppStore.shared.uiStateStore.showInfo(
+                            AppSettings.shared.localized("Design report copied.")
+                        )
+                    } label: {
+                        Label("Copy report", systemImage: "doc.on.doc")
+                            .font(.caption.weight(.medium))
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(isCapturing)
+                    .help("Copy the complete design inspection as Markdown")
+                }
+
                 historyMenu
 
                 Button {

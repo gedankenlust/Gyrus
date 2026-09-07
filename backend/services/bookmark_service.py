@@ -168,6 +168,16 @@ def create_bookmark(db: Session, data: BookmarkCreate) -> Bookmark:
 
 
 def update_bookmark(db: Session, bm: Bookmark, data: BookmarkUpdate) -> Bookmark:
+    if data.url is not None:
+        from services.url_utils import normalize_url
+        data = data.model_copy(update={"url": normalize_url(data.url)})
+    url_changed = data.url is not None and data.url != bm.url
+    if url_changed and db.query(Bookmark.id).filter(Bookmark.url == data.url, Bookmark.id != bm.id).first():
+        from fastapi import HTTPException
+        raise HTTPException(409, "Bookmark already exists")
+    if url_changed:
+        from services.maintenance import reserve
+        reserve()
     # Capture old path to handle renames/moves
     try:
         old_path = brain_sync_service._get_bookmark_file_path(db, bm)
@@ -179,8 +189,37 @@ def update_bookmark(db: Session, bm: Bookmark, data: BookmarkUpdate) -> Bookmark
         setattr(bm, field, value)
     if data.tag_ids is not None:
         _set_tags(db, bm, data.tag_ids)
+    if url_changed:
+        bm.scraped_content = None
+        bm.favicon_path = None
+        bm.og_image_url = None
+        bm.og_image_path = None
+        bm.is_dead = False
+        bm.metadata_status = "pending"
+        bm.reader_status = "pending"
+        bm.index_status = "not_requested"
+        bm.analysis_error = None
+        bm.analysis_attempts = 0
+        bm.analysis_updated_at = None
     db.commit()
     db.refresh(bm)
+    if url_changed:
+        _drop_vectors([bm.id])
+        delete_generated_artifacts([bm.id])
+        # Keep externally added text in a separate, unowned archive of the old URL.
+        def archive_previous_mirror():
+            if old_path and brain_sync_service._owns(old_path, bm.id):
+                import uuid
+                archived = old_path.with_name(f"previous-url-{uuid.uuid4()}.md")
+                text = old_path.read_text(encoding="utf-8").replace(
+                    "\ngyrus_bookmark_id:", "\nprevious_gyrus_bookmark_id:", 1)
+                with archived.open("x", encoding="utf-8") as handle:
+                    handle.write(text)
+                old_path.unlink()
+        _safe_brain_sync(archive_previous_mirror)
+        old_path = None
+        from services import bookmark_enrichment_service
+        bookmark_enrichment_service.schedule_enrichment(bm.id)
 
     # Sync with AI Brain (best-effort — never block the update)
     _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm, old_path=old_path))
@@ -189,7 +228,7 @@ def update_bookmark(db: Session, bm: Bookmark, data: BookmarkUpdate) -> Bookmark
     # Re-embed when text the vector is built from changed, so semantic search
     # doesn't keep ranking by the old content. Same text selection as reindex:
     # scraped content if present, else title + description.
-    if changed.keys() & {"title", "description", "notes", "scraped_content"}:
+    if not url_changed and changed.keys() & {"title", "description", "notes", "scraped_content"}:
         text = bm.scraped_content or f"{bm.title or ''} {bm.description or ''}".strip()
         if text:
             from services import background
@@ -409,13 +448,17 @@ async def index_bookmark_embedding(bookmark_id: str, text: str) -> bool:
     """Compute and store an embedding for a bookmark (best-effort, never blocks
     the caller).  Called after page content is scraped so semantic search can
     find this bookmark by meaning, not just keywords."""
-    if not text or not text.strip():
+    from services import ai_policy
+    if not ai_policy.enabled() or not text or not text.strip():
         return False
     try:
-        from services.embedding_service import get_embedding
+        from services.embedding_service import get_embedding, configuration_key
         from services import vector_store
+        policy_generation = ai_policy.generation()
         vec = await get_embedding(text)
-        return vector_store.upsert(bookmark_id, vec)
+        if not ai_policy.enabled() or policy_generation != ai_policy.generation():
+            return False
+        return vector_store.upsert(bookmark_id, vec, model_key=configuration_key())
     except Exception as e:
         # Ollama down, model missing, DB write error — none of these should
         # affect the caller; semantic search simply won't find this bookmark.
@@ -461,6 +504,10 @@ def add_note(db: Session, bookmark_id: str, content: str, source: str = "manual"
     db.add(note)
     db.commit()
     db.refresh(note)
+    bm = get_bookmark(db, bookmark_id)
+    if bm:
+        db.expire(bm, ["bookmark_notes"])
+        _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm))
     return note
 
 
@@ -473,6 +520,10 @@ def delete_note(db: Session, bookmark_id: str, note_id: str):
     if note:
         db.delete(note)
         db.commit()
+        bm = get_bookmark(db, bookmark_id)
+        if bm:
+            db.expire(bm, ["bookmark_notes"])
+            _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm))
         return True
     return False
 

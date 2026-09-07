@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from schemas.bookmark import BookmarkSummaryOut
+from services import ai_policy
 from services.search_service import search_bookmarks, search_bookmarks_semantic
 from services.bookmark_response_service import enrich_bookmark_summary
 
@@ -23,7 +24,7 @@ def search(
     return [enrich_bookmark_summary(bm) for bm in results]
 
 
-@router.get("/semantic", response_model=list[BookmarkSummaryOut])
+@router.get("/semantic", response_model=list[BookmarkSummaryOut], dependencies=[Depends(ai_policy.require_ai)])
 async def search_semantic(
     q: str = "",
     limit: int = Query(default=20, ge=1, le=200),
@@ -53,90 +54,103 @@ async def semantic_search_status():
     seconds on every app start."""
     import httpx
     from services import vector_store
-    from services.embedding_service import DEFAULT_MODEL, DEFAULT_BASE_URL
+    from services.embedding_service import current_model, current_base_url
+
+    if not ai_policy.enabled():
+        return {"available": False, "indexed": vector_store.count(), "message": "AI is disabled.", **_progress()}
+    model, base_url = current_model(), current_base_url()
 
     indexed = vector_store.count()
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(f"{DEFAULT_BASE_URL}/api/tags")
+            resp = await client.get(f"{base_url}/api/tags")
             resp.raise_for_status()
             models = [m.get("name", "") for m in resp.json().get("models", [])]
-        if any(name.split(":")[0] == DEFAULT_MODEL for name in models):
-            available = True
-            message = f"Ready — {indexed} bookmarks indexed."
+        if any((name if ":" in name else name + ":latest") == (model if ":" in model else model + ":latest") for name in models):
+            from services.embedding_service import configuration_key
+            available = indexed > 0 and vector_store.matches_configuration(configuration_key())
+            message = f"Ready — {indexed} bookmarks indexed." if available else "Rebuild the search index for the selected embedding model."
         else:
             available = False
             message = (
-                f"Embedding model '{DEFAULT_MODEL}' is not installed. "
-                f"Run: ollama pull {DEFAULT_MODEL}"
+                f"Embedding model '{model}' is not installed. "
+                f"Run: ollama pull {model}"
             )
     except Exception:
         available = False
         message = (
-            f"Couldn't reach Ollama at {DEFAULT_BASE_URL}. "
+            f"Couldn't reach Ollama at {base_url}. "
             "Make sure it's running to use semantic search."
         )
-    return {"available": available, "indexed": indexed, "message": message}
+    return {"available": available, "indexed": indexed, "message": message, **_progress()}
 
 
 _reindex_running = False
+_reindex_completed = 0
+_reindex_total = 0
+_reindex_error = None
 
 
-@router.post("/reindex")
+def _progress():
+    return dict(reindex_running=_reindex_running, reindex_completed=_reindex_completed,
+                reindex_total=_reindex_total, reindex_error=_reindex_error)
+
+
+@router.post("/reindex", dependencies=[Depends(ai_policy.require_ai)])
 async def reindex_embeddings(db: Session = Depends(get_db)):
-    """Recompute embeddings for every non-trashed bookmark with scraped
-    content (a repair button: also refreshes stale vectors).  Runs as a
-    background asyncio task so the request returns immediately."""
-    global _reindex_running
+    """Stage every embedding before atomically replacing the existing index."""
+    global _reindex_running, _reindex_completed, _reindex_total, _reindex_error
     if _reindex_running:
-        from services import vector_store
-        return {"status": "already_running", "indexed": vector_store.count()}
-    # Set the flag here, not inside the task — create_task doesn't start the
-    # coroutine immediately, so a quick second POST could otherwise pass the
-    # check above and start a duplicate run.
+        return {"status": "already_running"}
     _reindex_running = True
+    _reindex_completed = _reindex_total = 0
+    _reindex_error = None
 
     async def _run():
-        global _reindex_running
-        try:
-            from models.bookmark import Bookmark
-            from services.bookmark_service import index_bookmark_embedding
-            from services import vector_store
-            from database import SessionLocal
+        global _reindex_running, _reindex_completed, _reindex_total, _reindex_error
+        import asyncio
+        import json
+        import tempfile
+        from models.bookmark import Bookmark
+        from services import vector_store
+        from services.embedding_service import get_embedding, configuration_key
+        from database import SessionLocal
 
+        def snapshot():
             with SessionLocal() as session:
-                rows = (
-                    session.query(Bookmark.id, Bookmark.scraped_content, Bookmark.title, Bookmark.description)
-                    .filter(Bookmark.scraped_content.isnot(None), Bookmark.deleted_at.is_(None))
-                    .all()
-                )
-            import asyncio
-            from services.embedding_service import get_embedding
+                return list(session.query(Bookmark.id, Bookmark.scraped_content, Bookmark.title, Bookmark.description)
+                            .filter(Bookmark.scraped_content.isnot(None), Bookmark.deleted_at.is_(None))
+                            .order_by(Bookmark.id).all())
 
-            # Rebuild the vector table to match the active embedding model's
-            # dimension first — switching models (e.g. nomic 768 → bge-m3 1024)
-            # would otherwise make every insert fail. We learn the dimension
-            # from the first embeddable row; if embedding is unavailable we bail
-            # out and leave the existing index untouched (keyword search still works).
-            sample_vec = None
-            for _, content, title, desc in rows:
-                text = content or f"{title or ''} {desc or ''}".strip()
-                if not text:
-                    continue
-                try:
-                    sample_vec = await get_embedding(text)
-                except Exception as e:
-                    logger.warning("reindex: embedding unavailable, leaving index as-is: %s", e)
-                    return
-                break
-            if sample_vec is None:
-                return  # nothing to index
-            vector_store.reset_table(len(sample_vec))
-
-            for bm_id, content, title, desc in rows:
-                text = content or f"{title or ''} {desc or ''}".strip()
-                await index_bookmark_embedding(bm_id, text)
-                await asyncio.sleep(0.1)  # yield between embeddings
+        try:
+            rows = snapshot()
+            _reindex_total = len(rows)
+            if not rows:
+                return
+            key, generation = configuration_key(), ai_policy.generation()
+            dimension = None
+            with tempfile.TemporaryFile(mode="w+t") as staging:
+                for bm_id, content, title, desc in rows:
+                    vector = await get_embedding(content or f"{title or ''} {desc or ''}".strip())
+                    if generation != ai_policy.generation() or not ai_policy.enabled():
+                        raise ValueError("AI settings changed. Please restart indexing.")
+                    if not vector:
+                        raise ValueError("The embedding model returned an empty vector.")
+                    dimension = dimension or len(vector)
+                    if len(vector) != dimension:
+                        raise ValueError("The embedding model returned inconsistent dimensions.")
+                    staging.write(json.dumps([bm_id, vector]) + "\n")
+                    _reindex_completed += 1
+                    await asyncio.sleep(0)
+                if generation != ai_policy.generation() or key != configuration_key():
+                    raise ValueError("AI settings changed. Please restart indexing.")
+                if rows != snapshot():
+                    raise ValueError("The library changed during indexing. Please retry.")
+                staging.seek(0)
+                vector_store.replace_all((json.loads(line) for line in staging), dimension, key)
+        except Exception as error:
+            _reindex_error = str(error)
+            logger.warning("Reindex failed; previous index retained: %s", error)
         finally:
             _reindex_running = False
 

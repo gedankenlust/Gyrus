@@ -29,6 +29,15 @@ extension APIClient {
         let available: Bool
         let indexed: Int
         let message: String
+        let reindexRunning: Bool?
+        let reindexCompleted: Int?
+        let reindexTotal: Int?
+        let reindexError: String?
+        enum CodingKeys: String, CodingKey {
+            case available, indexed, message
+            case reindexRunning = "reindex_running", reindexCompleted = "reindex_completed"
+            case reindexTotal = "reindex_total", reindexError = "reindex_error"
+        }
     }
 
     func semanticSearchStatus() async throws -> SemanticSearchStatus {

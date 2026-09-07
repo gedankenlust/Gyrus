@@ -12,11 +12,21 @@ struct AISettingsView: View {
     @State private var isReindexing = false
     @State private var reindexMessage: String? = nil
     @State private var semanticIndexed: Int = 0
+    @State private var semanticAvailable = false
+    @State private var reindexProgress = 0
+    @State private var reindexTotal = 0
     
     var body: some View {
         Form {
             Section(header: Text("Artificial Intelligence")) {
                 Toggle("Enable AI", isOn: $settings.aiBrainConfig.aiEnabled)
+                if AIConfigSync.shared.isSyncing {
+                    ProgressView("Applying AI settings…").controlSize(.small)
+                }
+                if let error = AIConfigSync.shared.error {
+                    Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                    Button("Retry") { AIConfigSync.shared.submit(settings.aiBrainConfig, force: true) }
+                }
                 Text("Local AI via Ollama — auto-tagging, semantic search, summaries and chat. Off by default; Gyrus is a full bookmark manager without it.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -89,6 +99,14 @@ struct AISettingsView: View {
             Section(header: Text("Semantic Search")) {
                 // Semantic search silently returns nothing while the index is
                 // empty — make that state loud instead of a quiet "0 indexed".
+                if !semanticAvailable && semanticIndexed > 0 {
+                    Label("The search index is not ready for the selected model. Check Ollama and rebuild the index.", systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                }
+                if isReindexing {
+                    ProgressView(value: Double(reindexProgress), total: Double(max(1, reindexTotal))) {
+                        Text("Indexing \(reindexProgress) of \(reindexTotal)…")
+                    }
+                }
                 if semanticIndexed == 0 {
                     Label("Semantic search is empty — your bookmarks aren't indexed yet. Click Reindex to build the index.",
                           systemImage: "exclamationmark.triangle.fill")
@@ -109,18 +127,10 @@ struct AISettingsView: View {
                         Task {
                             do {
                                 _ = try await APIClient.shared.reindexEmbeddings()
-                                reindexMessage = "Reindexing started in the background."
-                                isReindexing = false
-                                // Refresh the indexed count while the background
-                                // job fills the index, so progress is visible.
-                                for _ in 0..<20 {
-                                    try? await Task.sleep(nanoseconds: 3_000_000_000)
-                                    if let status = try? await APIClient.shared.semanticSearchStatus() {
-                                        semanticIndexed = status.indexed
-                                    }
-                                }
+                                reindexMessage = String(localized: "Reindexing started in the background.")
+                                await refreshIndexStatus()
                             } catch {
-                                reindexMessage = "Failed: \(error.localizedDescription)"
+                                reindexMessage = error.localizedDescription
                                 isReindexing = false
                             }
                         }
@@ -133,7 +143,7 @@ struct AISettingsView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(isReindexing)
+                    .disabled(isReindexing || AIConfigSync.shared.isSyncing)
                     .help("Build the semantic search index from existing bookmark content. Requires nomic-embed-text in Ollama.")
                 }
                 if let msg = reindexMessage {
@@ -172,14 +182,35 @@ struct AISettingsView: View {
         .formStyle(.grouped)
         .onAppear {
             refreshModels()
-            Task {
-                if let status = try? await APIClient.shared.semanticSearchStatus() {
-                    semanticIndexed = status.indexed
-                }
+        }
+        .task {
+            while !Task.isCancelled {
+                await refreshIndexStatus()
+                do { try await Task.sleep(for: .seconds(3)) } catch { break }
             }
         }
     }
-    
+
+    private func refreshIndexStatus() async {
+        do {
+            let status = try await APIClient.shared.semanticSearchStatus()
+            semanticIndexed = status.indexed
+            semanticAvailable = status.available
+            isReindexing = status.reindexRunning == true
+            reindexProgress = status.reindexCompleted ?? 0
+            reindexTotal = status.reindexTotal ?? 0
+            if let error = status.reindexError {
+                reindexMessage = String(localized: "Indexing failed. The previous index was kept.") + " " + error
+            } else if !isReindexing && reindexTotal > 0 && reindexProgress == reindexTotal {
+                reindexMessage = String(localized: "Search index rebuilt.")
+            }
+        } catch {
+            guard !Task.isCancelled else { return }
+            reindexMessage = error.localizedDescription
+            isReindexing = false
+        }
+    }
+
     private var statusColor: Color {
         if isLoadingModels { return .gray }
         if let success = lastLoadSuccessful {
@@ -248,12 +279,14 @@ struct AISettingsView: View {
     }
 
     private func openBrainIndex() {
-        guard let path = settings.aiBrainConfig.rootDirectoryPath else { return }
-        let index = URL(fileURLWithPath: path).appendingPathComponent("_Index.md")
-        if FileManager.default.fileExists(atPath: index.path) {
-            NSWorkspace.shared.open(index)
-        } else {
-            NSWorkspace.shared.open(URL(fileURLWithPath: path))
+        Task {
+            do {
+                let path = try await APIClient.shared.brainIndexPath()
+                let index = URL(fileURLWithPath: path)
+                NSWorkspace.shared.open(FileManager.default.fileExists(atPath: path) ? index : index.deletingLastPathComponent())
+            } catch {
+                AppStore.shared.uiStateStore.showError(error.localizedDescription)
+            }
         }
     }
 }

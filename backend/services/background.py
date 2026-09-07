@@ -13,10 +13,32 @@ Two problems this solves:
 """
 import asyncio
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 
 _bg_tasks: set = set()
+_tasks_lock = threading.RLock()
+
+
+def track(task):
+    with _tasks_lock:
+        _bg_tasks.add(task)
+    def finished(done):
+        with _tasks_lock:
+            _bg_tasks.discard(done)
+        if not done.cancelled():
+            error = done.exception()
+            if error is not None:
+                logger.error("Background operation failed: %s", error)
+    task.add_done_callback(finished)
+    return task
+
+
+def is_busy() -> bool:
+    with _tasks_lock:
+        return any(not task.done() for task in _bg_tasks)
+
 _main_loop: asyncio.AbstractEventLoop | None = None
 
 
@@ -36,15 +58,15 @@ def schedule(coro) -> None:
             coro.close()
             logger.debug("background.schedule dropped %r — no event loop", coro)
             return
-        asyncio.run_coroutine_threadsafe(coro, loop)
+        track(asyncio.run_coroutine_threadsafe(coro, loop))
         return
     task = loop.create_task(coro)
-    _bg_tasks.add(task)
-    task.add_done_callback(_bg_tasks.discard)
+    track(task)
 
 
 async def drain() -> None:
     """Await all currently pending background tasks (used by tests)."""
-    pending = [t for t in _bg_tasks if not t.done()]
+    with _tasks_lock:
+        pending = [t if isinstance(t, asyncio.Future) else asyncio.wrap_future(t) for t in _bg_tasks if not t.done()]
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)

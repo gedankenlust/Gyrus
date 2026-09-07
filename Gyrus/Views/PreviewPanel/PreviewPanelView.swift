@@ -142,7 +142,6 @@ struct BookmarkDetailView: View {
     @State private var selectedTab: PreviewTab = PreviewTab.fromPreference(AppSettings.shared.defaultPreviewTab) ?? .page
     @State private var pageMode = PageMode.fromPreference(AppSettings.shared.defaultPreviewTab)
     @State private var isEditing    = false
-    @State private var newNoteText  = ""
     @State private var readerContent = ""
     @State private var readerLoadError: String?
     @State private var isLoadingReader = false
@@ -513,7 +512,14 @@ struct BookmarkDetailView: View {
                     } else {
                         ForEach(bookmark.bookmarkNotes) { note in
                             NoteCard(note: note) {
-                                Task { try? await bookmarkStore.deleteNote(note.id, from: bookmark) }
+                                Task {
+                                    do {
+                                        try await bookmarkStore.deleteNote(note.id, from: bookmark)
+                                        bookmarkStore.noteErrors[bookmark.id] = nil
+                                    } catch {
+                                        bookmarkStore.noteErrors[bookmark.id] = error.localizedDescription
+                                    }
+                                }
                             }
                         }
                     }
@@ -524,23 +530,34 @@ struct BookmarkDetailView: View {
             
             Divider()
             
+            if let error = bookmarkStore.noteErrors[bookmark.id] {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption).foregroundStyle(.red).padding(12)
+            }
             HStack(spacing: 10) {
-                TextField("Add a note...", text: $newNoteText, axis: .vertical)
+                TextField("Add a note...", text: Binding(
+                    get: { bookmarkStore.noteDrafts[bookmark.id] ?? "" },
+                    set: { bookmarkStore.noteDrafts[bookmark.id] = $0 }
+                ), axis: .vertical)
                     .textFieldStyle(.plain)
                     .padding(8)
                     .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
                     .lineLimit(1...5)
                 
                 Button {
-                    let content = newNoteText
-                    newNoteText = ""
-                    Task { try? await bookmarkStore.addNote(to: bookmark, content: content, source: "user") }
+                    Task { await bookmarkStore.saveNoteDraft(for: bookmark) }
                 } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 24))
+                    if bookmarkStore.savingNoteIds.contains(bookmark.id) {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "plus.circle.fill").font(.system(size: 24))
+                    }
                 }
                 .buttonStyle(.plain)
-                .disabled(newNoteText.trimmingCharacters(in: .whitespaces).isEmpty)
+                .accessibilityLabel("Save note")
+                .help("Save note")
+                .disabled(bookmarkStore.savingNoteIds.contains(bookmark.id) ||
+                          (bookmarkStore.noteDrafts[bookmark.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .padding(12)
             .background(.bar)

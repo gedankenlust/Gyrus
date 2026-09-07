@@ -1,0 +1,44 @@
+{
+  "unrelated_json_restore": {
+    "http": 200,
+    "bookmarks_after": 0
+  },
+  "blank_folder_backup_roundtrip": {
+    "create_http": 201,
+    "restore_http": 422
+  },
+  "long_folder_backup_roundtrip": {
+    "create_http": 201,
+    "restore_http": 422
+  },
+  "duplicate_folder": {
+    "http": 500
+  },
+  "missing_parent": {
+    "http": 500
+  },
+  "null_folder_name": {
+    "http": 500
+  },
+  "duplicate_tag_rename": {
+    "http": 500
+  },
+  "deep_folder_backup_roundtrip": {
+    "created_levels": 65,
+    "restore_http": 422
+  },
+  "request_body_limit": {
+    "configured_bytes": 128,
+    "payload_bytes": 351,
+    "content_length_http": 413,
+    "chunked_http": 201
+  },
+  "factory_reset_ai": {
+    "http": 200,
+    "ai_enabled_after": true
+  },
+  "failed_vector_replace": {
+    "replacement_success": false,
+    "vectors_remaining": 0
+  }
+}

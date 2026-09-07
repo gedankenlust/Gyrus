@@ -13,6 +13,7 @@ from schemas.bookmark import (
     BookmarkNoteOut,
 )
 from models.bookmark import Bookmark
+from services import ai_policy
 from services import bookmark_service
 from services import metadata_service
 from services import link_check_service
@@ -152,7 +153,7 @@ class ApplyTaxonomyRequest(BaseModel):
     tags: list[TaxonomyTagEdit]
 
 
-@router.post("/auto-tag-batch")
+@router.post("/auto-tag-batch", dependencies=[Depends(ai_policy.require_ai)])
 async def start_auto_tag_batch(request: AutoTagBatchRequest):
     """Auto-tag a list of bookmarks in the background (one run at a time).
     Returns immediately with the initial status; poll /auto-tag-batch/status."""
@@ -225,10 +226,10 @@ def list_bookmark_ids(
                  .join(TagModel, TagModel.id == BookmarkTag.tag_id)
                  .filter(TagModel.name == tag))
     if q:
-        like = f"%{q}%"
-        query = query.filter(
-            (Bookmark.title.ilike(like)) | (Bookmark.url.ilike(like))
-        )
+        from services.search_service import search_bookmarks
+        matches = search_bookmarks(db, q, limit=250_000)
+        matching = {bookmark.id for bookmark in matches}
+        return [row.id for row in query.all() if row.id in matching]
     return [row.id for row in query.all()]
 
 
@@ -501,7 +502,7 @@ class ReaderTranslateRequest(BaseModel):
     content: str | None = Field(default=None, max_length=20_000)
 
 
-@router.post("/{bookmark_id}/reader/cleanup", response_model=ReaderResponse)
+@router.post("/{bookmark_id}/reader/cleanup", dependencies=[Depends(ai_policy.require_ai)], response_model=ReaderResponse)
 async def cleanup_reader_content(
     bookmark_id: str, request: ReaderCleanupRequest, db: Session = Depends(get_db)
 ):
@@ -555,7 +556,7 @@ async def cleanup_reader_content(
     return ReaderResponse(content=cleaned or content)
 
 
-@router.post("/{bookmark_id}/reader/translate", response_model=ReaderResponse)
+@router.post("/{bookmark_id}/reader/translate", dependencies=[Depends(ai_policy.require_ai)], response_model=ReaderResponse)
 async def translate_reader_content(
     bookmark_id: str, request: ReaderTranslateRequest, db: Session = Depends(get_db)
 ):
@@ -593,7 +594,7 @@ async def translate_reader_content(
     return ReaderResponse(content=translated or content)
 
 
-@router.post("/{bookmark_id}/auto-tag", response_model=BookmarkOut)
+@router.post("/{bookmark_id}/auto-tag", dependencies=[Depends(ai_policy.require_ai)], response_model=BookmarkOut)
 async def auto_tag_bookmark(bookmark_id: str, request: AutoTagRequest, db: Session = Depends(get_db)):
     bm = await bookmark_service.auto_tag_bookmark(
         db,

@@ -28,7 +28,7 @@ async function saveBookmark() {
 
     // 2. Pair with the local backend. Use POST so Chrome includes the
     // extension Origin (MV3 omits Origin on GETs to host_permissions URLs).
-    // Only this extension's fixed browser origin may obtain the process token.
+    // Only this extension's fixed browser origin may obtain the scoped save token.
     const tokenResponse = await fetch('http://127.0.0.1:8080/api/auth/extension-token', {
       method: 'POST',
       signal: controller.signal
@@ -55,10 +55,11 @@ async function saveBookmark() {
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      if (response.status === 409) {
+      const problem = await response.json().catch(() => ({}));
+      if (response.status === 409 && problem.detail === 'Bookmark already exists') {
         throw new Error(chrome.i18n.getMessage('alreadySaved'));
       }
-      throw new Error(chrome.i18n.getMessage('gyrusError') + response.status);
+      throw new Error(typeof problem.detail === 'string' ? problem.detail : chrome.i18n.getMessage('gyrusError') + response.status);
     }
 
     // 4. Update UI to Success
@@ -70,6 +71,7 @@ async function saveBookmark() {
     setTimeout(() => window.close(), 2000);
 
   } catch (error) {
+    clearTimeout(timeoutId);
     statusContainer.className = 'status error';
     statusIcon.textContent = '✕';
     if (error.name === 'AbortError') {

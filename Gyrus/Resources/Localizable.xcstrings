@@ -1813,7 +1813,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Suche löschen"
+            "value": "Suche leeren"
           }
         },
         "en": {
@@ -2168,6 +2168,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copy"
+          }
+        }
+      }
+    },
+    "Copy report": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bericht kopieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy report"
+          }
+        }
+      }
+    },
+    "Copy the complete design inspection as Markdown": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die vollständige Designuntersuchung als Markdown kopieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy the complete design inspection as Markdown"
           }
         }
       }
@@ -2996,6 +3028,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Design"
+          }
+        }
+      }
+    },
+    "Design report copied.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Designbericht kopiert."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Design report copied."
           }
         }
       }
@@ -11041,97 +11089,917 @@
     "Site Structure": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Seitenstruktur"}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitenstruktur"
+          }
+        }
       }
     },
     "Pages found": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Seiten gefunden"}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seiten gefunden"
+          }
+        }
       }
     },
     "Crawled": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Analysiert"}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analysiert"
+          }
+        }
       }
     },
     "Menus": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Menüs"}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menüs"
+          }
+        }
       }
     },
     "Navigation shows the hierarchy rendered by the page. Sitemap shows every same-origin page Gyrus could list or discover.": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Navigation zeigt die auf der Seite gerenderte Hierarchie. Sitemap zeigt alle Seiten derselben Domain, die Gyrus auflisten oder finden konnte."}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Navigation zeigt die auf der Seite gerenderte Hierarchie. Sitemap zeigt alle Seiten derselben Domain, die Gyrus auflisten oder finden konnte."
+          }
+        }
       }
     },
     "No navigation structure detected.": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Keine Navigationsstruktur erkannt."}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Navigationsstruktur erkannt."
+          }
+        }
       }
     },
     "No sitemap or internal pages were found.": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Keine Sitemap oder internen Seiten gefunden."}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Sitemap oder internen Seiten gefunden."
+          }
+        }
       }
     },
     "Sitemap and discovered pages": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Sitemap und gefundene Seiten"}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sitemap und gefundene Seiten"
+          }
+        }
       }
     },
     "Sitemap sources": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Sitemap-Quellen"}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sitemap-Quellen"
+          }
+        }
       }
     },
     "Crawler notes": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Crawler-Hinweise"}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crawler-Hinweise"
+          }
+        }
       }
     },
     "Reinspect this page to map its navigation and sitemap.": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Untersuche diese Seite erneut, um Navigation und Sitemap zu erfassen."}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untersuche diese Seite erneut, um Navigation und Sitemap zu erfassen."
+          }
+        }
       }
     },
     "Mapping website structure...": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Website-Struktur wird erfasst ..."}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Website-Struktur wird erfasst ..."
+          }
+        }
       }
     },
     "Copied URL.": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "URL kopiert."}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "URL kopiert."
+          }
+        }
       }
     },
     "Open in browser": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Im Browser öffnen"}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Browser öffnen"
+          }
+        }
       }
     },
     "The sitemap inspection limit was reached; additional URLs may exist.": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Das Sitemap-Limit der Untersuchung wurde erreicht; weitere URLs können vorhanden sein."}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Sitemap-Limit der Untersuchung wurde erreicht; weitere URLs können vorhanden sein."
+          }
+        }
       }
     },
     "The internal crawl limit was reached; more unlisted pages may exist.": {
       "extractionState": "manual",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Das Limit des internen Crawls wurde erreicht; weitere nicht gelistete Seiten können vorhanden sein."}}
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Limit des internen Crawls wurde erreicht; weitere nicht gelistete Seiten können vorhanden sein."
+          }
+        }
+      }
+    },
+    "All bookmarks, excluding Trash": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Lesezeichen, ohne Papierkorb"
+          }
+        }
+      }
+    },
+    "Includes subfolders; excludes Trash": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Unterordnern, ohne Papierkorb"
+          }
+        }
+      }
+    },
+    "Export failed. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export fehlgeschlagen. Bitte erneut versuchen."
+          }
+        }
+      }
+    },
+    "Note could not be saved. Your draft is preserved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Notiz konnte nicht gespeichert werden. Dein Entwurf bleibt erhalten."
+          }
+        }
+      }
+    },
+    "Save note": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notiz speichern"
+          }
+        }
+      }
+    },
+    "Showing keyword results because semantic search returned no results.": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stichwortsuche wird verwendet, weil die semantische Suche keine Treffer geliefert hat."
+          }
+        }
+      }
+    },
+    "Keyword search fallback": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stichwortsuche als Ersatz"
+          }
+        }
+      }
+    },
+    "AI settings have not reached the backend.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI settings have not reached the backend."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die KI-Einstellungen konnten noch nicht angewendet werden."
+          }
+        }
+      }
+    },
+    "Add your first bookmark…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add your first bookmark…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erstes Lesezeichen hinzufügen…"
+          }
+        }
+      }
+    },
+    "An automatic backup is created daily while Gyrus is running.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An automatic backup is created daily while Gyrus is running."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solange Gyrus läuft, wird täglich eine automatische Sicherung erstellt."
+          }
+        }
+      }
+    },
+    "Applying AI settings…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Applying AI settings…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KI-Einstellungen werden angewendet…"
+          }
+        }
+      }
+    },
+    "Automatic backup failed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic backup failed."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die automatische Sicherung ist fehlgeschlagen."
+          }
+        }
+      }
+    },
+    "Backup files are limited to 100 MB.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup files are limited to 100 MB."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sicherungsdateien dürfen höchstens 100 MB groß sein."
+          }
+        }
+      }
+    },
+    "Conversation could not be cleared. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conversation could not be cleared. Please try again."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Chat konnte nicht gelöscht werden. Bitte erneut versuchen."
+          }
+        }
+      }
+    },
+    "Clearing conversation…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clearing conversation…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat wird gelöscht…"
+          }
+        }
+      }
+    },
+    "Import existing bookmarks…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import existing bookmarks…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorhandene Lesezeichen importieren…"
+          }
+        }
+      }
+    },
+    "Indexing failed. The previous index was kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indexing failed. The previous index was kept."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Indexierung ist fehlgeschlagen. Der bisherige Index wurde beibehalten."
+          }
+        }
+      }
+    },
+    "Keep your bookmarks, folders and notes together on this Mac.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep your bookmarks, folders and notes together on this Mac."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verwalte deine Lesezeichen, Ordner und Notizen gemeinsam auf diesem Mac."
+          }
+        }
+      }
+    },
+    "Last automatic backup": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last automatic backup"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Letzte automatische Sicherung"
+          }
+        }
+      }
+    },
+    "Note drafts could not be loaded.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Note drafts could not be loaded."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notizentwürfe konnten nicht geladen werden."
+          }
+        }
+      }
+    },
+    "Note drafts could not be saved on this Mac. Keep Gyrus open until they are saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Note drafts could not be saved on this Mac. Keep Gyrus open until they are saved."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notizentwürfe konnten nicht gespeichert werden. Lass Gyrus geöffnet, bis sie gespeichert sind."
+          }
+        }
+      }
+    },
+    "Search index rebuilt.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search index rebuilt."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Suchindex wurde neu aufgebaut."
+          }
+        }
+      }
+    },
+    "Show safety backups in Finder": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show safety backups in Finder"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sicherheitskopien im Finder anzeigen"
+          }
+        }
+      }
+    },
+    "Start exploring": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start exploring"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gyrus entdecken"
+          }
+        }
+      }
+    },
+    "The backend could not start. Another program may be using port 8080.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The backend could not start. Another program may be using port 8080."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Hintergrunddienst konnte nicht starten. Möglicherweise belegt ein anderes Programm Port 8080."
+          }
+        }
+      }
+    },
+    "The backend stopped. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The backend stopped. Please try again."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Hintergrunddienst wurde beendet. Bitte erneut versuchen."
+          }
+        }
+      }
+    },
+    "The library could not be fully loaded.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The library could not be fully loaded."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Bibliothek konnte nicht vollständig geladen werden."
+          }
+        }
+      }
+    },
+    "The previous backend is still stopping. Please try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The previous backend is still stopping. Please try again."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der vorherige Hintergrunddienst wird noch beendet. Bitte erneut versuchen."
+          }
+        }
+      }
+    },
+    "The search index is not ready for the selected model. Check Ollama and rebuild the index.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The search index is not ready for the selected model. Check Ollama and rebuild the index."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Suchindex ist für das gewählte Modell noch nicht bereit. Prüfe Ollama und baue den Index neu auf."
+          }
+        }
+      }
+    },
+    "This file could not be validated as a Gyrus backup.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This file could not be validated as a Gyrus backup."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Datei konnte nicht als gültige Gyrus-Sicherung bestätigt werden."
+          }
+        }
+      }
+    },
+    "This replaces your current library. A safety backup is created before replacement.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This replaces your current library. A safety backup is created before replacement."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine aktuelle Bibliothek wird ersetzt. Vorher wird eine Sicherheitskopie erstellt."
+          }
+        }
+      }
+    },
+    "This resets your library and app preferences. The macOS login setting is kept. Language changes take effect after restarting Gyrus.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This resets your library and app preferences. The macOS login setting is kept. Language changes take effect after restarting Gyrus."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dies setzt deine Bibliothek und die App-Einstellungen zurück. Die macOS-Anmeldeeinstellung bleibt erhalten. Eine Sprachänderung wird nach einem Neustart von Gyrus wirksam."
+          }
+        }
+      }
+    },
+    "Welcome to Gyrus": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Welcome to Gyrus"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Willkommen bei Gyrus"
+          }
+        }
+      }
+    },
+    "You can enable optional local AI later in Settings.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can enable optional local AI later in Settings."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die optionale lokale KI kannst du später in den Einstellungen aktivieren."
+          }
+        }
+      }
+    },
+    "Indexing %lld of %lld…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indexing %lld of %lld…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld von %lld werden indexiert…"
+          }
+        }
+      }
+    },
+    "%lld bookmarks, %lld folders, %lld tags, %lld notes, %lld chat messages.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld bookmarks, %lld folders, %lld tags, %lld notes, %lld chat messages."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Lesezeichen, %lld Ordner, %lld Tags, %lld Notizen, %lld Chatnachrichten."
+          }
+        }
+      }
+    },
+    "This moves %lld bookmarks to Trash for 30 days. You can undo for 5 seconds.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This moves %lld bookmarks to Trash for 30 days. You can undo for 5 seconds."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dadurch werden %lld Lesezeichen für 30 Tage in den Papierkorb verschoben. Du kannst dies 5 Sekunden lang rückgängig machen."
+          }
+        }
+      }
+    },
+    "Restore failed: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restore failed: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiederherstellung fehlgeschlagen: %@"
+          }
+        }
+      }
+    },
+    "Backup failed: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup failed: %@"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sicherung fehlgeschlagen: %@"
+          }
+        }
+      }
+    },
+    "Plain Text": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plain Text"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reiner Text"
+          }
+        }
+      }
+    },
+    "On": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein"
+          }
+        }
+      }
+    },
+    "Off": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus"
+          }
+        }
+      }
+    },
+    "Semantic search": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Semantic search"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Semantische Suche"
+          }
+        }
+      }
+    },
+    "Select all": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select all"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle auswählen"
+          }
+        }
+      }
+    },
+    "Add bookmark": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add bookmark"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen hinzufügen"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einstellungen"
+          }
+        }
       }
     }
   },

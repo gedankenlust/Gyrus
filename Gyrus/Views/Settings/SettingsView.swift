@@ -177,12 +177,33 @@ private struct DataPane: View {
     @State private var isExporting = false
     @State private var showConfirmReset = false
     @State private var resetType: AppStore.ResetType?
-    @State private var pendingRestoreURL: URL?
+    @State private var pendingRestoreData: Data?
+    @State private var restoreSummary: BackupPreview?
+    @State private var restoreFilename = ""
+    @State private var operationError: String?
     @State private var showConfirmRestore = false
+    @State private var automaticBackup: APIClient.AutomaticBackupStatus?
     
     var body: some View {
         Form {
+            if let operationError {
+                Section { Label(operationError, systemImage: "exclamationmark.triangle").foregroundStyle(.red).textSelection(.enabled) }
+            }
             Section("Backups") {
+                if let date = automaticBackup?.lastBackupAt {
+                    LabeledContent("Last automatic backup", value: date.formatted(date: .abbreviated, time: .shortened))
+                } else {
+                    Text("An automatic backup is created daily while Gyrus is running.").font(.caption).foregroundStyle(.secondary)
+                }
+                if let error = automaticBackup?.error {
+                    Label(String(localized: "Automatic backup failed.") + " " + error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
+                }
+                Button("Show safety backups in Finder") {
+                    let root = ProcessInfo.processInfo.environment["GYRUS_DATA_DIR"].map { URL(fileURLWithPath: $0) }
+                        ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gyrus")
+                    NSWorkspace.shared.open(root.appendingPathComponent("db/backups"))
+                }
+
                 HStack {
                     Button {
                         createBackup()
@@ -260,6 +281,8 @@ private struct DataPane: View {
             }
         }
         .formStyle(.grouped)
+        .disabled(isExporting)
+        .task { automaticBackup = try? await APIClient.shared.automaticBackupStatus() }
         .confirmationDialog(
             "Are you sure?",
             isPresented: $showConfirmReset,
@@ -269,9 +292,12 @@ private struct DataPane: View {
             Button(resetButtonTitle(for: type), role: .destructive) {
                 Task {
                     do {
+                        isExporting = true
+                        operationError = nil
+                        defer { isExporting = false }
                         try await store.handleReset(type: type)
                     } catch {
-                        store.uiStateStore.showError(error.localizedDescription)
+                        operationError = error.localizedDescription
                     }
                 }
             }
@@ -285,12 +311,17 @@ private struct DataPane: View {
             titleVisibility: .visible
         ) {
             Button("Replace All Data", role: .destructive) {
-                if let url = pendingRestoreURL { performRestore(url) }
-                pendingRestoreURL = nil
+                if let data = pendingRestoreData { performRestore(data) }
+                pendingRestoreData = nil
             }
-            Button("Cancel", role: .cancel) { pendingRestoreURL = nil }
+            Button("Cancel", role: .cancel) { pendingRestoreData = nil }
         } message: {
-            Text("This replaces all current bookmarks, collections, and tags with the contents of the backup. This cannot be undone.")
+            if let summary = restoreSummary {
+                Text(restoreFilename)
+                if let date = summary.exportedAt { Text(date.formatted(date: .abbreviated, time: .shortened)) }
+                Text("\(summary.bookmarks) bookmarks, \(summary.collections) folders, \(summary.tags) tags, \(summary.notes) notes, \(summary.messages) chat messages.")
+            }
+            Text("This replaces your current library. A safety backup is created before replacement.")
         }
     }
 
@@ -302,22 +333,38 @@ private struct DataPane: View {
         panel.allowsMultipleSelection = false
         panel.title = "Choose Backup File"
         if panel.runModal() == .OK, let url = panel.url {
-            pendingRestoreURL = url
-            showConfirmRestore = true
+            isExporting = true
+            operationError = nil
+            Task {
+                defer { isExporting = false }
+                do {
+                    let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                    guard size <= 100 * 1024 * 1024 else { throw APIError.serverMessage(String(localized: "Backup files are limited to 100 MB.")) }
+                    let data = try await Task.detached { try Data(contentsOf: url) }.value
+                    restoreSummary = try await APIClient.shared.previewBackup(data)
+                    pendingRestoreData = data
+                    restoreFilename = url.lastPathComponent
+                    showConfirmRestore = true
+                } catch {
+                    operationError = String(localized: "This file could not be validated as a Gyrus backup.") + " " + error.localizedDescription
+                }
+            }
         }
     }
 
-    private func performRestore(_ url: URL) {
+    private func performRestore(_ data: Data) {
         isExporting = true
         Task {
-            defer { isExporting = false }
+            defer { isExporting = false; store.finishLibraryReplacement() }
             do {
-                let data = try Data(contentsOf: url)
+                await store.prepareForLibraryReplacement()
                 try await APIClient.shared.restoreBackup(data)
+                store.resetLocalLibraryState()
                 await store.loadAll()
                 store.uiStateStore.showInfo("Backup restored.")
             } catch {
-                store.uiStateStore.showError("Restore failed: \(error.localizedDescription)")
+                await store.loadAll()
+                operationError = String(localized: "Restore failed: \(error.localizedDescription)")
             }
         }
     }
@@ -345,7 +392,7 @@ private struct DataPane: View {
         case .bookmarks:
             return String(localized: "This will permanently delete all bookmarks, collections, and tags. This action cannot be undone.")
         case .factory:
-            return String(localized: "This will wipe all data and reset Gyrus to its initial state. All settings and bookmarks will be lost.")
+            return String(localized: "This resets your library and app preferences. The macOS login setting is kept. Language changes take effect after restarting Gyrus.")
         }
     }
     
@@ -361,9 +408,9 @@ private struct DataPane: View {
                 defer { isExporting = false }
                 do {
                     let data = try await APIClient.shared.downloadBackup()
-                    try data.write(to: url)
+                    try data.write(to: url, options: .atomic)
                 } catch {
-                    store.uiStateStore.showError("Backup failed: \(error.localizedDescription)")
+                    operationError = String(localized: "Backup failed: \(error.localizedDescription)")
                 }
             }
         }

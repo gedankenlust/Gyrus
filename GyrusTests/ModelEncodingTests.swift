@@ -369,6 +369,87 @@ final class ModelEncodingTests: XCTestCase {
         XCTAssertEqual(status.snapshot?.siteStructure?.pageTree.first?.path, "/services")
     }
 
+    func testDesignSnapshotReportBundlesEveryInspectorSection() throws {
+        let data = """
+        {
+          "bookmark_id": "bookmark-1",
+          "schema_version": 7,
+          "run_id": "run-1",
+          "url": "https://example.com",
+          "title": "Example",
+          "captured_at": "2026-08-22T08:00:00Z",
+          "status": "completed",
+          "navigation": [{
+            "label": "Main menu",
+            "items": [{"label": "Design", "url": "https://example.com/design", "children": []}]
+          }],
+          "site_structure": {
+            "origin": "https://example.com",
+            "listed_page_count": 1,
+            "sitemap_page_count": 1,
+            "crawled_page_count": 1,
+            "crawl_limit": 80,
+            "crawl_limit_reached": false,
+            "sitemap_limit": 10000,
+            "sitemap_limit_reached": false,
+            "sitemap_sources": ["https://example.com/sitemap.xml"],
+            "pages": [{"url": "https://example.com/design", "path": "/design", "title": "Design", "source": "sitemap"}],
+            "page_tree": [],
+            "errors": []
+          },
+          "viewports": [{
+            "page_title": "Example page",
+            "meta_description": "A captured page",
+            "name": "mobile",
+            "width": 390,
+            "height": 844,
+            "screenshot": "mobile.png",
+            "screenshot_url": "/snapshots/mobile.png",
+            "dominant_colors": ["#112233"],
+            "observed_colors": ["rgb(17, 34, 51)"],
+            "observed_fonts": ["Inter, sans-serif"],
+            "structure": {"h1": ["Hello"], "h2": [], "links": 3, "buttons": 1, "images": 2, "svgs": 0, "forms": 0},
+            "technologies": [{"name": "Astro", "version": "5", "category": "Framework", "confidence": "high", "evidence": ["generator meta"]}],
+            "css_variables": [{"name": "--brand", "value": "#112233"}],
+            "responsive_issues": [{
+              "id": "overflow", "kind": "horizontal_overflow", "severity": "high",
+              "title": "Page overflows horizontally", "detail": "450px wide", "selector_hint": "html",
+              "text": "", "x": 0, "y": 0, "width": 450, "height": 1,
+              "metric": "450px / 390px", "evidence_url": null
+            }],
+            "element_samples": [{
+              "tag": "section", "selector_hint": ".hero", "text": "Welcome",
+              "x": 0, "y": 0, "width": 390, "height": 400,
+              "display": "block", "position": "static", "font_family": "Inter",
+              "font_size": "48px", "font_weight": "700", "line_height": "1.1",
+              "color": "rgb(17, 34, 51)", "background_color": "white",
+              "border_radius": "0px", "box_shadow": "none", "letter_spacing": "0px",
+              "text_transform": "none", "margin": "0px", "padding": "24px"
+            }],
+            "seo": {"title": "SEO title", "internal_links": 3, "external_links": 1},
+            "assets": {"images": [{"kind": "image", "url": "https://example.com/hero.jpg", "alt": "Hero"}]},
+            "accessibility": {"missing_alt_images": [], "empty_buttons": [], "unlabeled_inputs": [], "heading_skips": []},
+            "network": {"request_count": 12, "resource_counts": [{"type": "image", "count": 2}], "failed_requests": [], "large_requests": []},
+            "console_messages": []
+          }]
+        }
+        """.data(using: .utf8)!
+
+        let snapshot = try JSONDecoder().decode(APIClient.VisualSnapshotDTO.self, from: data)
+        let report = DesignSnapshotReport.markdown(snapshot: snapshot)
+
+        XCTAssertTrue(report.contains("## Preview"))
+        XCTAssertTrue(report.contains("## Issues"))
+        XCTAssertTrue(report.contains("Page overflows horizontally"))
+        XCTAssertTrue(report.contains("## System"))
+        XCTAssertTrue(report.contains("Astro 5"))
+        XCTAssertTrue(report.contains("## Components"))
+        XCTAssertTrue(report.contains(".hero"))
+        XCTAssertTrue(report.contains("## Website"))
+        XCTAssertTrue(report.contains("https://example.com/sitemap.xml"))
+        XCTAssertTrue(report.contains("untrusted text captured from a website"))
+    }
+
     // MARK: - Web preview security
 
     func testWebPreviewUsesNonPersistentStorage() {

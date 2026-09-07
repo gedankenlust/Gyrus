@@ -1,10 +1,12 @@
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from routers import bookmarks, collections, tags, search, import_, export_, files, brain, data
-from security import API_TOKEN, EXTENSION_ORIGINS, has_valid_api_token, is_trusted_extension_origin
+from security import (API_TOKEN, EXTENSION_TOKEN, EXTENSION_ORIGINS, has_valid_api_token,
+                      has_valid_extension_token, is_trusted_extension_origin)
 
 logger = logging.getLogger(__name__)
 MAX_REQUEST_BYTES = 100 * 1024 * 1024
@@ -68,10 +70,25 @@ async def lifespan(app: FastAPI):
             db.close()
     except Exception as exc:
         logger.warning("Expired-trash cleanup failed: %s", exc)
-    yield
+    # A login-started app may stay alive for days. Backups must not depend on
+    # restarting the backend. Do not count this idle timer as library work.
+    async def periodic_backup():
+        while True:
+            await asyncio.sleep(60 * 60)
+            await asyncio.to_thread(run_daily_backup)
+    backup_task = asyncio.create_task(periodic_backup())
+    try:
+        yield
+    finally:
+        backup_task.cancel()
+        await asyncio.gather(backup_task, return_exceptions=True)
 
 
 app = FastAPI(title="Gyrus API", version=APP_VERSION, lifespan=lifespan)
+from services.request_limits import RequestSizeMiddleware
+app.add_middleware(RequestSizeMiddleware, limit=lambda: MAX_REQUEST_BYTES)
+from services.maintenance import MaintenanceMiddleware
+app.add_middleware(MaintenanceMiddleware)
 
 
 @app.middleware("http")
@@ -115,13 +132,12 @@ async def block_cross_site_origin(request: Request, call_next):
         or request.url.path.startswith("/api/files/")
     ):
         return await call_next(request)
-    if not has_valid_api_token(request.headers.get("x-gyrus-token")):
-        return JSONResponse(status_code=401, content={"detail": "Invalid extension token"})
-    if origin:
-        # The companion has one job: save the active tab. Even a compromised
-        # extension build must not gain backup, reset, notes, or AI access.
+    token = request.headers.get("x-gyrus-token")
+    if has_valid_extension_token(token):
         if request.method != "POST" or request.url.path != "/api/bookmarks":
             return JSONResponse(status_code=403, content={"detail": "Extension route not allowed"})
+    elif not has_valid_api_token(token) or origin:
+        return JSONResponse(status_code=401, content={"detail": "Invalid API token"})
     return await call_next(request)
 
 
@@ -140,7 +156,7 @@ def extension_token(request: Request):
     # sends it on POST. Pairing must be POST so we can verify the fixed ID.
     if not is_trusted_extension_origin(request.headers.get("origin")):
         return JSONResponse(status_code=403, content={"detail": "Cross-site request blocked"})
-    return {"token": API_TOKEN}
+    return {"token": EXTENSION_TOKEN}
 
 app.include_router(bookmarks.router)
 app.include_router(collections.router)
@@ -156,3 +172,9 @@ app.include_router(data.router)
 @app.get("/health")
 def health():
     return {"status": "ok", "version": APP_VERSION}
+
+
+@app.get("/api/ready")
+def ready():
+    # Unlike /health, this passes the native token guard.
+    return {"status": "ok", "service": "gyrus", "version": APP_VERSION}

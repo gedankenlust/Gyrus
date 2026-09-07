@@ -11,9 +11,15 @@ final class CollectionStore {
     var showTrash: Bool = false
 
     private let api = APIClient.shared
+    private var generation = 0
+
+    func resetLocalState() { generation += 1; collections = []; selectedCollectionId = nil }
 
     func fetchCollections() async throws {
-        collections = try await api.collections()
+        let started = generation
+        let result = try await api.collections()
+        guard started == generation else { return }
+        collections = result
     }
 
     func moveCollection(_ id: String, toParent parentId: String?) async throws {

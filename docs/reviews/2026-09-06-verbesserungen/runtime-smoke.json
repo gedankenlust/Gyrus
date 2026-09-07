@@ -1,0 +1,9 @@
+{
+  "ready_auth": "passed",
+  "restore_preview": "passed",
+  "invalid_restore_preserves_data": "passed",
+  "portable_backup": "passed",
+  "ai_default_off": "passed",
+  "graceful_backend_exit": -15,
+  "bundled_browser": "Chromium 149.0.7827.55"
+}

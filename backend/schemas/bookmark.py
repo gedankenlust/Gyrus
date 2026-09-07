@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from .tag import TagOut
 from services.outbound_url_security import validate_bookmark_url_syntax
 
@@ -28,6 +28,13 @@ class BookmarkUpdate(BaseModel):
     tag_ids: list[str] | None = None
     is_dead: bool | None = None
     is_read: bool | None = None
+
+    @model_validator(mode="after")
+    def reject_null_required_fields(self):
+        for field in {"title", "url", "is_dead", "is_read"} & self.model_fields_set:
+            if getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
 
     @field_validator("url")
     @classmethod
