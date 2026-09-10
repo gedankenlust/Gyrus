@@ -3,6 +3,14 @@ import Foundation
 // MARK: - Bookmarks: CRUD, counts, trash, reader, notes
 
 extension APIClient {
+    func taggedBookmarkIds(in ids: Set<String>) async throws -> [String] {
+        struct Body: Encodable {
+            let bookmark_ids: [String]
+        }
+        return try await post(base.appending(path: "/api/bookmarks/tagged-ids"),
+                              body: Body(bookmark_ids: Array(ids)))
+    }
+
     func bookmarks(
         collectionId: String? = nil,
         tag: String? = nil,

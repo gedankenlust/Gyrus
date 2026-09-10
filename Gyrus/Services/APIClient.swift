@@ -64,6 +64,7 @@ struct ProviderPayload: Encodable {
     let embedding_model: String
     let ollama_url: String
     let api_key: String
+    let gentle_tagging: Bool
 
     init(_ config: AIBrainConfig) {
         provider = config.llmProvider.rawValue
@@ -71,6 +72,7 @@ struct ProviderPayload: Encodable {
         embedding_model = config.embeddingModel
         ollama_url = config.ollamaURL
         api_key = ""
+        gentle_tagging = config.gentleTagging
     }
 }
 

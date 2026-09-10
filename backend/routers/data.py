@@ -26,6 +26,7 @@ FACTORY_RESET_DIRECTORIES = (
     DATA_DIR / "og_images",
     DATA_DIR / "visual_snapshots",
     DATA_DIR / "site_structure",
+    DATA_DIR / "taxonomy-checkpoints",
     DATA_DIR / "python-cache",
     DATA_DIR / "db" / "backups",
 )
@@ -99,6 +100,7 @@ async def clear_bookmarks(db: Session = Depends(get_db)):
         from services import vector_store
         vector_store.clear()
         bookmark_service.delete_generated_artifacts(bookmark_ids)
+        _clear_directory(DATA_DIR / "taxonomy-checkpoints")
     except Exception as e:
         db.rollback()
         logger.exception("Failed to clear bookmarks")

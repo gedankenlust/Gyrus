@@ -248,10 +248,57 @@ final class ModelEncodingTests: XCTestCase {
 
         XCTAssertEqual(status.phase, "review")
         XCTAssertEqual(status.generatedTokens, 712)
+        XCTAssertEqual(status.embedded, 0)
+        XCTAssertEqual(status.classified, 0)
+        XCTAssertEqual(status.cooldownRemaining, 0)
         XCTAssertEqual(status.model, "qwen3:8b")
         XCTAssertEqual(status.draft?.tags.first?.bookmarkCount, 2)
         XCTAssertEqual(status.draft?.untagged.first?.title, "Three")
         XCTAssertEqual(status.draft?.omittedTags, 0)
+    }
+
+    func testLargeLibraryJobProgressDecodesCountsAndErrors() throws {
+        let data = Data(#"{"running":true,"processed":4094,"total":4094,"embedded":1024,"classified":144,"phase":"assigning"}"#.utf8)
+        let status = try JSONDecoder().decode(BatchAutoTagStatus.self, from: data)
+        XCTAssertEqual(status.embedded, 1024)
+        XCTAssertEqual(status.classified, 144)
+        let metadata = try JSONDecoder().decode(MetadataRefreshStatus.self, from:
+            Data(#"{"running":false,"processed":4000,"total":4094,"updated":3900,"failed":100,"error":"Write failed"}"#.utf8))
+        XCTAssertEqual(metadata.failed, 100)
+        XCTAssertEqual(metadata.error, "Write failed")
+    }
+
+    func testGentleTaggingMigratesAndPersistsExplicitChoice() throws {
+        let legacy = Data(#"{"ollamaModel":"saved-model","aiEnabled":true}"#.utf8)
+        var config = try JSONDecoder().decode(AIBrainConfig.self, from: legacy)
+        XCTAssertTrue(config.gentleTagging)
+        XCTAssertEqual(config.ollamaModel, "saved-model")
+        XCTAssertTrue(config.aiEnabled)
+        XCTAssertEqual(try decode(ProviderPayload(config))["gentle_tagging"] as? Bool, true)
+        config.gentleTagging = false
+        let restored = try JSONDecoder().decode(AIBrainConfig.self, from: encoder.encode(config))
+        XCTAssertFalse(restored.gentleTagging)
+        XCTAssertEqual(try decode(ProviderPayload(restored))["gentle_tagging"] as? Bool, false)
+    }
+
+    func testGentleTaggingCountdownPreservesCompletedCounts() throws {
+        let data = Data(#"{"running":true,"processed":4094,"total":4094,"embedded":4094,"classified":24,"phase":"cooldown","cooldown_remaining":12}"#.utf8)
+        let status = try JSONDecoder().decode(BatchAutoTagStatus.self, from: data)
+        XCTAssertEqual(status.phase, "cooldown")
+        XCTAssertEqual(status.cooldownRemaining, 12)
+        XCTAssertEqual(status.classified, 24)
+        XCTAssertEqual(status.embedded, 4094)
+    }
+
+    func testSearchIndexErrorUsesSafeExplanationAndAcceptsLegacyStatus() throws {
+        let data = Data(#"{"available":false,"indexed":324,"message":"Rebuild","reindex_error":"raw server response","reindex_error_code":"embedding_input_too_long"}"#.utf8)
+        let status = try JSONDecoder().decode(APIClient.SemanticSearchStatus.self, from: data)
+        XCTAssertEqual(status.reindexErrorCode, "embedding_input_too_long")
+        XCTAssertEqual(status.reindexErrorDescription, String(localized: "The embedding model rejected a text as too long. Check the model and update Ollama."))
+        let legacy = try JSONDecoder().decode(APIClient.SemanticSearchStatus.self, from:
+            Data(#"{"available":true,"indexed":324,"message":"Ready"}"#.utf8))
+        XCTAssertNil(legacy.reindexErrorCode)
+        XCTAssertNil(legacy.reindexErrorDescription)
     }
 
     func testTaxonomyDraftDecodesOmittedTagCount() throws {

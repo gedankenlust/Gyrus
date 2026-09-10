@@ -1,8 +1,10 @@
 """Global, review-first taxonomy generation for bookmark batches."""
 from __future__ import annotations
 
+import asyncio
 import json
 import math
+import time
 import re
 import uuid
 from collections import defaultdict
@@ -13,7 +15,9 @@ from sqlalchemy.orm import Session
 
 from models.bookmark import Bookmark
 from models.tag import BookmarkTag, Tag
-from services import embedding_service, llm_service
+from services import ai_policy, embedding_service, llm_service
+from services.taxonomy_checkpoint import ClassificationCheckpoint
+from services.tagging_pacer import TaggingPacer
 from services.tag_colors import next_color
 
 
@@ -21,7 +25,8 @@ MAX_EXCERPT_CHARS = 320
 MAX_NAME_CHARS = 40
 MAX_WORDS = 4
 MAX_TAGS_PER_BOOKMARK = 3
-CLASSIFICATION_BATCH_SIZE = 24
+CLASSIFICATION_BATCH_SIZE = 12
+CLASSIFICATION_TIMEOUT = 180.0
 SKIP_LABEL = "__SKIP__"
 NO_TAG = "__NONE__"
 
@@ -269,6 +274,23 @@ def _similarity(left: list[float], right: list[float]) -> float:
     return sum(a * b for a, b in zip(left, right))
 
 
+def _rank_candidates(vectors: list[list[float]], bookmark_count: int, labels: list[str]):
+    bookmark_vectors = [_unit(vector) for vector in vectors[:bookmark_count]]
+    category_vectors = [_unit(vector) for vector in vectors[bookmark_count:]]
+    candidate_count = min(12, len(labels))
+    return [sorted(
+        ((_similarity(vector, category_vectors[index]), label) for index, label in enumerate(labels)),
+        reverse=True,
+    )[:candidate_count] for vector in bookmark_vectors]
+
+
+def _checked_classification(raw: str, keys: list[str]) -> dict:
+    payload = _classification_payload(raw)
+    if any(not isinstance(payload.get(key, payload.get(f"{key}_1")), str) for key in keys):
+        raise TaxonomyQualityError("The model response omitted required bookmark classifications.")
+    return payload
+
+
 def _centroid(indices: list[int], vectors: list[list[float]]) -> list[float]:
     dimensions = len(vectors[0])
     return _unit([
@@ -497,7 +519,7 @@ async def _stream_taxonomy(prompt: str, records: str, config: dict[str, Any],
         title="Selected bookmarks",
         url="gyrus://taxonomy",
         think=False,
-        options={"num_predict": 4096, "num_ctx": 32768, "temperature": 0},
+        options={"num_predict": 2048, "num_ctx": 16384, "temperature": 0},
         language=language,
         context_kind="collection",
         timeout=600.0,
@@ -552,7 +574,7 @@ def _classification_payload(raw: str) -> dict[str, Any]:
         if not isinstance(row, dict):
             continue
         key = str(row.get("id") or row.get("bookmark_id") or "").upper()
-        if not re.fullmatch(r"B\d{3}", key):
+        if not re.fullmatch(r"B\d{3,}", key):
             continue
         for slot in range(1, MAX_TAGS_PER_BOOKMARK + 1):
             value = row.get(
@@ -650,6 +672,7 @@ def parse_taxonomy(raw: str, keyed: dict[str, Bookmark], max_tags: int,
 async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config: dict | None,
                          language: str | None,
                          progress: Callable[[str, int], None] | None = None) -> dict[str, Any]:
+    policy_generation = ai_policy.generation()
     _, keyed = compact_records(bookmarks)
     max_tags, singleton_limit = taxonomy_limits(len(bookmarks))
     existing_tags = [
@@ -657,6 +680,7 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
     ]
     config = provider_config or {"provider": "ollama", "model": "llama3"}
     _assert_taxonomy_model_supported(config)
+    pacer = TaggingPacer(config.get("gentle_tagging") is True, progress)
     base_url = config.get("ollama_url") or config.get("base_url") or "http://localhost:11434"
 
     catalog = _classification_catalog(language, existing_tags)
@@ -679,26 +703,24 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
         embedding_texts + category_texts,
         model=config.get("embedding_model") or embedding_service.current_model(),
         base_url=base_url,
+        progress=lambda done, total: progress("embedded", min(done, len(bookmarks))) if progress else None,
+        after_batch=lambda duration: pacer.rest(duration, "embedding"),
     )
-    bookmark_vectors = [_unit(vector) for vector in vectors[:len(bookmarks)]]
-    category_vectors = [_unit(vector) for vector in vectors[len(bookmarks):]]
-    candidate_count = min(12, len(labels))
-    ranked_candidates = [
-        sorted(
-            (
-                (_similarity(bookmark_vector, category_vectors[index]), labels[index])
-                for index in range(len(labels))
-            ),
-            reverse=True,
-        )[:candidate_count]
-        for bookmark_vector in bookmark_vectors
-    ]
+    if progress:
+        progress("clustering", 0)
+    ranked_candidates = await asyncio.to_thread(_rank_candidates, vectors, len(bookmarks), labels)
     candidates = [
         [label for _, label in ranked]
         for ranked in ranked_candidates
     ]
     records = _classification_records(bookmarks, bookmark_keys, candidates)
 
+    checkpoint = ClassificationCheckpoint({
+        "version": 2, "records": records, "keys": bookmark_keys,
+        "model": config.get("model"), "embedding_model": config.get("embedding_model") or embedding_service.current_model(),
+        "base_url": base_url, "language": language, "batch_size": CLASSIFICATION_BATCH_SIZE,
+        "prompt": _classification_prompt(language),
+    })
     grouped_keys: dict[str, list[str]] = defaultdict(list)
     primary_counts: dict[str, int] = defaultdict(int)
     assignment_scores: dict[str, list[float]] = defaultdict(list)
@@ -708,26 +730,55 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
         chunk_candidates = candidates[offset:offset + CLASSIFICATION_BATCH_SIZE]
         chunk_records = "\n".join(records[offset:offset + CLASSIFICATION_BATCH_SIZE])
         schema = _classification_schema(chunk_keys, chunk_candidates)
-        raw = await _stream_taxonomy(
-            _classification_prompt(language), chunk_records, config, language,
-            "assigning", progress, schema,
-        )
-        try:
-            payload = _classification_payload(raw)
-        except TaxonomyQualityError:
-            # Retry only the malformed chunk. A local model should not force the
-            # other successfully classified batches to be thrown away.
-            repaired = await _stream_taxonomy(
-                _classification_prompt(language)
-                + " The previous response was malformed. Include every required bookmark key.",
-                chunk_records + "\n\nMALFORMED RESPONSE:\n" + raw[:6_000],
-                config, language, "repairing", progress, schema,
-            )
-            try:
-                payload = _classification_payload(repaired)
-            except TaxonomyQualityError:
-                failed_batches += 1
-                continue
+        if not ai_policy.enabled() or policy_generation != ai_policy.generation():
+            raise llm_service.LLMUnavailableError("AI configuration changed")
+        payload = checkpoint.responses.get(str(offset))
+        work_seconds = 0.0
+        if payload is None:
+            started = time.monotonic()
+            # A timeout affects this chunk only. Prior chunks are durable and
+            # are reused when the same selection/configuration is tried again.
+            for attempt in range(2):
+                try:
+                    async with asyncio.timeout(CLASSIFICATION_TIMEOUT):
+                        raw = await _stream_taxonomy(
+                            _classification_prompt(language), chunk_records, config, language,
+                            "assigning", progress, schema,
+                        )
+                        try:
+                            payload = _checked_classification(raw, chunk_keys)
+                        except TaxonomyQualityError:
+                            repaired = await _stream_taxonomy(
+                                _classification_prompt(language)
+                                + " The previous response was malformed. Include every required bookmark key.",
+                                chunk_records + "\n\nMALFORMED RESPONSE:\n" + raw[:6_000],
+                                config, language, "repairing", progress, schema,
+                            )
+                            payload = _checked_classification(repaired, chunk_keys)
+                    break
+                except TaxonomyQualityError:
+                    failed_batches += 1
+                    payload = {}
+                    break
+                except (TimeoutError, llm_service.LLMUnavailableError) as error:
+                    if not ai_policy.enabled() or policy_generation != ai_policy.generation():
+                        raise
+                    if attempt == 1:
+                        message = (
+                            f"KI-Anfrage abgebrochen nach {offset}/{len(bookmarks)} Lesezeichen. "
+                            "Erneut starten: fertige Zuordnungsblöcke werden wiederverwendet."
+                            if language == "de" else
+                            f"AI request stopped after {offset}/{len(bookmarks)} bookmarks. "
+                            "Start again to reuse completed classification batches."
+                        )
+                        detail = str(error).strip() or ("Zeitlimit erreicht." if language == "de" else "Time limit reached.")
+                        raise llm_service.LLMUnavailableError(f"{message} {detail}") from error
+            work_seconds = time.monotonic() - started
+            if payload:
+                checkpoint.save(offset, payload)
+        if progress:
+            progress("classified", min(offset + CLASSIFICATION_BATCH_SIZE, len(bookmarks)))
+        await asyncio.sleep(0)
 
         chunk_rankings = ranked_candidates[offset:offset + CLASSIFICATION_BATCH_SIZE]
         for key, allowed, ranked in zip(chunk_keys, chunk_candidates, chunk_rankings):
@@ -755,6 +806,8 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
                 grouped_keys[name].append(key)
                 score = next((value for value, candidate in ranked if candidate == name), 0.0)
                 assignment_scores[name].append(score)
+        if work_seconds > 0 and offset + CLASSIFICATION_BATCH_SIZE < len(bookmarks):
+            await pacer.rest(work_seconds, "assigning")
 
     grouped_keys, omitted_tags = _limit_categories(
         grouped_keys, primary_counts, assignment_scores, max_tags,
@@ -772,10 +825,15 @@ async def generate_draft(db: Session, bookmarks: list[Bookmark], provider_config
         raise TaxonomyQualityError(
             "The selected model could not classify the bookmarks in the required format."
         )
-    draft = parse_taxonomy(
-        json.dumps({"taxonomy": taxonomy}, ensure_ascii=False),
-        keyed, max_tags, max(singleton_limit, len(taxonomy)), language,
-    )
+    try:
+        draft = parse_taxonomy(
+            json.dumps({"taxonomy": taxonomy}, ensure_ascii=False),
+            keyed, max_tags, max(singleton_limit, len(taxonomy)), language,
+        )
+    finally:
+        # Checkpoints resume interrupted work. Finished (including rejected)
+        # results must not lock future fresh analyses to an old response.
+        checkpoint.path.unlink(missing_ok=True)
     draft["omitted_tags"] = omitted_tags
 
     _drafts[draft["id"]] = draft

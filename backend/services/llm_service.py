@@ -291,6 +291,8 @@ class LLMService:
                             chunk = _json.loads(line)
                         except Exception:
                             continue
+                        if chunk.get("error"):
+                            raise LLMUnavailableError(f"Ollama reported an error: {str(chunk['error'])[:300]}")
                         piece = chunk.get("message", {}).get("content", "")
                         if piece:
                             if not ai_policy.enabled() or policy_generation != ai_policy.generation():

@@ -171,6 +171,18 @@ struct SidebarView: View {
             .disabled(uiStateStore.metadataRefreshStatus?.running == true)
             .help("Re-fetches favicons, descriptions and preview images for every bookmark.")
 
+            if uiStateStore.metadataRefreshStatus?.running == true {
+                Button {
+                    Task { await appStore.cancelMetadataRefresh() }
+                } label: {
+                    Label("Stop metadata refresh", systemImage: "stop.fill")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Already saved metadata is kept")
+                .padding(.bottom, 6)
+            }
+
             Divider()
 
             // Import / Export row

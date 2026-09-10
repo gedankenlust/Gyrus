@@ -96,6 +96,12 @@ struct AISettingsView: View {
                 }
             }
 
+            Section(header: Text("Tag Generation")) {
+                Toggle("Gentle mode", isOn: $settings.aiBrainConfig.gentleTagging)
+                Text("Adds rest periods between AI batches to reduce sustained load. Tag generation takes longer; individual batches can still use full CPU or GPU power. Applies to the next analysis.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             Section(header: Text("Semantic Search")) {
                 // Semantic search silently returns nothing while the index is
                 // empty — make that state loud instead of a quiet "0 indexed".
@@ -199,7 +205,7 @@ struct AISettingsView: View {
             isReindexing = status.reindexRunning == true
             reindexProgress = status.reindexCompleted ?? 0
             reindexTotal = status.reindexTotal ?? 0
-            if let error = status.reindexError {
+            if let error = status.reindexErrorDescription {
                 reindexMessage = String(localized: "Indexing failed. The previous index was kept.") + " " + error
             } else if !isReindexing && reindexTotal > 0 && reindexProgress == reindexTotal {
                 reindexMessage = String(localized: "Search index rebuilt.")

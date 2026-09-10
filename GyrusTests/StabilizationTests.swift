@@ -1,5 +1,76 @@
 import XCTest
+import AppKit
+import SwiftUI
 @testable import Gyrus
+
+@MainActor
+final class SidebarExpansionTests: XCTestCase {
+    private func sidebar() -> (NSOutlineView, SidebarOutlineView.Coordinator, CollectionStore) {
+        let store = CollectionStore()
+        store.collections = [
+            Collection(id: "parent", name: "Parent", children: [
+                Collection(id: "child", name: "Child", parentId: "parent", children: [
+                    Collection(id: "grandchild", name: "Grandchild", parentId: "child")
+                ])
+            ]),
+            Collection(id: "other", name: "Other")
+        ]
+        var selection: Set<String> = ["__all__"]
+        let view = SidebarOutlineView(selection: Binding(get: { selection }, set: { selection = $0 }),
+                                      store: store, tagStore: TagStore(), bookmarkStore: BookmarkStore())
+        let coordinator = view.makeCoordinator()
+        let outline = NSOutlineView()
+        let column = NSTableColumn(identifier: .init("main"))
+        outline.addTableColumn(column)
+        outline.outlineTableColumn = column
+        outline.dataSource = coordinator
+        outline.delegate = coordinator
+        coordinator.outlineView = outline
+        coordinator.rebuild()
+        outline.reloadData()
+        coordinator.expandGroups()
+        return (outline, coordinator, store)
+    }
+
+    private func node(_ id: String, in outline: NSOutlineView) -> SidebarNode? {
+        (0..<outline.numberOfRows).compactMap { outline.item(atRow: $0) as? SidebarNode }
+            .first { $0.id == id }
+    }
+
+    func testFolderSelectionAndDataReloadKeepCollapsedBranchesClosed() throws {
+        let (outline, coordinator, store) = sidebar()
+        let parent = try XCTUnwrap(node("parent", in: outline))
+        XCTAssertFalse(outline.isItemExpanded(parent))
+        coordinator.expandAllFolders()
+        XCTAssertNotNil(node("grandchild", in: outline))
+        outline.collapseItem(parent, collapseChildren: true)
+        coordinator.parent.selection = ["other"]
+        store.collections[1].bookmarkCount = 42
+        coordinator.reload()
+        XCTAssertFalse(outline.isItemExpanded(parent))
+        XCTAssertNil(node("child", in: outline))
+        XCTAssertEqual(coordinator.parent.selection, ["other"])
+        XCTAssertEqual((outline.item(atRow: outline.selectedRow) as? SidebarNode)?.id, "other")
+    }
+
+    func testExplicitControlsExpandAndCollapseWithoutChangingNavigation() throws {
+        let (outline, coordinator, _) = sidebar()
+        coordinator.expandAllFolders()
+        let child = try XCTUnwrap(node("child", in: outline))
+        XCTAssertTrue(outline.isItemExpanded(child))
+        coordinator.parent.selection = ["grandchild"]
+        coordinator.reload()
+        coordinator.collapseAllFolders()
+        XCTAssertNil(node("child", in: outline))
+        XCTAssertEqual(coordinator.parent.selection, ["grandchild"])
+        XCTAssertNotNil(node("other", in: outline))
+        coordinator.reload()
+        XCTAssertNil(node("child", in: outline))
+        coordinator.expandAllFolders()
+        XCTAssertNotNil(node("grandchild", in: outline))
+        XCTAssertEqual((outline.item(atRow: outline.selectedRow) as? SidebarNode)?.id, "grandchild")
+    }
+}
 
 private final class ReviewURLProtocol: URLProtocol {
     static var handler: ((URLRequest) throws -> (Int, Data))?
@@ -79,6 +150,74 @@ final class StabilizationTests: XCTestCase {
         XCTAssertNil(store.noteErrors[bm.id])
         XCTAssertEqual(store.selectedBookmark?.bookmarkNotes.map(\.content), [note.content])
         XCTAssertEqual(store.noteDrafts["another"], "Independent draft")
+    }
+
+    func testDeselectTaggedCoversUnloadedSelectionAndKeepsUntaggedBookmarks() async throws {
+        let ids = Set((0..<4094).map { "b-\($0)" })
+        let tagged = (0..<4094).filter { $0.isMultiple(of: 2) }.map { "b-\($0)" }
+        let response = try encoded(tagged + ["not-selected"])
+        let api = client { [self] request in
+            XCTAssertEqual(request.httpMethod, "POST")
+            XCTAssertEqual(request.url?.path, "/api/bookmarks/tagged-ids")
+            XCTAssertEqual(Set(try XCTUnwrap(body(request)["bookmark_ids"] as? [String])), ids)
+            return (200, response)
+        }
+        let store = BookmarkStore(api: api, draftStorage: nil)
+        store.bookmarks = [bookmark("b-0"), bookmark("b-1")]
+        store.selectedBookmark = store.bookmarks[0]
+        store.selectedIds = ids
+        let removed = try await store.deselectTaggedBookmarks()
+        XCTAssertEqual(removed, 2047)
+        XCTAssertEqual(store.selectedIds, ids.subtracting(tagged))
+        XCTAssertNil(store.selectedBookmark)
+        XCTAssertEqual(store.bookmarks.count, 2)
+        XCTAssertFalse(store.isFilteringSelection)
+    }
+
+    func testDeselectTaggedHandlesNoneAllAndBackendFailure() async throws {
+        var response = (200, Data("[]".utf8))
+        let store = BookmarkStore(api: client { _ in response }, draftStorage: nil)
+        store.selectedIds = ["b"]
+        let none = try await store.deselectTaggedBookmarks()
+        XCTAssertEqual(none, 0)
+        XCTAssertEqual(store.selectedIds, ["b"])
+        response = (500, Data(#"{"detail":"Unavailable"}"#.utf8))
+        do {
+            _ = try await store.deselectTaggedBookmarks()
+            XCTFail("Expected backend failure")
+        } catch {}
+        XCTAssertEqual(store.selectedIds, ["b"])
+        XCTAssertFalse(store.isFilteringSelection)
+        response = (200, Data(#"["b"]"#.utf8))
+        let all = try await store.deselectTaggedBookmarks()
+        XCTAssertEqual(all, 1)
+        XCTAssertTrue(store.selectedIds.isEmpty)
+    }
+
+    func testDeselectTaggedDiscardsResultAfterSelectionChangesOrLibraryReset() async throws {
+        for resetLibrary in [false, true] {
+            let requested = expectation(description: "Selection lookup started")
+            let resume = DispatchSemaphore(value: 0)
+            let api = client { _ in
+                requested.fulfill()
+                guard resume.wait(timeout: .now() + 5) == .success else { throw URLError(.timedOut) }
+                return (200, Data(#"["b"]"#.utf8))
+            }
+            let store = BookmarkStore(api: api, draftStorage: nil)
+            store.selectedIds = ["b"]
+            let task = Task { try await store.deselectTaggedBookmarks() }
+            await fulfillment(of: [requested], timeout: 5)
+            XCTAssertTrue(store.isFilteringSelection)
+            if resetLibrary { store.resetLocalState() }
+            else { store.selectedIds = [] }
+            // Even restoring the same IDs must not let an old request alter a new selection.
+            store.selectedIds = ["b"]
+            resume.signal()
+            let result = try await task.value
+            XCTAssertNil(result)
+            XCTAssertEqual(store.selectedIds, ["b"])
+            XCTAssertFalse(store.isFilteringSelection)
+        }
     }
 
     func testSemanticFallbackContinuesKeywordPagination() async throws {

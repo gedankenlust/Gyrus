@@ -27,6 +27,8 @@ struct MetadataRefreshStatus: Decodable, JobStatusReporting {
     let processed: Int
     let total: Int
     let updated: Int
+    let failed: Int?
+    let error: String?
 }
 
 struct TaxonomyDraftTag: Decodable, Identifiable, Hashable {
@@ -113,13 +115,17 @@ struct BatchAutoTagStatus: Decodable, JobStatusReporting {
     let error: String?
     let phase: String
     let generatedTokens: Int
+    let embedded: Int
+    let classified: Int
+    let cooldownRemaining: Int
     let model: String?
     let draft: TaxonomyDraft?
 
     enum CodingKeys: String, CodingKey {
-        case running, processed, total, assigned, failed, error, phase, model, draft
+        case running, processed, total, assigned, failed, error, phase, model, draft, embedded, classified
         case withoutTags = "without_tags"
         case generatedTokens = "generated_tokens"
+        case cooldownRemaining = "cooldown_remaining"
     }
 
     init(from decoder: Decoder) throws {
@@ -133,6 +139,9 @@ struct BatchAutoTagStatus: Decodable, JobStatusReporting {
         error = try c.decodeIfPresent(String.self, forKey: .error)
         phase = try c.decodeIfPresent(String.self, forKey: .phase) ?? "preparing"
         generatedTokens = try c.decodeIfPresent(Int.self, forKey: .generatedTokens) ?? 0
+        embedded = try c.decodeIfPresent(Int.self, forKey: .embedded) ?? 0
+        classified = try c.decodeIfPresent(Int.self, forKey: .classified) ?? 0
+        cooldownRemaining = try c.decodeIfPresent(Int.self, forKey: .cooldownRemaining) ?? 0
         model = try c.decodeIfPresent(String.self, forKey: .model)
         draft = try c.decodeIfPresent(TaxonomyDraft.self, forKey: .draft)
     }

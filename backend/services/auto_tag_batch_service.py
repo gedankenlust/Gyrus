@@ -1,16 +1,12 @@
 """Review-first global taxonomy generation for bookmark batches."""
 import asyncio
+from sqlalchemy import func
 
 from database import SessionLocal
 from models.bookmark import Bookmark
-from services import bookmark_service, taxonomy_service
+from services import taxonomy_service
 from services.background_job import BackgroundJob
-from services.scraper_service import scraper_service
 
-
-# Page extraction is I/O-bound. Keeping this modest avoids hammering sites while
-# still preparing a larger collection in a reasonable amount of time.
-SCRAPE_CONCURRENCY = 4
 
 # A taxonomy only makes sense for a collection: every category must be shared
 # by at least two bookmarks, and below ~10 items the clustering degenerates
@@ -27,6 +23,9 @@ job = BackgroundJob(
     phase="idle",
     draft=None,
     generated_tokens=0,
+    embedded=0,
+    classified=0,
+    cooldown_remaining=0,
     model=None,
 )
 
@@ -45,74 +44,52 @@ def discard_draft(draft_id: str) -> None:
         job.state["phase"] = "idle"
 
 
-async def _prepare_bookmark(bookmark_id: str, semaphore: asyncio.Semaphore,
-                            job: BackgroundJob) -> bool:
-    """Ensure useful Reader text exists without assigning any tags."""
-    if job.cancelled:
-        return False
-    async with semaphore:
-        db = SessionLocal()
-        try:
-            bookmark = db.query(Bookmark).filter(
-                Bookmark.id == bookmark_id,
-                Bookmark.deleted_at.is_(None),
-            ).first()
-            if bookmark is None:
-                job.state["failed"] += 1
-                return False
-
-            if not (bookmark.scraped_content or "").strip():
-                try:
-                    result = await scraper_service.extract_content(bookmark.url)
-                    content = (result.get("content") or "").strip()
-                    if content:
-                        bookmark_service.store_scraped_content(db, bookmark.id, content)
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    # A page can block extraction or be temporarily unavailable.
-                    # Its title and description still remain valid taxonomy input.
-                    pass
-            return True
-        finally:
-            db.close()
-            job.state["processed"] += 1
+def _saved_bookmarks(ids: list[str]) -> dict[str, Bookmark]:
+    with SessionLocal() as db:
+        rows = db.query(
+            Bookmark.id, Bookmark.title, Bookmark.url,
+            func.substr(Bookmark.description, 1, 360).label("description"),
+            func.substr(Bookmark.scraped_content, 1, taxonomy_service.MAX_EXCERPT_CHARS).label("scraped_content"),
+        ).filter(Bookmark.id.in_(ids), Bookmark.deleted_at.is_(None)).all()
+        return {row.id: Bookmark(**row._mapping) for row in rows}
 
 
 async def _run(ids: list[str], provider_config: dict | None, language: str | None,
                job: BackgroundJob) -> None:
     job.state["phase"] = "preparing"
-    semaphore = asyncio.Semaphore(SCRAPE_CONCURRENCY)
-    results = await asyncio.gather(*(
-        _prepare_bookmark(bookmark_id, semaphore, job) for bookmark_id in ids
-    ))
-    if job.cancelled:
-        job.state["phase"] = "cancelled"
-        return
 
-    valid_ids = [bookmark_id for bookmark_id, valid in zip(ids, results) if valid]
-    if not valid_ids:
-        job.state["phase"] = "failed"
-        raise ValueError("No selected bookmarks are available for taxonomy generation.")
+    def report_progress(stage: str, count: int) -> None:
+        if stage == "embedded":
+            job.state["embedded"] = count
+        elif stage == "classified":
+            job.state["classified"] = count
+        elif stage == "cooldown":
+            job.state["phase"] = stage
+            job.state["cooldown_remaining"] = count
+        else:
+            job.state["phase"] = stage
+            job.state["generated_tokens"] = count
 
-    job.state["phase"] = "organizing"
-    job.state["generated_tokens"] = 0
-
-    def report_progress(stage: str, generated_tokens: int) -> None:
-        job.state["phase"] = stage
-        job.state["generated_tokens"] = generated_tokens
-
+    # Use saved titles, descriptions and Reader excerpts. Re-fetching thousands
+    # of pages here made tag organization depend on every site's availability.
+    # Metadata/Reader refresh remains a separate, explicit action.
     db = SessionLocal()
     try:
-        bookmarks_by_id = {
-            bookmark.id: bookmark
-            for bookmark in db.query(Bookmark).filter(Bookmark.id.in_(valid_ids)).all()
-        }
-        bookmarks = [bookmarks_by_id[bookmark_id] for bookmark_id in valid_ids
-                     if bookmark_id in bookmarks_by_id]
+        bookmarks_by_id = {}
+        for offset in range(0, len(ids), 500):
+            bookmarks_by_id.update(await asyncio.to_thread(_saved_bookmarks, ids[offset:offset + 500]))
+            job.state["processed"] = min(offset + 500, len(ids))
+            await asyncio.sleep(0)
+        bookmarks = [bookmarks_by_id[id_] for id_ in ids if id_ in bookmarks_by_id]
+        job.state["failed"] = len(ids) - len(bookmarks)
+        if not bookmarks:
+            raise ValueError("No selected bookmarks are available for taxonomy generation.")
         draft = await taxonomy_service.generate_draft(
             db, bookmarks, provider_config, language, progress=report_progress
         )
+    except asyncio.CancelledError:
+        job.state["phase"] = "cancelled"
+        raise
     finally:
         db.close()
 
@@ -125,7 +102,7 @@ async def _run(ids: list[str], provider_config: dict | None, language: str | Non
 async def start(ids: list[str], provider_config: dict | None = None,
                 language: str | None = None) -> dict:
     # Preserve selection order while preventing duplicated work and counts.
-    unique_ids = list(dict.fromkeys(ids))
+    unique_ids = sorted(set(ids))
     if not unique_ids:
         return await job.run_noop(reset={"total": 0, "phase": "idle"})
 

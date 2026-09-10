@@ -26,12 +26,13 @@ public struct AIBrainConfig: Codable, Equatable {
     public var ollamaURL: String = "http://localhost:11434"
     public var ollamaModel: String = "llama3"
     public var embeddingModel: String = "nomic-embed-text"
+    public var gentleTagging: Bool = true
 
     public init() {}
 
     enum CodingKeys: String, CodingKey {
         case aiEnabled, brainMirrorEnabled, rootDirectoryPath
-        case llmProvider, ollamaURL, ollamaModel, embeddingModel
+        case llmProvider, ollamaURL, ollamaModel, embeddingModel, gentleTagging
     }
     private enum LegacyKeys: String, CodingKey { case isEnabled }
 
@@ -52,5 +53,6 @@ public struct AIBrainConfig: Codable, Equatable {
         ollamaURL = (try? c.decode(String.self, forKey: .ollamaURL)) ?? "http://localhost:11434"
         ollamaModel = (try? c.decode(String.self, forKey: .ollamaModel)) ?? "llama3"
         embeddingModel = (try? c.decode(String.self, forKey: .embeddingModel)) ?? "nomic-embed-text"
+        gentleTagging = (try? c.decode(Bool.self, forKey: .gentleTagging)) ?? true
     }
 }

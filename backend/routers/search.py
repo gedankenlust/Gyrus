@@ -89,25 +89,28 @@ _reindex_running = False
 _reindex_completed = 0
 _reindex_total = 0
 _reindex_error = None
+_reindex_error_code = None
 
 
 def _progress():
     return dict(reindex_running=_reindex_running, reindex_completed=_reindex_completed,
-                reindex_total=_reindex_total, reindex_error=_reindex_error)
+                reindex_total=_reindex_total, reindex_error=_reindex_error,
+                reindex_error_code=_reindex_error_code)
 
 
 @router.post("/reindex", dependencies=[Depends(ai_policy.require_ai)])
 async def reindex_embeddings(db: Session = Depends(get_db)):
     """Stage every embedding before atomically replacing the existing index."""
-    global _reindex_running, _reindex_completed, _reindex_total, _reindex_error
+    global _reindex_running, _reindex_completed, _reindex_total, _reindex_error, _reindex_error_code
     if _reindex_running:
         return {"status": "already_running"}
     _reindex_running = True
     _reindex_completed = _reindex_total = 0
     _reindex_error = None
+    _reindex_error_code = None
 
     async def _run():
-        global _reindex_running, _reindex_completed, _reindex_total, _reindex_error
+        global _reindex_running, _reindex_completed, _reindex_total, _reindex_error, _reindex_error_code
         import asyncio
         import json
         import tempfile
@@ -150,6 +153,7 @@ async def reindex_embeddings(db: Session = Depends(get_db)):
                 vector_store.replace_all((json.loads(line) for line in staging), dimension, key)
         except Exception as error:
             _reindex_error = str(error)
+            _reindex_error_code = getattr(error, "code", None)
             logger.warning("Reindex failed; previous index retained: %s", error)
         finally:
             _reindex_running = False

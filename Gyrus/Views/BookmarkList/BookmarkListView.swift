@@ -319,7 +319,19 @@ struct SelectionStatusBar: View {
                     .help("Stop analysis — no tags are changed before review")
                 }
             } else if !collectionStore.showTrash {
+                if bookmarkStore.isFilteringSelection {
+                    ProgressView().controlSize(.small)
+                        .accessibilityLabel("Checking tags…")
+                }
                 Menu {
+                    Button {
+                        Task { await appStore.deselectTaggedBookmarks() }
+                    } label: {
+                        Label("Deselect tagged bookmarks", systemImage: "minus.circle")
+                    }
+
+                    Divider()
+
                     Button {
                         let ids = Array(bookmarkStore.selectedIds)
                         Task { await appStore.startTaxonomyReview(ids: ids) }
@@ -347,6 +359,7 @@ struct SelectionStatusBar: View {
                 }
                 .controlSize(.small)
                 .tint(.purple)
+                .disabled(bookmarkStore.isFilteringSelection)
                 .help("Organize the selected bookmarks automatically or choose tags manually")
             }
 
@@ -406,8 +419,11 @@ struct SelectionStatusBar: View {
     }
 
     private func progressLabel(_ status: BatchAutoTagStatus) -> String {
+        if status.phase == "cooldown" {
+            return AppSettings.shared.localized("Gentle mode · resting for \(status.cooldownRemaining)s…")
+        }
         if status.phase == "embedding" {
-            return AppSettings.shared.localized("Analyzing the meaning of \(status.total) bookmarks…")
+            return AppSettings.shared.localized("Analyzing meaning: \(status.embedded)/\(status.total)…")
         }
         if status.phase == "clustering" {
             return AppSettings.shared.localized("Grouping \(status.total) related bookmarks…")
@@ -419,10 +435,9 @@ struct SelectionStatusBar: View {
                 : AppSettings.shared.localized("\(model) names the topic groups…")
         }
         if status.phase == "assigning" {
-            let model = status.model ?? "AI"
             return status.generatedTokens > 0
-                ? AppSettings.shared.localized("\(model) sorts · \(status.generatedTokens) tokens…")
-                : AppSettings.shared.localized("\(model) sorts the bookmarks…")
+                ? AppSettings.shared.localized("Assigning tags: \(status.classified)/\(status.total) · \(status.generatedTokens) tokens…")
+                : AppSettings.shared.localized("Assigning tags: \(status.classified)/\(status.total)…")
         }
         if status.phase == "validating" {
             let model = status.model ?? "AI"

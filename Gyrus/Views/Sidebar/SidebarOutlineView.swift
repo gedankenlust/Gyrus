@@ -236,7 +236,9 @@ struct SidebarOutlineView: NSViewRepresentable {
                     let c = GroupCellView(); c.identifier = id; return c
                 }()
                 cell.configure(title: title, showAdd: add != .none, target: self,
-                               action: add == .folder ? #selector(addFolderRoot) : #selector(addTag))
+                               action: add == .folder ? #selector(addFolderRoot) : #selector(addTag),
+                               showFolderControls: add == .folder,
+                               expandAction: #selector(expandAllFolders), collapseAction: #selector(collapseAllFolders))
                 return cell
             case .special(let title, let symbol, let tint):
                 return itemCell(ov, symbol: symbol, tint: tint, name: title, count: n.count)
@@ -275,7 +277,8 @@ struct SidebarOutlineView: NSViewRepresentable {
         }
 
         private func syncSelection(in ov: NSOutlineView) {
-            updatingSelection = true; defer { updatingSelection = false }
+            let wasUpdating = updatingSelection
+            updatingSelection = true; defer { updatingSelection = wasUpdating }
             let rows = parent.selection.compactMap { id -> Int? in
                 guard let n = interned[id] else { return nil }
                 let row = ov.row(forItem: n)
@@ -290,16 +293,32 @@ struct SidebarOutlineView: NSViewRepresentable {
         func expandGroups() {
             guard let ov = outlineView else { return }
             for n in roots { if case .group = n.kind { ov.expandItem(n) } }
-            // Expand folders that have children.
-            func expand(_ nodes: [SidebarNode]) {
-                for n in nodes where !n.children.isEmpty { ov.expandItem(n); expand(n.children) }
-            }
-            expand(roots)
+        }
+
+        @objc func expandAllFolders() {
+            guard let ov = outlineView,
+                  let folders = roots.first(where: { $0.id == "group:folders" }) else { return }
+            updatingSelection = true
+            defer { updatingSelection = false }
+            for folder in folders.children { ov.expandItem(folder, expandChildren: true) }
+            syncSelection(in: ov)
+        }
+
+        @objc func collapseAllFolders() {
+            guard let ov = outlineView,
+                  let folders = roots.first(where: { $0.id == "group:folders" }) else { return }
+            // Collapsing a selected descendant must not navigate to another folder.
+            updatingSelection = true
+            defer { updatingSelection = false }
+            for folder in folders.children { ov.collapseItem(folder, collapseChildren: true) }
+            syncSelection(in: ov)
         }
 
         @MainActor
         func reload() {
             guard let ov = outlineView else { return }
+            updatingSelection = true
+            defer { updatingSelection = false }
             let expanded = Set(interned.values.filter { ov.isItemExpanded($0) }.map { $0.id })
             rebuild()
             ov.reloadData()
@@ -658,10 +677,12 @@ extension SidebarOutlineView.Coordinator: NSMenuDelegate {
 
 // MARK: - Cells
 
-/// Section header: uppercase label + optional "+" button.
+/// Section header with explicit folder expansion controls and an add button.
 final class GroupCellView: NSTableCellView {
     private let label = NSTextField(labelWithString: "")
     private let add = NSButton()
+    private let expand = NSButton()
+    private let collapse = NSButton()
     override init(frame: NSRect) {
         super.init(frame: frame)
         label.font = .systemFont(ofSize: 11, weight: .semibold)
@@ -673,19 +694,47 @@ final class GroupCellView: NSTableCellView {
         add.imagePosition = .imageOnly
         add.contentTintColor = .secondaryLabelColor
         add.translatesAutoresizingMaskIntoConstraints = false
+        for (button, symbol, title) in [
+            (expand, "chevron.down", "Expand all folders"),
+            (collapse, "chevron.up", "Collapse all folders"),
+        ] {
+            button.bezelStyle = .inline
+            button.isBordered = false
+            button.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+            button.imagePosition = .imageOnly
+            button.contentTintColor = .secondaryLabelColor
+            let localizedTitle = AppSettings.shared.localized(String.LocalizationValue(stringLiteral: title))
+            button.toolTip = localizedTitle
+            button.setAccessibilityLabel(localizedTitle)
+            button.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(button)
+        }
         addSubview(label); addSubview(add)
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4),
             label.centerYAnchor.constraint(equalTo: centerYAnchor),
             add.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
             add.centerYAnchor.constraint(equalTo: centerYAnchor),
+            expand.trailingAnchor.constraint(equalTo: collapse.leadingAnchor, constant: -4),
+            collapse.trailingAnchor.constraint(equalTo: add.leadingAnchor, constant: -8),
+            expand.centerYAnchor.constraint(equalTo: centerYAnchor),
+            collapse.centerYAnchor.constraint(equalTo: centerYAnchor),
+            expand.widthAnchor.constraint(equalToConstant: 22),
+            collapse.widthAnchor.constraint(equalToConstant: 22),
+            expand.heightAnchor.constraint(equalToConstant: 24),
+            collapse.heightAnchor.constraint(equalToConstant: 24),
         ])
     }
     required init?(coder: NSCoder) { fatalError() }
-    func configure(title: String, showAdd: Bool, target: AnyObject, action: Selector) {
+    func configure(title: String, showAdd: Bool, target: AnyObject, action: Selector,
+                   showFolderControls: Bool, expandAction: Selector, collapseAction: Selector) {
         label.stringValue = title.uppercased()
         add.isHidden = !showAdd
         add.target = target; add.action = action
+        expand.isHidden = !showFolderControls
+        collapse.isHidden = !showFolderControls
+        expand.target = target; expand.action = expandAction
+        collapse.target = target; collapse.action = collapseAction
     }
 }
 

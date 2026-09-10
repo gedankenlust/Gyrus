@@ -130,7 +130,8 @@ async def test_taxonomy_stream_reports_visible_progress(monkeypatch):
     assert progress == [("organizing", 0), ("organizing", 1), ("organizing", 2)]
     assert received["timeout"] == 600.0
     assert received["context_kind"] == "collection"
-    assert received["options"]["num_predict"] == 4096
+    assert received["options"]["num_predict"] == 2048
+    assert received["options"]["num_ctx"] == 16384
     assert received["response_format"]["required"] == ["C001", "C002"]
     assert received["response_format"]["additionalProperties"] is False
 

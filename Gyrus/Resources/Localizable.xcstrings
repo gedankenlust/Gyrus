@@ -13057,6 +13057,376 @@
           }
         }
       }
+    },
+    "Checking tags…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags werden geprüft…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking tags…"
+          }
+        }
+      }
+    },
+    "Collapse all folders": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collapse all folders"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Ordner zuklappen"
+          }
+        }
+      }
+    },
+    "Deselect tagged bookmarks": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereits getaggte abwählen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deselect tagged bookmarks"
+          }
+        }
+      }
+    },
+    "Deselected %lld tagged bookmarks.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld getaggte Lesezeichen abgewählt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deselected %lld tagged bookmarks."
+          }
+        }
+      }
+    },
+    "Deselected 1 tagged bookmark.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 getaggtes Lesezeichen abgewählt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deselected 1 tagged bookmark."
+          }
+        }
+      }
+    },
+    "Expand all folders": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Expand all folders"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Ordner aufklappen"
+          }
+        }
+      }
+    },
+    "The selected bookmarks have no tags yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die ausgewählten Lesezeichen haben noch keine Tags."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The selected bookmarks have no tags yet."
+          }
+        }
+      }
+    },
+    "Analyzing meaning: %lld/%lld…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analyzing meaning: %lld/%lld…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inhalte einordnen: %lld/%lld…"
+          }
+        }
+      }
+    },
+    "Assigning tags: %lld/%lld · %lld tokens…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Assigning tags: %lld/%lld · %lld tokens…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags zuordnen: %lld/%lld · %lld Tokens…"
+          }
+        }
+      }
+    },
+    "Assigning tags: %lld/%lld…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Assigning tags: %lld/%lld…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tags zuordnen: %lld/%lld…"
+          }
+        }
+      }
+    },
+    "Updated %lld bookmarks; %lld pages returned no metadata.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updated %lld bookmarks; %lld pages returned no metadata."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Lesezeichen aktualisiert; %lld Seiten lieferten keine Metadaten."
+          }
+        }
+      }
+    },
+    "Stop metadata refresh": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop metadata refresh"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadaten-Aktualisierung stoppen"
+          }
+        }
+      }
+    },
+    "Already saved metadata is kept": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already saved metadata is kept"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bereits gespeicherte Metadaten bleiben erhalten"
+          }
+        }
+      }
+    },
+    "Tag Generation": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tag Generation"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tag-Vergabe"
+          }
+        }
+      }
+    },
+    "Gentle mode": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gentle mode"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schonmodus"
+          }
+        }
+      }
+    },
+    "Adds rest periods between AI batches to reduce sustained load. Tag generation takes longer; individual batches can still use full CPU or GPU power. Applies to the next analysis.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adds rest periods between AI batches to reduce sustained load. Tag generation takes longer; individual batches can still use full CPU or GPU power. Applies to the next analysis."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legt Pausen zwischen den KI-Paketen ein und reduziert die Dauerlast. Die Tag-Vergabe dauert länger; einzelne Pakete können CPU oder GPU weiterhin voll auslasten. Gilt ab der nächsten Analyse."
+          }
+        }
+      }
+    },
+    "Gentle mode · resting for %llds…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gentle mode · resting for %llds…"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schonmodus · Pause für %lld s…"
+          }
+        }
+      }
+    },
+    "The embedding model rejected a text as too long. Check the model and update Ollama.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The embedding model rejected a text as too long. Check the model and update Ollama."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Embedding-Modell hat einen Text als zu lang abgelehnt. Prüfe das Modell und aktualisiere Ollama."
+          }
+        }
+      }
+    },
+    "The embedding model or API is unavailable. Check the selected model and update Ollama.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The embedding model or API is unavailable. Check the selected model and update Ollama."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Embedding-Modell oder die Schnittstelle ist nicht verfügbar. Prüfe das gewählte Modell und aktualisiere Ollama."
+          }
+        }
+      }
+    },
+    "Ollama is unreachable. Start Ollama and try indexing again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama is unreachable. Start Ollama and try indexing again."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama ist nicht erreichbar. Starte Ollama und versuche die Indizierung erneut."
+          }
+        }
+      }
+    },
+    "Ollama took too long. Wait for other AI tasks to finish and try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama took too long. Wait for other AI tasks to finish and try again."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama hat zu lange gebraucht. Warte, bis andere KI-Aufgaben abgeschlossen sind, und versuche es erneut."
+          }
+        }
+      }
+    },
+    "Ollama returned an invalid search vector. Check the embedding model and try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama returned an invalid search vector. Check the embedding model and try again."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama hat einen ungültigen Suchvektor geliefert. Prüfe das Embedding-Modell und versuche es erneut."
+          }
+        }
+      }
+    },
+    "Ollama could not calculate a search vector. Check Ollama and try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama could not calculate a search vector. Check Ollama and try again."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ollama konnte einen Suchvektor nicht berechnen. Prüfe Ollama und versuche es erneut."
+          }
+        }
+      }
     }
   },
   "version": "1.1"

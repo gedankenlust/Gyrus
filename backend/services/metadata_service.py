@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 FAVICONS_DIR = DATA_DIR / "favicons"
 OG_IMAGES_DIR = DATA_DIR / "og_images"
 TIMEOUT = httpx.Timeout(10.0)
+TOTAL_TIMEOUT = 25.0
 OG_MAX_WIDTH = 600
 MAX_METADATA_HTML_BYTES = 2_000_000
 MAX_FAVICON_BYTES = 1_000_000
@@ -38,7 +39,9 @@ _UA_HEADERS = {
 async def fetch_metadata(url: str) -> dict:
     result = {"og_image_url": None, "og_image_path": None, "description": None, "favicon_path": None}
     try:
-        async with SafeEgressProxy(
+        # Bound the complete chain (page, redirects, favicon fallbacks, image),
+        # not just individual socket reads. Return any metadata already found.
+        async with asyncio.timeout(TOTAL_TIMEOUT), SafeEgressProxy(
             allowed_private_host=explicit_private_hostname(url)
         ) as proxy, httpx.AsyncClient(
             timeout=TIMEOUT,

@@ -7,7 +7,11 @@ import AppKit
 final class BookmarkStore {
     var bookmarks: [Bookmark] = []
     var selectedBookmark: Bookmark? = nil
-    var selectedIds: Set<String> = []
+    var selectedIds: Set<String> = [] {
+        didSet { if oldValue != selectedIds { selectionGeneration += 1 } }
+    }
+    private var selectionGeneration = 0
+    private(set) var isFilteringSelection = false
     var sortBy: String = "created_at"
     var sortOrder: String = "desc"
     var hasMore: Bool = false
@@ -228,6 +232,27 @@ final class BookmarkStore {
     }
 
     // MARK: - Selection
+
+    /// Only adjust the selection that initiated the lookup, including unloaded rows.
+    /// A navigation or selection change while awaiting the backend cancels the result.
+    func deselectTaggedBookmarks() async throws -> Int? {
+        guard !isFilteringSelection, !selectedIds.isEmpty else { return nil }
+        isFilteringSelection = true
+        defer { isFilteringSelection = false }
+        let ids = selectedIds
+        let selection = selectionGeneration
+        let load = loadGeneration
+        let library = libraryGeneration
+        let tagged = try await api.taggedBookmarkIds(in: ids)
+        guard selection == selectionGeneration, load == loadGeneration,
+              library == libraryGeneration, !Task.isCancelled else { return nil }
+        let removed = ids.intersection(tagged)
+        selectedIds.subtract(removed)
+        if let bookmark = selectedBookmark, removed.contains(bookmark.id) {
+            selectedBookmark = nil
+        }
+        return removed.count
+    }
 
     func selectAllInCurrentView(collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "") async throws {
         let ids: [String]

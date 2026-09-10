@@ -3,6 +3,23 @@ import Foundation
 // MARK: - Tag operations: delete (with undo), merge, assign, review-discard
 
 extension AppStore {
+    func deselectTaggedBookmarks() async {
+        do {
+            guard let count = try await bookmarksStore.deselectTaggedBookmarks() else { return }
+            let message: String
+            if count == 0 {
+                message = AppSettings.shared.localized("The selected bookmarks have no tags yet.")
+            } else if count == 1 {
+                message = AppSettings.shared.localized("Deselected 1 tagged bookmark.")
+            } else {
+                message = AppSettings.shared.localized("Deselected \(count) tagged bookmarks.")
+            }
+            uiStateStore.showInfo(message)
+        } catch {
+            surfaceError(error)
+        }
+    }
+
     func applyBulkTagChanges(
         to ids: Set<String>,
         addTagIds: Set<String>,

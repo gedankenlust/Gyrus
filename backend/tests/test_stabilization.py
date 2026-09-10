@@ -20,6 +20,44 @@ from services.search_service import search_bookmarks
 import main
 
 
+def test_tagged_selection_spans_pages_and_does_not_change_tags(migrated_client, migrated):
+    from models.tag import Tag, BookmarkTag
+    from sqlalchemy import insert
+
+    ids = [f"selection-{i}" for i in range(4094)]
+    migrated.execute(insert(Bookmark), [
+        {"id": id_, "title": "Example", "url": f"https://example.com/{id_}"}
+        for id_ in ids + ["outside-selection", "trashed"]
+    ])
+    migrated.add_all([Tag(id="manual", name="Manual"), Tag(id="ai", name="AI", source="ai")])
+    migrated.flush()
+    tagged = ids[::2]
+    migrated.execute(insert(BookmarkTag), [
+        {"bookmark_id": id_, "tag_id": "manual", "source": "manual"}
+        for id_ in tagged + ["outside-selection", "trashed"]
+    ] + [
+        {"bookmark_id": ids[0], "tag_id": "ai", "source": "ai"},
+        {"bookmark_id": ids[1], "tag_id": "ai", "source": "ai"},
+    ])
+    migrated.get(Bookmark, "trashed").deleted_at = datetime.now(timezone.utc)
+    migrated.commit()
+    before = migrated.query(BookmarkTag).count()
+    response = migrated_client.post('/api/bookmarks/tagged-ids', json={
+        "bookmark_ids": ids + [ids[0], "missing", "trashed"]
+    })
+    assert response.status_code == 200
+    assert set(response.json()) == set(tagged + [ids[1]])
+    assert len(response.json()) == len(tagged) + 1
+    assert migrated.query(BookmarkTag).count() == before
+    assert migrated.query(Bookmark).count() == 4096
+    assert migrated_client.post('/api/bookmarks/tagged-ids', json={"bookmark_ids": []}).json() == []
+
+
+def test_tagged_selection_rejects_invalid_input(migrated_client):
+    for ids in ("not-a-list", [None], [12], ["id"] * 100_001):
+        assert migrated_client.post('/api/bookmarks/tagged-ids', json={"bookmark_ids": ids}).status_code == 422
+
+
 @pytest.fixture
 def migrated(tmp_path):
     # All migrations, triggers and expression indexes used in production.
@@ -258,7 +296,7 @@ async def test_disable_during_embedding_discards_result(monkeypatch):
     import httpx
     async def post(*args, **kwargs):
         ai_policy.configure(False)
-        return httpx.Response(200, json={'embedding': [0.1]}, request=httpx.Request('POST', 'http://localhost/api/embeddings'))
+        return httpx.Response(200, json={'embeddings': [[0.1]]}, request=httpx.Request('POST', 'http://localhost/api/embed'))
     ai_policy.configure(True)
     monkeypatch.setattr(httpx.AsyncClient, 'post', post)
     with pytest.raises(EmbeddingUnavailableError):

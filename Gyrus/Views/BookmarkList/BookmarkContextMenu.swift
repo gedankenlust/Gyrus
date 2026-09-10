@@ -34,6 +34,16 @@ struct BookmarkContextMenu: View {
             .disabled(bookmarkStore.bookmarks.isEmpty)
 
             Menu {
+                if !collectionStore.showTrash, ids == bookmarkStore.selectedIds {
+                    Button {
+                        Task { await appStore.deselectTaggedBookmarks() }
+                    } label: {
+                        Label("Deselect tagged bookmarks", systemImage: "minus.circle")
+                    }
+                    .disabled(uiStateStore.batchAutoTagStatus?.running == true)
+
+                    Divider()
+                }
                 Button {
                     Task { await appStore.startTaxonomyReview(ids: Array(ids)) }
                 } label: {
@@ -59,6 +69,7 @@ struct BookmarkContextMenu: View {
             } label: {
                 Label("Organize", systemImage: "wand.and.stars")
             }
+            .disabled(bookmarkStore.isFilteringSelection)
 
             if bookmarks.contains(where: { ids.contains($0.id) && ($0.analysis?.needsAttention == true || $0.analysis?.overall == "not_requested") }) {
                 Button {

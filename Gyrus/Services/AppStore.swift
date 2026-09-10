@@ -397,7 +397,13 @@ final class AppStore {
                     URLCache.shared.removeAllCachedResponses()
                     FaviconCache.shared.clear()
                     await self.loadBookmarks()
-                    if status.updated > 0 {
+                    if let error = status.error, !error.isEmpty {
+                        self.uiStateStore.showError(error)
+                    } else if let failed = status.failed, failed > 0 {
+                        self.uiStateStore.showInfo(AppSettings.shared.localized(
+                            "Updated \(status.updated) bookmarks; \(failed) pages returned no metadata."
+                        ))
+                    } else if status.updated > 0 {
                         self.uiStateStore.showInfo(AppSettings.shared.localized("Updated \(status.updated) bookmarks."))
                     }
                 },

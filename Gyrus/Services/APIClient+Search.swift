@@ -33,10 +33,25 @@ extension APIClient {
         let reindexCompleted: Int?
         let reindexTotal: Int?
         let reindexError: String?
+        let reindexErrorCode: String?
+
+        var reindexErrorDescription: String? {
+            guard let error = reindexError else { return nil }
+            switch reindexErrorCode {
+            case "embedding_input_too_long": return String(localized: "The embedding model rejected a text as too long. Check the model and update Ollama.")
+            case "embedding_model_unavailable": return String(localized: "The embedding model or API is unavailable. Check the selected model and update Ollama.")
+            case "embedding_connection": return String(localized: "Ollama is unreachable. Start Ollama and try indexing again.")
+            case "embedding_timeout": return String(localized: "Ollama took too long. Wait for other AI tasks to finish and try again.")
+            case "embedding_invalid_response": return String(localized: "Ollama returned an invalid search vector. Check the embedding model and try again.")
+            case "embedding_server_error": return String(localized: "Ollama could not calculate a search vector. Check Ollama and try again.")
+            default: return error
+            }
+        }
         enum CodingKeys: String, CodingKey {
             case available, indexed, message
             case reindexRunning = "reindex_running", reindexCompleted = "reindex_completed"
             case reindexTotal = "reindex_total", reindexError = "reindex_error"
+            case reindexErrorCode = "reindex_error_code"
         }
     }
 

@@ -47,6 +47,26 @@ class BookmarkCountsOut(BaseModel):
     trash: int
 
 
+class BookmarkSelectionRequest(BaseModel):
+    bookmark_ids: list[str] = Field(max_length=100_000)
+
+
+@router.post("/tagged-ids", response_model=list[str])
+def tagged_bookmark_ids(request: BookmarkSelectionRequest, db: Session = Depends(get_db)):
+    """Read tag membership for a selection without loading bookmark content."""
+    ids = list(dict.fromkeys(request.bookmark_ids))
+    tagged = []
+    # Stay below SQLite parameter limits even for selections spanning many pages.
+    for offset in range(0, len(ids), 500):
+        rows = db.query(Bookmark.id).filter(
+            Bookmark.id.in_(ids[offset:offset + 500]),
+            Bookmark.deleted_at.is_(None),
+            Bookmark.bookmark_tags.any(),
+        ).all()
+        tagged.extend(row.id for row in rows)
+    return tagged
+
+
 
 @router.get("/count", response_model=int)
 def bookmark_count(db: Session = Depends(get_db)):
