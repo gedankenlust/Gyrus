@@ -92,6 +92,49 @@ private final class ReviewURLProtocol: URLProtocol {
 
 @MainActor
 final class StabilizationTests: XCTestCase {
+    func testMetadataTransportDoesNotUsePagingConnectionPool() {
+        let api = APIClient()
+        XCTAssertFalse(api.metadataSession === api.session)
+        XCTAssertEqual(api.metadataSession.configuration.httpMaximumConnectionsPerHost, 2)
+    }
+
+    func testPrefetchWorksEvenWhenExactThresholdRowWasSkipped() async throws {
+        let first = try encoded((0..<100).map { bookmark("b-\($0)") })
+        let store = BookmarkStore(api: client { _ in (200, first) }, draftStorage: nil)
+        try await store.loadBookmarks(refreshCount: false)
+        XCTAssertFalse(store.shouldPrefetch(near: "b-59"))
+        XCTAssertTrue(store.shouldPrefetch(near: "b-60"))
+        XCTAssertTrue(store.shouldPrefetch(near: "b-89"))
+        XCTAssertTrue(store.shouldPrefetch(near: "b-99"))
+        store.isLoadingMore = true
+        XCTAssertFalse(store.shouldPrefetch(near: "b-99"))
+    }
+
+    func testFailedPageCanBeRetriedWithoutLosingBookmarksOrOffset() async throws {
+        let first = try encoded((0..<100).map { bookmark("b-\($0)") })
+        let last = try encoded([bookmark("b-100")])
+        var fail = true
+        let store = BookmarkStore(api: client { request in
+            let offset = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!.first { $0.name == "offset" }!.value!
+            return offset == "0" ? (200, first) : (fail ? (500, Data()) : (200, last))
+        }, draftStorage: nil)
+        try await store.loadBookmarks(refreshCount: false)
+        do {
+            try await store.loadMoreBookmarks()
+            XCTFail("Expected failure")
+        } catch {}
+        XCTAssertEqual(store.bookmarks.count, 100)
+        XCTAssertEqual(store.currentOffset, 100)
+        XCTAssertFalse(store.isLoadingMore)
+        XCTAssertNotNil(store.loadMoreError)
+        XCTAssertFalse(store.shouldPrefetch(near: "b-99"))
+        fail = false
+        try await store.loadMoreBookmarks()
+        XCTAssertNil(store.loadMoreError)
+        XCTAssertEqual(store.bookmarks.count, 101)
+        XCTAssertFalse(store.hasMore)
+    }
+
     private func client(_ handler: @escaping (URLRequest) throws -> (Int, Data)) -> APIClient {
         ReviewURLProtocol.handler = handler
         let config = URLSessionConfiguration.ephemeral

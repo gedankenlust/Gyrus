@@ -62,7 +62,10 @@ struct BookmarkGridView: View {
             // Infinite scroll sentinel
             if bookmarkStore.hasMore {
                 HStack {
-                    if bookmarkStore.isLoadingMore {
+                    if let error = bookmarkStore.loadMoreError {
+                        Text(error).font(.caption).foregroundStyle(.secondary)
+                        Button("Retry loading") { Task { try? await bookmarkStore.loadMoreBookmarks() } }
+                    } else if bookmarkStore.isLoadingMore {
                         ProgressView().scaleEffect(0.7)
                         Text("Loading more…").font(.caption).foregroundStyle(.secondary)
                     }
@@ -70,6 +73,7 @@ struct BookmarkGridView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .onAppear {
+                    guard bookmarkStore.loadMoreError == nil else { return }
                     Task { try? await bookmarkStore.loadMoreBookmarks() }
                 }
             }
@@ -176,15 +180,8 @@ struct BookmarkGridView: View {
         return [bookmark.id]
     }
 
-    /// How many items before the end to start fetching the next page, so the
-    /// next chunk is ready before the user reaches the bottom (no visible spinner).
-    private static let prefetchLead = 24
-
     private func prefetchIfNeeded(_ bookmark: Bookmark) {
-        guard bookmarkStore.hasMore, !bookmarkStore.isLoadingMore else { return }
-        let arr = bookmarkStore.bookmarks
-        let triggerIndex = max(0, arr.count - Self.prefetchLead)
-        guard triggerIndex < arr.count, arr[triggerIndex].id == bookmark.id else { return }
+        guard bookmarkStore.shouldPrefetch(near: bookmark.id) else { return }
         Task { try? await bookmarkStore.loadMoreBookmarks() }
     }
 

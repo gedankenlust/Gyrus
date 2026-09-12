@@ -3,7 +3,7 @@ import logging
 import re
 import shutil
 from datetime import datetime, timezone, timedelta
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, selectinload, defer
 from sqlalchemy.exc import IntegrityError
 from models.bookmark import Bookmark
 from models.collection import Collection
@@ -53,7 +53,8 @@ def get_bookmarks(
 ) -> list[Bookmark]:
     q = (
         db.query(Bookmark)
-        .options(selectinload(Bookmark.bookmark_tags).selectinload(BookmarkTag.tag))
+        .options(selectinload(Bookmark.bookmark_tags).selectinload(BookmarkTag.tag),
+                 defer(Bookmark.scraped_content, raiseload=True), defer(Bookmark.notes, raiseload=True))
         .filter(Bookmark.deleted_at.is_(None))
     )
     if collection_id is not None:

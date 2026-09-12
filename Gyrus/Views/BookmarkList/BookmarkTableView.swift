@@ -34,18 +34,14 @@ struct BookmarkTableView: View {
                         }
                     }
                     .onAppear {
-                        // Prefetch the next page ~24 rows before the end, so it's
-                        // ready before the user scrolls to the bottom.
-                        if bookmarkStore.hasMore && !bookmarkStore.isLoadingMore {
-                            let arr = bookmarkStore.bookmarks
-                            let triggerIndex = max(0, arr.count - 24)
-                            if triggerIndex < arr.count && arr[triggerIndex].id == bm.id {
-                                Task { try? await bookmarkStore.loadMoreBookmarks() }
-                            }
+                        if bookmarkStore.shouldPrefetch(near: bm.id) {
+                            Task { try? await bookmarkStore.loadMoreBookmarks() }
                         }
+                    }
+                    .task(id: bm.id) {
                         // Lazily fetch a missing favicon when the row appears.
                         if bm.faviconPath == nil {
-                            Task { try? await bookmarkStore.fetchMeta(bm) }
+                            try? await bookmarkStore.fetchMeta(bm)
                         }
                     }
                 }
@@ -90,7 +86,12 @@ struct BookmarkTableView: View {
                 handleSortChange(sortOrder)
             }
 
-            if bookmarkStore.isLoadingMore {
+            if let error = bookmarkStore.loadMoreError {
+                HStack {
+                    Text(error).font(.caption).foregroundStyle(.secondary)
+                    Button("Retry loading") { Task { try? await bookmarkStore.loadMoreBookmarks() } }
+                }.padding(8)
+            } else if bookmarkStore.isLoadingMore {
                 loadingMoreIndicator
             }
         }

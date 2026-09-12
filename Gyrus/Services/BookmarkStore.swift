@@ -16,6 +16,7 @@ final class BookmarkStore {
     var sortOrder: String = "desc"
     var hasMore: Bool = false
     var isLoadingMore: Bool = false
+    private(set) var loadMoreError: String?
     var currentOffset: Int = 0
     var totalBookmarkCount: Int = 0
     var deadBookmarkCount: Int = 0
@@ -79,6 +80,7 @@ final class BookmarkStore {
         currentOffset = 0
         hasMore = false
         isLoadingMore = false
+        loadMoreError = nil
     }
     private var searchTask: Task<Void, Never>?
     private var loadGeneration = 0
@@ -123,7 +125,9 @@ final class BookmarkStore {
         searchQuery = query
         usingKeywordFallback = false
         currentOffset = 0
+        hasMore = false
         isLoadingMore = false
+        loadMoreError = nil
         let page = try await fetchPage(
             offset: 0,
             collectionId: context.collectionId,
@@ -165,11 +169,19 @@ final class BookmarkStore {
         applyUpdated([details])
     }
 
+    /// Any visible item in the final window can trigger prefetch. Fast scrolling
+    /// may skip the one exact row that previously owned this responsibility.
+    func shouldPrefetch(near id: String) -> Bool {
+        hasMore && !isLoadingMore && loadMoreError == nil
+            && bookmarks.suffix(40).contains { $0.id == id }
+    }
+
     func loadMoreBookmarks() async throws {
         guard hasMore && !isLoadingMore else { return }
         let context = loadContext
         let generation = loadGeneration
         isLoadingMore = true
+        loadMoreError = nil
         defer {
             if generation == loadGeneration {
                 isLoadingMore = false
@@ -196,6 +208,9 @@ final class BookmarkStore {
             currentOffset += page.count
             hasMore = page.count == pageSize
         } catch {
+            if generation == loadGeneration && !(error is CancellationError) {
+                loadMoreError = String(localized: "More bookmarks could not be loaded. Please try again.")
+            }
             throw error
         }
     }
@@ -498,7 +513,16 @@ final class BookmarkStore {
         guard needsMeta || needsOgCache || needsFavicon else { return }
         guard !metaAttempted.contains(bookmark.id) else { return }
         metaAttempted.insert(bookmark.id)
-        let updated = try await api.fetchMeta(id: bookmark.id)
+        let generation = libraryGeneration
+        let updated: Bookmark
+        do { updated = try await api.fetchMeta(id: bookmark.id) }
+        catch {
+            if error is CancellationError && generation == libraryGeneration {
+                metaAttempted.remove(bookmark.id)
+            }
+            throw error
+        }
+        guard generation == libraryGeneration, !Task.isCancelled else { return }
         if let idx = bookmarks.firstIndex(where: { $0.id == bookmark.id }) { bookmarks[idx] = updated }
         if selectedBookmark?.id == bookmark.id { selectedBookmark = updated }
     }

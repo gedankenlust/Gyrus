@@ -154,7 +154,7 @@ extension APIClient {
     // MARK: Metadata & reader
 
     func fetchMeta(id: String) async throws -> Bookmark {
-        try await post(base.appending(path: "/api/bookmarks/\(id)/fetch-meta"), body: EmptyBody())
+        try await post(base.appending(path: "/api/bookmarks/\(id)/fetch-meta"), body: EmptyBody(), using: metadataSession)
     }
 
     func retryBookmarkAnalysis(id: String) async throws -> Bookmark {

@@ -13427,6 +13427,38 @@
           }
         }
       }
+    },
+    "More bookmarks could not be loaded. Please try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More bookmarks could not be loaded. Please try again."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitere Lesezeichen konnten nicht geladen werden. Bitte versuche es erneut."
+          }
+        }
+      }
+    },
+    "Retry loading": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry loading"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erneut laden"
+          }
+        }
+      }
     }
   },
   "version": "1.1"

@@ -86,10 +86,20 @@ final class APIClient {
     // Internal (not private) so the domain extensions in sibling files can use them.
     let base: URL
     let session: URLSession
+    let metadataSession: URLSession
+
+    private static let backgroundMetadataSession: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpMaximumConnectionsPerHost = 2
+        configuration.timeoutIntervalForRequest = 35
+        return URLSession(configuration: configuration)
+    }()
 
     init(base: URL = Config.backendURL, session: URLSession = .shared) {
         self.base = base
         self.session = session
+        // Slow website refreshes must not occupy the pagination/icon session.
+        self.metadataSession = session === URLSession.shared ? Self.backgroundMetadataSession : session
     }
 
     let decoder: JSONDecoder = {
@@ -159,7 +169,7 @@ final class APIClient {
         }
     }
 
-    func post<Body: Encodable, T: Decodable>(_ url: URL, body: Body, timeout: TimeInterval? = nil) async throws -> T {
+    func post<Body: Encodable, T: Decodable>(_ url: URL, body: Body, timeout: TimeInterval? = nil, using requestSession: URLSession? = nil) async throws -> T {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -167,7 +177,7 @@ final class APIClient {
         request.httpBody = try encoder.encode(body)
         if let timeout { request.timeoutInterval = timeout }
         do {
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await (requestSession ?? session).data(for: request)
             try checkStatus(response, data: data)
             return try decode(data, from: url)
         } catch let e as APIError {

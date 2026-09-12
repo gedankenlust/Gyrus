@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func
@@ -377,23 +378,43 @@ def purge_trash(data: TrashIdsRequest, db: Session = Depends(get_db)):
     return {"purged": purged}
 
 
+# Scrolling may request many missing favicons. Wait before checking out a DB
+# connection, and never hold a transaction while a remote website responds.
+_metadata_fetch_slots = asyncio.Semaphore(3)
+
+
 @router.post("/{bookmark_id}/fetch-meta", response_model=BookmarkOut)
 async def fetch_meta(bookmark_id: str, db: Session = Depends(get_db)):
-    bm = bookmark_service.get_bookmark(db, bookmark_id)
-    if not bm:
-        raise HTTPException(404, "Bookmark not found")
-    bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "running", db=db)
-    try:
-        meta = await metadata_service.fetch_metadata(bm.url)
-        bm = bookmark_service.update_bookmark_metadata(db, bm, meta)
-        bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "ready", db=db)
-        db.refresh(bm)
-    except Exception as exc:
-        bookmark_enrichment_service.record_stage(
-            bookmark_id, "metadata", "failed", f"Metadata: {exc}", db=db
-        )
-        raise
-    return _enrich(bm)
+    async with _metadata_fetch_slots:
+        bm = bookmark_service.get_bookmark(db, bookmark_id)
+        if not bm:
+            raise HTTPException(404, "Bookmark not found")
+        url = bm.url
+        bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "running", db=db)
+        db.close()
+        try:
+            meta = await metadata_service.fetch_metadata(url)
+            # Reload after network I/O: a bookmark may have been edited/deleted.
+            bm = bookmark_service.get_bookmark(db, bookmark_id)
+            if not bm:
+                raise HTTPException(404, "Bookmark not found")
+            if bm.url != url:
+                raise HTTPException(409, "Bookmark URL changed during metadata fetch")
+            bm = bookmark_service.update_bookmark_metadata(db, bm, meta)
+            bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "ready", db=db)
+            db.refresh(bm)
+            return _enrich(bm)
+        except HTTPException:
+            raise
+        except asyncio.CancelledError:
+            bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "failed", "Metadata request cancelled", db=db)
+            raise
+        except Exception:
+            db.rollback()
+            bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "failed", "Metadata fetch failed", db=db)
+            raise
+        finally:
+            db.close()
 
 
 @router.post("/{bookmark_id}/analysis/retry", response_model=BookmarkOut)
