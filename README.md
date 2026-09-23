@@ -90,7 +90,7 @@ DMG is smaller.
 |---|---|
 | **Library** | List or grid view, folders, colored tags, Trash, sorting, pagination, resizable columns, and multi-selection |
 | **Import and export** | Netscape bookmark HTML for Brave, Arc, Chrome, Firefox, and Safari; portable JSON backup and restore |
-| **Search** | SQLite FTS5 over titles, URLs, tags, notes, and AI chats; optional meaning-based semantic search via local embeddings; global `⌥ Space` command palette |
+| **Search** | SQLite FTS5 over titles, URLs, tags, notes, and AI chats; optional meaning-based semantic search via local embeddings; similar bookmarks for the open page when it is indexed; global `⌥ Space` command palette |
 | **Tag assignment** | Assign existing tags to one or many bookmarks and preserve every manually assigned tag |
 | **Reviewable tag system** | With AI enabled, analyze 10 or more bookmarks together, review a proposed taxonomy, rename or remove categories, then apply it |
 | **Page workspace** | Overview, structured Reader, translation, complete text copy, and a live `WKWebView` |
@@ -311,11 +311,11 @@ still good practice.
 
 - Multi-bookmark AI questions across a selected set or the full library
   (retrieve relevant pages, then answer — closer to classic RAG)
-- Related-bookmark suggestions backed by local embeddings
-- A richer optional knowledge graph for the Markdown mirror
+- A richer vault graph beyond neighbor links, if the Markdown mirror is used as a graph outside Gyrus
 - A signed and notarized build if the project later adopts the Apple Developer
   Program
-- A Safari extension if demand justifies the additional native packaging work
+- A Safari extension distributed to other people. A local unsigned build for
+  this Mac is described in `extension/SAFARI.md`
 
 ## FAQ
 

@@ -104,6 +104,23 @@ pytest
 
 Please keep both suites green, and add tests for new behavior.
 
+## Automated pull requests
+
+Jules and similar bots may open small test or performance pull requests. Merge
+a pull request that only adds a test of existing behavior. For anything that
+changes deletion, vectors, tokens, or the browser extension, run a test of the
+real call path before merging:
+
+- A faster database or vector change must mock the function the new code
+  actually calls. A test that still mocks the old per-row delete stays green
+  while the batch path is broken.
+- A token or Origin change must be checked as the extension and the Mac app
+  call it. The extension pairs with POST, because Chrome omits Origin on GET.
+  A request without the token stays rejected.
+- Do not merge a pull request that regenerates `project.pbxproj` with new
+  identifiers. Add the Swift file and run `python3 generate_xcodeproj.py`
+  locally instead.
+
 ## Database migrations
 
 Schema changes use **Alembic**. After changing a model in `backend/models/`,

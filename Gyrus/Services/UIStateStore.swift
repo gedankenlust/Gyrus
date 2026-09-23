@@ -13,6 +13,7 @@ final class UIStateStore {
     var undoGeneration: Int = 0
     var linkCheckStatus: LinkCheckStatus? = nil
     var metadataRefreshStatus: MetadataRefreshStatus? = nil
+    var folderOrganizeStatus: FolderOrganizeStatus? = nil
     var batchAutoTagStatus: BatchAutoTagStatus? = nil
     var batchTagFailure: String? = nil
 

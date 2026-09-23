@@ -5,6 +5,17 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- Similar bookmarks on the page overview, using embeddings that are already indexed. The list stays hidden when that page has no vector.
+- The Markdown mirror links each note to those neighbors with wikilinks, so the vault graph connects pages as well as tags.
+- A local, unsigned Safari build of Gyrus Saver for this Mac. It is not notarized and is not part of the GitHub download.
+- A slow folder sort under Settings → AI. The local model proposes a new folder structure and moves bookmarks into it. The sidebar reloads when that move finishes, even if Settings is closed.
+
+### Changed
+- The design inspector helpers now live in separate files for color, CSS variables, type scale, screenshots, the report, PDF export, and components.
+
 ## [1.5.0] – 2026-08-22
 
 ### Highlights

@@ -217,6 +217,50 @@ def apply_auto_tag_taxonomy(request: ApplyTaxonomyRequest, db: Session = Depends
     )
 
 
+class OrganizeFoldersRequest(BaseModel):
+    provider_config: dict | None = None
+    language: str | None = None
+
+
+class ApplyFoldersRequest(BaseModel):
+    draft_id: str
+    folder_keys: list[str] | None = None
+
+
+@router.post("/organize-folders", dependencies=[Depends(ai_policy.require_ai)])
+async def start_organize_folders(request: OrganizeFoldersRequest):
+    """Let the local model build a new folder structure and move bookmarks into it."""
+    from services import folder_organize_service
+    return await folder_organize_service.start(request.provider_config, request.language)
+
+
+@router.get("/organize-folders/status")
+async def organize_folders_status():
+    from services import folder_organize_service
+    return folder_organize_service.get_status()
+
+
+@router.post("/organize-folders/cancel")
+async def cancel_organize_folders():
+    from services import folder_organize_service
+    return folder_organize_service.cancel()
+
+
+@router.post("/organize-folders/apply")
+def apply_organize_folders(request: ApplyFoldersRequest, db: Session = Depends(get_db)):
+    from services import folder_organize_service
+    try:
+        return folder_organize_service.apply_draft(db, request.draft_id, request.folder_keys)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Folder draft not found")
+
+
+@router.delete("/organize-folders/draft/{draft_id}", status_code=204)
+def discard_organize_folders(draft_id: str):
+    from services import folder_organize_service
+    folder_organize_service.discard_draft(draft_id)
+
+
 @router.delete("/auto-tag-batch/draft/{draft_id}")
 def discard_auto_tag_taxonomy(draft_id: str):
     from services import auto_tag_batch_service

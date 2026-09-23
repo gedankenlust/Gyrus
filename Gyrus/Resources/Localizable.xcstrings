@@ -6510,6 +6510,130 @@
         }
       }
     },
+    "The local model invents a new folder structure and moves bookmarks into it. It pauses between batches so the Mac stays cooler. A backup is written first. Old folders stay, even when they end up empty.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die lokale KI entwirft eine neue Ordnerstruktur und verschiebt die Lesezeichen dorthin. Zwischen den Paketen macht sie Pausen, damit der Rechner kühler bleibt. Vorher wird eine Sicherung geschrieben. Alte Ordner bleiben stehen, auch wenn sie leer werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The local model invents a new folder structure and moves bookmarks into it. It pauses between batches so the Mac stays cooler. A backup is written first. Old folders stay, even when they end up empty."
+          }
+        }
+      }
+    },
+    "Sort into new folders": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "In neue Ordner sortieren" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Sort into new folders" } }
+      }
+    },
+    "Moves loose bookmarks into a folder that already belongs to the same site, such as YouTube links into the YouTube folder. Mixed piles stay put. Nothing moves until you review it.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Legt lose Lesezeichen in einen Ordner, der schon zu derselben Seite gehört, zum Beispiel YouTube-Links in den YouTube-Ordner. Gemischte Haufen bleiben liegen. Es wird nichts verschoben, bevor du es prüfst."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moves loose bookmarks into a folder that already belongs to the same site, such as YouTube links into the YouTube folder. Mixed piles stay put. Nothing moves until you review it."
+          }
+        }
+      }
+    },
+    "Nothing fits an existing folder clearly enough to move.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Nichts passt klar genug in einen vorhandenen Ordner." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Nothing fits an existing folder clearly enough to move." } }
+      }
+    },
+    "Nothing has moved yet. %lld bookmarks would move into a folder that already belongs to the same site. %lld stay where they are.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Noch ist nichts verschoben. %lld Lesezeichen würden in einen Ordner derselben Seite ziehen. %lld bleiben, wo sie sind." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Nothing has moved yet. %lld bookmarks would move into a folder that already belongs to the same site. %lld stay where they are." } }
+      }
+    },
+    "Uses your existing folders and adds only a few extra ones. At most one extra folder under a folder. Relies on the search index and pauses between names, so it can take a while and the Mac stays cooler.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nutzt deine vorhandenen Ordner und legt nur wenige neue an. Höchstens ein Unterordner unter einem Ordner. Arbeitet mit dem Suchindex und macht Pausen zwischen den Namen, damit es länger dauert und der Rechner kühler bleibt."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uses your existing folders and adds only a few extra ones. At most one extra folder under a folder. Relies on the search index and pauses between names, so it can take a while and the Mac stays cooler."
+          }
+        }
+      }
+    },
+    "Sorting…": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Sortiert…" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Sorting…" } }
+      }
+    },
+    "Resting %llds so the Mac can cool down.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Pause für %lld s, damit der Rechner abkühlen kann." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Resting %llds so the Mac can cool down." } }
+      }
+    },
+    "Nothing has moved yet. %lld bookmarks would move. %lld stay. %lld are left alone because they have no search vector.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Noch ist nichts verschoben. %lld Lesezeichen würden umziehen. %lld bleiben. %lld bleiben unberührt, weil sie keinen Suchvektor haben." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Nothing has moved yet. %lld bookmarks would move. %lld stay. %lld are left alone because they have no search vector." } }
+      }
+    },
+    "Build the search index first.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Baue zuerst den Suchindex auf." } },
+        "en": { "stringUnit": { "state": "translated", "value": "Build the search index first." } }
+      }
+    },
+    "Sort folders slowly": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Ordner langsam sortieren" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Sort folders slowly" } }
+      }
+    },
+    "Review folder sort": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Ordnersortierung prüfen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Review folder sort" } }
+      }
+    },
+    "Move bookmarks": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Lesezeichen verschieben" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Move bookmarks" } }
+      }
+    },
+    "Similar bookmarks": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ähnliche Lesezeichen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Similar bookmarks"
+          }
+        }
+      }
+    },
     "Overview": {
       "localizations": {
         "de": {

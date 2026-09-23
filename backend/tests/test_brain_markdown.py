@@ -48,6 +48,12 @@ def test_summary_and_notes_sections_appear_when_present():
     assert "## Notes" in md and "My note." in md and "A user note." in md
 
 
+def test_related_notes_become_wikilinks():
+    md = svc._render_markdown(_bookmark(), related_notes=["Ceramic-glaze-abcdef12"])
+    assert "## Related" in md
+    assert "[[Ceramic-glaze-abcdef12]]" in md
+
+
 def test_no_tags_renders_empty_list_and_no_wikilinks():
     md = svc._render_markdown(_bookmark(bookmark_tags=[]))
     assert "tags: []" in md

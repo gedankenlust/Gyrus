@@ -8,6 +8,31 @@ from models.tag import Tag, BookmarkTag
 logger = logging.getLogger(__name__)
 
 
+def related_bookmarks(db: Session, bookmark_id: str, limit: int = 5) -> list[Bookmark]:
+    """Nearest already-indexed bookmarks for one bookmark.
+
+    Uses the stored vector only. When that bookmark has no embedding, the
+    result is empty so the interface can stay hidden.
+    """
+    from services import vector_store
+
+    vector = vector_store.embedding_for(bookmark_id)
+    if not vector:
+        return []
+    pairs = vector_store.search(vector, k=limit + 8)
+    ids = [bid for bid, _dist in pairs if bid != bookmark_id]
+    if not ids:
+        return []
+    bm_map = {
+        bm.id: bm
+        for bm in db.query(Bookmark)
+        .options(selectinload(Bookmark.bookmark_tags).selectinload(BookmarkTag.tag))
+        .filter(Bookmark.id.in_(ids), Bookmark.deleted_at.is_(None))
+        .all()
+    }
+    return [bm_map[i] for i in ids if i in bm_map][:limit]
+
+
 async def search_bookmarks_semantic(
     db: Session, query: str, limit: int = 20, offset: int = 0
 ) -> list[Bookmark]:

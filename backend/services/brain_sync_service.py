@@ -142,8 +142,25 @@ class BrainSyncService:
         finally:
             temporary.unlink(missing_ok=True)
 
-    def _generated_section(self, bookmark: Bookmark) -> str:
-        content = self._render_markdown(bookmark)
+    def _related_note_names(self, db: Session, bookmark: Bookmark) -> list[str]:
+        """Obsidian note stems for the nearest indexed bookmarks.
+
+        The stem matches the generated filename, so a wikilink connects two
+        notes in the vault graph. Missing embeddings produce no links.
+        """
+        from services.search_service import related_bookmarks
+
+        names = []
+        for neighbor in related_bookmarks(db, bookmark.id, limit=5):
+            stem = self.bookmark_filename(neighbor.id, neighbor.title or "Untitled")
+            if stem.endswith(".md"):
+                stem = stem[:-3]
+            names.append(stem)
+        return names
+
+    def _generated_section(self, bookmark: Bookmark, db: Session | None = None) -> str:
+        related = self._related_note_names(db, bookmark) if db is not None else []
+        content = self._render_markdown(bookmark, related_notes=related)
         content = content.replace("---\n", f"---\ngyrus_bookmark_id: {bookmark.id}\n", 1)
         digest = hashlib.sha256(content.encode()).hexdigest()
         return content + f"<!-- gyrus:generated-end {digest} -->\n"
@@ -166,7 +183,7 @@ class BrainSyncService:
                     break
                 parent = parent.parent
 
-        generated = self._generated_section(bookmark)
+        generated = self._generated_section(bookmark, db)
         if new_path.exists():
             if not self._owns(new_path, bookmark.id):
                 raise ValueError("The destination belongs to another note; it was preserved")
@@ -187,7 +204,7 @@ class BrainSyncService:
         s = (s or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
         return f'"{s}"'
 
-    def _render_markdown(self, bookmark) -> str:
+    def _render_markdown(self, bookmark, related_notes: list[str] | None = None) -> str:
         """Render a bookmark as an Obsidian-friendly Markdown note: frontmatter
         with tags (so the vault indexes them), the description, a link back to
         the original, any AI summary and user notes, and [[wikilinks]] for the
@@ -227,6 +244,12 @@ class BrainSyncService:
 
         if tags:
             lines += ["Tags: " + " ".join(f"[[{t}]]" for t in tags), ""]
+
+        related = [name.strip() for name in (related_notes or []) if name and name.strip()]
+        if related:
+            lines += ["## Related", ""]
+            lines += [f"[[{name}]]" for name in related]
+            lines += [""]
 
         return "\n".join(lines).rstrip() + "\n"
 

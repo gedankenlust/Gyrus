@@ -21,7 +21,12 @@ EXTENSION_TOKEN = secrets.token_urlsafe(32)
 
 
 def is_trusted_extension_origin(origin: str | None) -> bool:
-    return bool(origin and origin in EXTENSION_ORIGINS)
+    if origin and origin in EXTENSION_ORIGINS:
+        return True
+    # Safari assigns a local extension id. It is not stable like the Chrome key,
+    # and this project does not notarize a Safari build for other people.
+    # A Safari extension may only pair and save a bookmark, same as Chrome.
+    return bool(origin and origin.startswith("safari-web-extension://"))
 
 
 def has_valid_api_token(value: str | None) -> bool:

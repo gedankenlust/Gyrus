@@ -323,6 +323,8 @@ struct BookmarkDetailView: View {
                         }
                     }
 
+                    RelatedBookmarksSection(bookmarkId: bookmark.id)
+
                     detailsSection
                 }
                 .padding(16)

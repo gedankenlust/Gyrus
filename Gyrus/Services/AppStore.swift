@@ -21,6 +21,7 @@ final class AppStore {
     private let linkCheckPoller = JobPoller<LinkCheckStatus>()
     private let metadataPoller = JobPoller<MetadataRefreshStatus>()
     private let batchTagPoller = JobPoller<BatchAutoTagStatus>()
+    private let folderOrganizePoller = JobPoller<FolderOrganizeStatus>()
     @ObservationIgnored private var bookmarksMovedObserver: AnyCancellable?
     static let undoWindow: TimeInterval = 5
 
@@ -416,6 +417,39 @@ final class AppStore {
         } catch {
             handleUIError(error)
         }
+    }
+
+    /// The folder sort keeps running after Settings closes. This poller lives
+    /// with the app, and the sidebar reloads when the move finishes.
+    func startFolderOrganize() async {
+        guard uiStateStore.folderOrganizeStatus?.running != true else { return }
+        do {
+            uiStateStore.folderOrganizeStatus = try await api.startFolderOrganize(config: AppSettings.shared.aiBrainConfig)
+            watchFolderOrganize()
+        } catch {
+            handleUIError(error)
+        }
+    }
+
+    func cancelFolderOrganize() async {
+        uiStateStore.folderOrganizeStatus = try? await api.cancelFolderOrganize()
+    }
+
+    private func watchFolderOrganize() {
+        folderOrganizePoller.start(
+            interval: 2.0,
+            fetch: { [api] in try await api.folderOrganizeStatus() },
+            onTick: { [weak self] status in
+                self?.uiStateStore.folderOrganizeStatus = status
+            },
+            onFinished: { [weak self] status in
+                guard let self else { return }
+                self.uiStateStore.folderOrganizeStatus = status
+                if status.phase == "done" || status.phase == "error" || status.phase == "moving" {
+                    await self.loadAll()
+                }
+            }
+        )
     }
 
     /// A taxonomy needs shared categories (each backed by ≥2 bookmarks);

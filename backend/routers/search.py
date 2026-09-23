@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from schemas.bookmark import BookmarkSummaryOut
 from services import ai_policy
-from services.search_service import search_bookmarks, search_bookmarks_semantic
+from services.search_service import related_bookmarks, search_bookmarks, search_bookmarks_semantic
 from services.bookmark_response_service import enrich_bookmark_summary
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,16 @@ async def search_semantic(
         return []
     results = await search_bookmarks_semantic(db, q, limit=limit, offset=offset)
     return [enrich_bookmark_summary(bm) for bm in results]
+
+
+@router.get("/related/{bookmark_id}", response_model=list[BookmarkSummaryOut])
+def search_related(
+    bookmark_id: str,
+    limit: int = Query(default=5, ge=1, le=20),
+    db: Session = Depends(get_db),
+):
+    """Bookmarks nearest to one indexed bookmark. Empty when it has no vector."""
+    return [enrich_bookmark_summary(bm) for bm in related_bookmarks(db, bookmark_id, limit=limit)]
 
 
 @router.get("/status")

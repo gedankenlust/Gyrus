@@ -173,6 +173,60 @@ def clear(*, strict: bool = False) -> None:
             raise
 
 
+def _parse_embedding(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        parsed = json.loads(value)
+        return [float(item) for item in parsed]
+    if isinstance(value, (bytes, bytearray)):
+        import struct
+        width = len(value) // 4
+        if width <= 0 or len(value) != width * 4:
+            return None
+        return list(struct.unpack(f"<{width}f", value))
+    return [float(item) for item in value]
+
+
+@serialized
+def embedding_for(bookmark_id: str) -> list[float] | None:
+    """Return the stored embedding for one bookmark, if the index has one."""
+    try:
+        row = _get_conn().execute(
+            "SELECT embedding FROM bookmarks_vec WHERE bookmark_id = ?",
+            (bookmark_id,),
+        ).fetchone()
+    except Exception as e:
+        logger.warning("vector_store.embedding_for failed for %s: %s", bookmark_id, e)
+        return None
+    if not row or row[0] is None:
+        return None
+    try:
+        return _parse_embedding(row[0])
+    except (TypeError, ValueError, json.JSONDecodeError) as e:
+        logger.warning("vector_store.embedding_for failed for %s: %s", bookmark_id, e)
+        return None
+
+
+@serialized
+def all_embeddings() -> dict[str, list[float]]:
+    """Every stored vector. Used by folder sorting so it does not call Ollama."""
+    try:
+        rows = _get_conn().execute("SELECT bookmark_id, embedding FROM bookmarks_vec").fetchall()
+    except Exception as e:
+        logger.warning("vector_store.all_embeddings failed: %s", e)
+        return {}
+    found = {}
+    for bookmark_id, raw in rows:
+        try:
+            parsed = _parse_embedding(raw)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if parsed:
+            found[bookmark_id] = parsed
+    return found
+
+
 @serialized
 def search(query_vec: list[float], k: int = 20) -> list[tuple[str, float]]:
     """Return up to k (bookmark_id, distance) pairs, closest first."""

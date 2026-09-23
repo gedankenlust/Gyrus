@@ -21,7 +21,7 @@ struct SettingsView: View {
             AboutPane()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 560, height: 480)
+        .frame(width: 560, height: 620)
     }
 }
 

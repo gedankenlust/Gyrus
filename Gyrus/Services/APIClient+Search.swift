@@ -59,6 +59,16 @@ extension APIClient {
         try await get(base.appending(path: "/api/search/status"))
     }
 
+    /// Nearest indexed bookmarks. An empty list means this page has no embedding.
+    func relatedBookmarks(bookmarkId: String, limit: Int = 5) async throws -> [Bookmark] {
+        var components = URLComponents(
+            url: base.appending(path: "/api/search/related/\(bookmarkId)"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [.init(name: "limit", value: "\(limit)")]
+        return try await get(components.url!)
+    }
+
     struct ReindexResponse: Decodable {
         let status: String
         let message: String?

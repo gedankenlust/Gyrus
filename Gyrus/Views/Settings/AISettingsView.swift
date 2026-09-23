@@ -102,6 +102,8 @@ struct AISettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
+            FolderOrganizeSection()
+
             Section(header: Text("Semantic Search")) {
                 // Semantic search silently returns nothing while the index is
                 // empty — make that state loud instead of a quiet "0 indexed".

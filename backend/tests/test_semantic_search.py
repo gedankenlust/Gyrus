@@ -156,7 +156,34 @@ def test_semantic_search_paginates_without_repeating(client):
     assert set(first_ids).isdisjoint(second_ids)
 
 
-def test_semantic_status_endpoint(client):
+def test_related_bookmarks_use_stored_vectors_and_skip_self_and_trash(client):
+    near = client.post("/api/bookmarks", json={**BOOKMARK, "url": "https://near.example", "title": "Near"}).json()
+    far = client.post("/api/bookmarks", json={**BOOKMARK, "url": "https://far.example", "title": "Far"}).json()
+    gone = client.post("/api/bookmarks", json={**BOOKMARK, "url": "https://gone.example", "title": "Gone"}).json()
+    vector_store.upsert(near["id"], FAKE_VEC)
+    vector_store.upsert(far["id"], [0.9] * 768)
+    client.delete(f"/api/bookmarks/{gone['id']}")
+    # A vector that outlived the trash move must still stay out of the list.
+    vector_store.upsert(gone["id"], [0.1] * 768)
+
+    found = client.get(f"/api/search/related/{near['id']}")
+    assert found.status_code == 200
+    ids = [item["id"] for item in found.json()]
+    assert near["id"] not in ids
+    assert far["id"] in ids
+    assert gone["id"] not in ids
+
+    vector_store.delete(near["id"])
+    vector_store.delete(far["id"])
+    vector_store.delete(gone["id"])
+
+
+def test_related_is_empty_without_an_embedding(client):
+    bm = client.post("/api/bookmarks", json={**BOOKMARK, "url": "https://plain.example"}).json()
+    resp = client.get(f"/api/search/related/{bm['id']}")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
     resp = client.get("/api/search/status")
     assert resp.status_code == 200
     data = resp.json()
