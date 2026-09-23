@@ -157,23 +157,24 @@ final class CollectionStore {
         try await fetchCollections()
     }
 
-    func deleteCollection(_ id: String) async throws -> [String] {
-        let all = flatCollections
-        func descendants(of parentId: String) -> [String] {
-            var ids: [String] = []
-            for col in all where col.parentId == parentId {
-                ids.append(contentsOf: descendants(of: col.id))
-                ids.append(col.id)
-            }
-            return ids
-        }
-        let toDelete = descendants(of: id) + [id]
-        for deleteId in toDelete {
-            try await api.deleteCollection(id: deleteId)
-            if selectedCollectionId == deleteId { selectedCollectionId = nil }
+    func deleteCollections(_ ids: [String]) async throws {
+        let unique = Array(Set(ids))
+        guard !unique.isEmpty else { return }
+        let removing = Set(unique.flatMap { [$0] + descendantIds(of: $0) })
+        try await api.deleteCollections(ids: unique)
+        if let selectedCollectionId, removing.contains(selectedCollectionId) {
+            self.selectedCollectionId = nil
         }
         try await fetchCollections()
-        return toDelete
+    }
+
+    private func descendantIds(of parentId: String) -> [String] {
+        var ids: [String] = []
+        for col in flatCollections where col.parentId == parentId {
+            ids.append(contentsOf: descendantIds(of: col.id))
+            ids.append(col.id)
+        }
+        return ids
     }
 
     func createCollection(name: String, parentId: String? = nil) async throws {

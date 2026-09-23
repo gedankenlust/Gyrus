@@ -22,6 +22,19 @@ final class SidebarNode: NSObject {
     }
 }
 
+/// Delete and Forward Delete remove the selected folders or tags.
+private final class KeyHandlingOutlineView: NSOutlineView {
+    var onDelete: (() -> Void)?
+
+    override func keyDown(with event: NSEvent) {
+        if event.specialKey == .delete || event.specialKey == .deleteForward {
+            onDelete?()
+            return
+        }
+        super.keyDown(with: event)
+    }
+}
+
 /// The full sidebar as a native macOS source list (one NSOutlineView), so every
 /// row — special items, folders, tags — shares the same selection pill, spacing
 /// and native drag. Bridged into SwiftUI.
@@ -41,7 +54,8 @@ struct SidebarOutlineView: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let outline = NSOutlineView()
+        let outline = KeyHandlingOutlineView()
+        outline.onDelete = { context.coordinator.deleteSelection() }
         outline.headerView = nil
         outline.rowHeight = 28
         outline.style = .sourceList
@@ -194,22 +208,35 @@ struct SidebarOutlineView: NSViewRepresentable {
             if case .group = node.kind { return false }
             return true
         }
-        /// Keep multi-selection meaningful: only tags can be selected together
-        /// (for bulk delete). A Shift/Cmd range that mixes in a folder or a
-        /// special item ("All Bookmarks") collapses to a single row instead.
+        /// Tags can be selected together, and folders can be selected together.
+        /// A range that mixes the two, or that includes "All Bookmarks", keeps
+        /// only the kind that was clicked.
         func outlineView(_ ov: NSOutlineView,
                          selectionIndexesForProposedSelection proposed: IndexSet) -> IndexSet {
             if proposed.count <= 1 { return proposed }
-            func isTag(_ row: Int) -> Bool {
-                if case .tag = (ov.item(atRow: row) as? SidebarNode)?.kind { return true }
-                return false
+            func kind(_ row: Int) -> SidebarNode.Kind? {
+                (ov.item(atRow: row) as? SidebarNode)?.kind
             }
             var tagRows = IndexSet()
-            for row in proposed where isTag(row) { tagRows.insert(row) }
-            if tagRows.count >= 2 { return tagRows }
-            // Not a multi-tag selection — fall back to the clicked (or first) row.
-            let row = (ov.clickedRow >= 0 && proposed.contains(ov.clickedRow))
-                ? ov.clickedRow : proposed.first!
+            var folderRows = IndexSet()
+            for row in proposed {
+                switch kind(row) {
+                case .tag: tagRows.insert(row)
+                case .folder: folderRows.insert(row)
+                default: break
+                }
+            }
+            let clicked = (ov.clickedRow >= 0 && proposed.contains(ov.clickedRow)) ? ov.clickedRow : nil
+            if let clicked {
+                switch kind(clicked) {
+                case .folder where folderRows.count >= 2: return folderRows
+                case .tag where tagRows.count >= 2: return tagRows
+                default: break
+                }
+            }
+            if folderRows.count >= 2 && tagRows.isEmpty { return folderRows }
+            if tagRows.count >= 2 && folderRows.isEmpty { return tagRows }
+            let row = clicked ?? proposed.first!
             return IndexSet(integer: row)
         }
         /// Hide the disclosure triangle on the FOLDERS/TAGS headers. macOS shows
@@ -441,6 +468,28 @@ struct SidebarOutlineView: NSViewRepresentable {
             if case .tag(let t)? = clickedNode()?.kind { return t }
             return nil
         }
+        private func selectedFolders() -> [Collection] {
+            guard let ov = outlineView else { return [] }
+            return ov.selectedRowIndexes.compactMap { row in
+                guard let n = ov.item(atRow: row) as? SidebarNode,
+                      case .folder(let folder) = n.kind else { return nil }
+                return folder
+            }
+        }
+
+        /// Drop a folder when one of its selected parents will already remove it.
+        private func topmostFolders(_ folders: [Collection]) -> [Collection] {
+            let ids = Set(folders.map(\.id))
+            return folders.filter { folder in
+                var parent = folder.parentId
+                while let current = parent {
+                    if ids.contains(current) { return false }
+                    parent = collectionsById[current]?.parentId
+                }
+                return true
+            }
+        }
+
         private func selectedTags() -> [Tag] {
             guard let ov = outlineView else { return [] }
             return ov.selectedRowIndexes.compactMap { row in
@@ -501,10 +550,38 @@ struct SidebarOutlineView: NSViewRepresentable {
             if let c = clickedFolder() { parent.onRecolorFolder(c) }
         }
         @objc private func deleteFolder() {
-            guard let c = clickedFolder() else { return }
-            if confirm(loc("Delete \"\(c.name)\"?"), loc("The bookmarks inside are kept — they just lose their folder assignment.")) {
-                let store = parent.store
-                perform { _ = try await store.deleteCollection(c.id) }
+            let selected = selectedFolders()
+            let clickedInSelection = (outlineView?.clickedRow).map {
+                outlineView?.selectedRowIndexes.contains($0) ?? false
+            } ?? false
+            if selected.count > 1 && clickedInSelection {
+                deleteFolders(selected)
+            } else if let folder = clickedFolder() {
+                deleteFolders([folder])
+            }
+        }
+
+        @objc func deleteSelection() {
+            let folders = selectedFolders()
+            if !folders.isEmpty {
+                deleteFolders(folders)
+                return
+            }
+            deleteSelectedTags()
+        }
+
+        private func deleteFolders(_ folders: [Collection]) {
+            let targets = topmostFolders(folders)
+            guard !targets.isEmpty else { return }
+            let title = targets.count == 1
+                ? loc("Delete \"\(targets[0].name)\"?")
+                : loc("Delete \(targets.count) folders?")
+            let message = loc("The bookmarks inside are kept — they just lose their folder assignment. Subfolders are removed with the folder.")
+            guard confirm(title, message) else { return }
+            let store = parent.store
+            let ids = targets.map(\.id)
+            perform {
+                try await store.deleteCollections(ids)
             }
         }
         @objc private func recolorTag() {
@@ -622,7 +699,15 @@ extension SidebarOutlineView.Coordinator: NSMenuDelegate {
             menu.addItem(withTitle: loc("Change Color…"), action: #selector(recolorFolder), keyEquivalent: "")
             menu.addItem(withTitle: loc("Export Folder…"), action: #selector(exportFolder), keyEquivalent: "")
             menu.addItem(.separator())
-            menu.addItem(withTitle: loc("Delete"), action: #selector(deleteFolder), keyEquivalent: "")
+            let selected = selectedFolders()
+            let clickedInSelection = (outlineView?.clickedRow).map {
+                outlineView?.selectedRowIndexes.contains($0) ?? false
+            } ?? false
+            if selected.count > 1 && clickedInSelection {
+                menu.addItem(withTitle: loc("Delete \(selected.count) folders"), action: #selector(deleteFolder), keyEquivalent: "")
+            } else {
+                menu.addItem(withTitle: loc("Delete"), action: #selector(deleteFolder), keyEquivalent: "")
+            }
         case .tag:
             let sel = selectedTags()
             // Only offer bulk delete when the right-clicked tag is part of the

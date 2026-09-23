@@ -16,7 +16,7 @@ class Collection(Base):
     name: Mapped[str] = mapped_column(String, index=True)
     icon: Mapped[str | None] = mapped_column(String, nullable=True)
     color: Mapped[str | None] = mapped_column(String, nullable=True)
-    parent_id: Mapped[str | None] = mapped_column(String, ForeignKey("collections.id"), nullable=True)
+    parent_id: Mapped[str | None] = mapped_column(String, ForeignKey("collections.id", ondelete="CASCADE"), nullable=True)
     # Manual sort order among siblings (same parent). Lower = higher in the list.
     position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 

@@ -152,11 +152,76 @@ def update_collection(collection_id: str, data: CollectionUpdate, db: Session = 
     return CollectionOut.model_validate(col)
 
 
+class DeleteFoldersRequest(BaseModel):
+    ids: list[str]
+
+
+def _folder_scope(db: Session, roots: list[str]) -> list[str]:
+    """The requested folders plus every folder nested under them."""
+    found: list[str] = []
+    seen: set[str] = set()
+    frontier = list(roots)
+    while frontier:
+        layer = [item for item in frontier if item not in seen]
+        if not layer:
+            break
+        seen.update(layer)
+        found.extend(layer)
+        frontier = [
+            row[0]
+            for row in db.query(Collection.id).filter(Collection.parent_id.in_(layer)).all()
+        ]
+    return found
+
+
+def delete_collections(db: Session, ids: list[str]) -> None:
+    """Remove folders in one statement.
+
+    Empty folders do not touch the Markdown mirror. Bookmarks that were inside
+    a deleted folder stay in the library and only those notes are moved.
+    """
+    roots = [row[0] for row in db.query(Collection.id).filter(Collection.id.in_(ids)).all()]
+    if not roots:
+        raise HTTPException(404, "Collection not found")
+    scope = _folder_scope(db, roots)
+    scope_set = set(scope)
+    parents = {
+        row.id: row.parent_id
+        for row in db.query(Collection.id, Collection.parent_id).filter(Collection.id.in_(scope)).all()
+    }
+    tops = [item for item in roots if parents.get(item) not in scope_set]
+    affected = db.query(Bookmark).filter(Bookmark.collection_id.in_(scope)).all() if scope else []
+    old_paths = {}
+    if brain_sync_service.is_enabled:
+        for bookmark in affected:
+            try:
+                old_paths[bookmark.id] = brain_sync_service._get_bookmark_file_path(db, bookmark)
+            except Exception:
+                old_paths[bookmark.id] = None
+    for start in range(0, len(tops), 400):
+        db.query(Collection).filter(Collection.id.in_(tops[start:start + 400])).delete(synchronize_session=False)
+    db.commit()
+    if not affected or not brain_sync_service.is_enabled:
+        return
+    db.expire_all()
+    for bookmark in affected:
+        try:
+            db.refresh(bookmark)
+            brain_sync_service.sync_bookmark(db, bookmark, old_path=old_paths.get(bookmark.id))
+        except Exception as exc:
+            logger.warning("Brain sync failed after folder delete: %s", exc)
+    try:
+        brain_sync_service.rebuild_index(db, force=True)
+    except Exception as exc:
+        logger.warning("Brain index failed after folder delete: %s", exc)
+
+
+@router.post("/delete")
+def delete_collections_route(request: DeleteFoldersRequest, db: Session = Depends(get_db)):
+    delete_collections(db, request.ids)
+    return {"status": "ok"}
+
+
 @router.delete("/{collection_id}", status_code=204)
 def delete_collection(collection_id: str, db: Session = Depends(get_db)):
-    col = db.query(Collection).filter(Collection.id == collection_id).first()
-    if not col:
-        raise HTTPException(404, "Collection not found")
-    db.delete(col)
-    db.commit()
-    _safe_resync(db)
+    delete_collections(db, [collection_id])

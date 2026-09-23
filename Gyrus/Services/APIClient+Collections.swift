@@ -16,7 +16,13 @@ extension APIClient {
     }
 
     func deleteCollection(id: String) async throws {
-        try await delete(base.appending(path: "/api/collections/\(id)"))
+        try await deleteCollections(ids: [id])
+    }
+
+    func deleteCollections(ids: [String]) async throws {
+        struct Body: Encodable { let ids: [String] }
+        struct Ack: Decodable { let status: String }
+        let _: Ack = try await post(base.appending(path: "/api/collections/delete"), body: Body(ids: ids))
     }
 
     func moveCollection(id: String, parentId: String?) async throws {

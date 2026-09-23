@@ -121,6 +121,8 @@ class LLMService:
         options: Optional[Dict[str, Any]] = None,
         language: str | None = None,
         context_kind: str = "page",
+        timeout: float | None = None,
+        keep_alive: str | None = None,
     ) -> str:
         """
         Orchestrate the request to the LLM based on provider configuration.
@@ -139,7 +141,7 @@ class LLMService:
         if provider == "ollama":
             return await LLMService._ask_ollama(
                 prompt, context, provider_config, title, url, history, think,
-                options, language, context_kind
+                options, language, context_kind, timeout, keep_alive
             )
         # Gyrus is local-only by design — there is no cloud provider. This guards
         # against an unexpected/legacy provider value in a stored config.
@@ -185,6 +187,8 @@ class LLMService:
         options: Optional[Dict[str, Any]] = None,
         language: str | None = None,
         context_kind: str = "page",
+        timeout: float | None = None,
+        keep_alive: str | None = None,
     ) -> str:
         """
         Send a chat request to a local Ollama instance, using role-based
@@ -202,18 +206,21 @@ class LLMService:
             payload["think"] = think
         if options:
             payload["options"] = options
+        if keep_alive:
+            payload["keep_alive"] = keep_alive
 
         policy_generation = ai_policy.generation()
         client = _get_client()
+        request_timeout = timeout if timeout is not None else 120.0
         try:
-            response = await client.post(f"{base_url}/api/chat", json=payload)
+            response = await client.post(f"{base_url}/api/chat", json=payload, timeout=request_timeout)
             if response.status_code == 400 and "think" in payload:
                 # Some models / older Ollama versions reject the `think` field.
                 # Drop it and retry once so tagging still works on those models.
                 payload.pop("think", None)
                 if not ai_policy.enabled() or policy_generation != ai_policy.generation():
                     raise LLMUnavailableError("AI configuration changed")
-                response = await client.post(f"{base_url}/api/chat", json=payload)
+                response = await client.post(f"{base_url}/api/chat", json=payload, timeout=request_timeout)
             response.raise_for_status()
             data = response.json()
             if not ai_policy.enabled() or policy_generation != ai_policy.generation():

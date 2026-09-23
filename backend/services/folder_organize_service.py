@@ -25,6 +25,40 @@ MAX_TOPS = 16
 MAX_CHILDREN = 4
 BATCH_SIZE = 20
 NAME_LIMIT = 40
+# Long enough for the fans to pull the chip back down after a batch.
+REST_SECONDS = 40.0
+MIN_SITE_GROUP = 3
+# Search pages and shorteners are not a folder. The link does not say what the
+# bookmark is about.
+GENERIC_SITES = {"google", "bing", "duckduckgo", "yahoo", "t", "bit", "tinyurl", "amp"}
+SITE_LABELS = {
+    "youtube": "YouTube",
+    "twitch": "Twitch",
+    "github": "GitHub",
+    "wikipedia": "Wikipedia",
+    "amazon": "Amazon",
+    "reddit": "Reddit",
+    "instagram": "Instagram",
+    "facebook": "Facebook",
+    "vimeo": "Vimeo",
+    "soundcloud": "SoundCloud",
+    "spotify": "Spotify",
+    "stackoverflow": "Stack Overflow",
+    "medium": "Medium",
+    "notion": "Notion",
+    "figma": "Figma",
+    "etsy": "Etsy",
+    "ebay": "eBay",
+    "steam": "Steam",
+    "discord": "Discord",
+    "pinterest": "Pinterest",
+    "tiktok": "TikTok",
+    "netflix": "Netflix",
+    "imdb": "IMDb",
+    "apple": "Apple",
+    "adobe": "Adobe",
+    "microsoft": "Microsoft",
+}
 
 job = BackgroundJob(
     processed=0,
@@ -166,6 +200,52 @@ def _host(url: str | None) -> str:
         return ""
 
 
+def site_key(url: str | None) -> str:
+    """The site a link belongs to. youtu.be and youtube.com are the same site."""
+    host = _host(url)
+    if not host:
+        return ""
+    if host == "youtu.be" or host == "youtube.com" or host.endswith(".youtube.com"):
+        return "youtube"
+    parts = host.split(".")
+    if len(parts) >= 3 and parts[-2] in {"co", "com", "ac"} and len(parts[-1]) == 2:
+        stem = parts[-3]
+    elif len(parts) >= 2:
+        stem = parts[-2]
+    else:
+        stem = parts[0]
+    if stem in GENERIC_SITES:
+        return ""
+    return stem
+
+
+def site_label(key: str) -> str:
+    if key in SITE_LABELS:
+        return SITE_LABELS[key]
+    return key[:1].upper() + key[1:] if key else ""
+
+
+def link_folders(bookmarks: list[dict]) -> dict[str, str]:
+    """Bookmark id to folder name, for sites that occur often enough.
+
+    These assignments do not go through the model. A YouTube link stays a
+    YouTube link even when the title talks about something else.
+    """
+    grouped: dict[str, list[str]] = defaultdict(list)
+    for bookmark in bookmarks:
+        key = site_key(bookmark.get("url"))
+        if key:
+            grouped[key].append(bookmark["id"])
+    assigned: dict[str, str] = {}
+    for key, ids in grouped.items():
+        if len(ids) < MIN_SITE_GROUP:
+            continue
+        name = site_label(key)
+        for bookmark_id in ids:
+            assigned[bookmark_id] = name
+    return assigned
+
+
 def _load_rows():
     with SessionLocal() as db:
         bookmarks = [
@@ -253,6 +333,8 @@ async def _ask(prompt: str, context: str, provider_config: dict, language: str |
         options={"num_predict": limit, "temperature": 0},
         language=language,
         context_kind="folders",
+        timeout=600,
+        keep_alive="30m",
     )
     return raw or "", time.monotonic() - started
 
@@ -288,15 +370,15 @@ async def _assign_batch(
 ) -> tuple[list[str | None], float]:
     listing = "\n".join(paths)
     records = "\n".join(
-        f"{index + 1}. {(item.get('title') or item.get('url') or 'Untitled')[:80]} | {_host(item.get('url'))}"
+        f"{index + 1}. {(item.get('title') or 'Untitled')[:70]} | {(item.get('url') or '')[:90]}"
         for index, item in enumerate(batch)
     )
     prompt = (
         "Allowed folders:\n"
         f"{listing}\n\n"
         f"Reply with exactly {len(batch)} lines. "
-        "Line i is the folder for bookmark i. Copy a folder path from the list. "
-        "No numbering and no explanation."
+        "Line i is the folder for bookmark i. Decide from the link, not only the title. "
+        "Copy a folder path from the list. No numbering and no explanation."
     )
     raw, elapsed = await _ask(prompt, records, provider_config, language, 400)
     assigned = parse_assignments(raw, paths, len(batch))
@@ -310,7 +392,7 @@ async def _run(provider_config: dict | None, language: str | None) -> None:
     config = dict(provider_config or {})
     config.setdefault("provider", "ollama")
     pacer = TaggingPacer(True, lambda stage, count: job.state.update(
-        phase="cooldown" if stage == "cooldown" else job.state.get("phase"),
+        phase=stage,
         cooldown_remaining=count if stage == "cooldown" else 0,
     ))
     job.state["phase"] = "reading"
@@ -326,20 +408,38 @@ async def _run(provider_config: dict | None, language: str | None) -> None:
         return
 
     job.state["phase"] = "planning"
-    job.state["message"] = _text(language, "The local model is naming the new folders.", "Die lokale KI benennt die neuen Ordner.")
+    job.state["message"] = _text(
+        language,
+        "Waiting for Ollama. The first answer can take a few minutes while the model loads.",
+        "Warte auf Ollama. Die erste Antwort kann ein paar Minuten dauern, während das Modell lädt.",
+    )
+    by_link = link_folders(bookmarks)
     try:
         structure, elapsed = await _propose(library_digest(bookmarks, collections), config, language)
     except Exception as error:
-        job.state["phase"] = "error"
-        job.state["message"] = str(error)
-        return
-    await pacer.rest(elapsed, "planning")
+        if not by_link:
+            job.state["phase"] = "error"
+            job.state["message"] = _text(
+                language,
+                str(error),
+                "Ollama hat zu lange gebraucht. Es wurde nichts verschoben. Starte die Sortierung noch einmal, das Modell bleibt jetzt geladen.",
+            )
+            return
+        structure = []
+        elapsed = 0
+    await pacer.rest(max(elapsed, REST_SECONDS), "planning")
     if job.cancelled:
         job.state["phase"] = "cancelled"
         job.state["message"] = _text(language, "Stopped before anything was moved.", "Gestoppt, bevor etwas verschoben wurde.")
         return
+    known = {folder["name"].casefold() for folder in structure}
+    known.update(child.casefold() for folder in structure for child in folder["children"])
+    for name in sorted(set(by_link.values())):
+        if name.casefold() not in known:
+            structure.append({"name": name, "children": []})
+            known.add(name.casefold())
     paths = folder_paths(structure)
-    if len(structure) < 4:
+    if len(paths) < 4:
         job.state["phase"] = "error"
         job.state["message"] = _text(
             language,
@@ -348,26 +448,40 @@ async def _run(provider_config: dict | None, language: str | None) -> None:
         )
         return
 
+    def resolve(name: str) -> str:
+        target = _norm(name)
+        exact = [path for path in paths if _norm(path) == target or _norm(path.split(" / ")[-1]) == target]
+        if len(exact) == 1:
+            return exact[0]
+        return name
+
     assigned: dict[str, list[str]] = defaultdict(list)
+    remaining = []
+    for bookmark in bookmarks:
+        folder = by_link.get(bookmark["id"])
+        if folder:
+            assigned[resolve(folder)].append(bookmark["id"])
+        else:
+            remaining.append(bookmark)
+    job.state["processed"] = len(bookmarks) - len(remaining)
     job.state["phase"] = "sorting"
     job.state["message"] = None
-    for start in range(0, len(bookmarks), BATCH_SIZE):
+    for start in range(0, len(remaining), BATCH_SIZE):
         if job.cancelled:
             job.state["phase"] = "cancelled"
             job.state["message"] = _text(language, "Stopped before anything was moved.", "Gestoppt, bevor etwas verschoben wurde.")
             return
-        batch = bookmarks[start:start + BATCH_SIZE]
+        batch = remaining[start:start + BATCH_SIZE]
         try:
             choices, elapsed = await _assign_batch(batch, paths, config, language)
-        except Exception as error:
-            job.state["phase"] = "error"
-            job.state["message"] = str(error)
-            return
+        except Exception:
+            choices = [None] * len(batch)
+            elapsed = 0
         for bookmark, choice in zip(batch, choices):
             if choice:
                 assigned[choice].append(bookmark["id"])
-        job.state["processed"] = min(len(bookmarks), start + len(batch))
-        await pacer.rest(elapsed, "sorting")
+        job.state["processed"] = len(bookmarks) - len(remaining) + min(len(remaining), start + len(batch))
+        await pacer.rest(max(elapsed, REST_SECONDS), "sorting")
 
     moving = sum(len(ids) for ids in assigned.values())
     if moving == 0:

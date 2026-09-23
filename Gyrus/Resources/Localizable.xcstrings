@@ -6510,6 +6510,22 @@
         }
       }
     },
+    "Links to the same site, such as YouTube, go into one folder. The local model sorts the rest and moves the bookmarks. It pauses between batches. A backup is written first. Old folders stay, even when they end up empty.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Links derselben Seite, zum Beispiel YouTube, kommen in einen Ordner. Die lokale KI sortiert den Rest und verschiebt die Lesezeichen. Zwischen den Paketen macht sie Pausen. Vorher wird eine Sicherung geschrieben. Alte Ordner bleiben stehen, auch wenn sie leer werden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Links to the same site, such as YouTube, go into one folder. The local model sorts the rest and moves the bookmarks. It pauses between batches. A backup is written first. Old folders stay, even when they end up empty."
+          }
+        }
+      }
+    },
     "The local model invents a new folder structure and moves bookmarks into it. It pauses between batches so the Mac stays cooler. A backup is written first. Old folders stay, even when they end up empty.": {
       "localizations": {
         "de": {
@@ -9106,6 +9122,24 @@
             "value": "The Gyrus backend could not be reached. Check the app status and try again."
           }
         }
+      }
+    },
+    "Delete %lld folders?": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%lld Ordner löschen?" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Delete %lld folders?" } }
+      }
+    },
+    "Delete %lld folders": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "%lld Ordner löschen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Delete %lld folders" } }
+      }
+    },
+    "The bookmarks inside are kept — they just lose their folder assignment. Subfolders are removed with the folder.": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Die Lesezeichen bleiben erhalten und verlieren nur den Ordner. Unterordner werden mitgelöscht." } },
+        "en": { "stringUnit": { "state": "translated", "value": "The bookmarks inside are kept — they just lose their folder assignment. Subfolders are removed with the folder." } }
       }
     },
     "The bookmarks inside are kept — they just lose their folder assignment.": {

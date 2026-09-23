@@ -9,7 +9,7 @@ struct FolderOrganizeSection: View {
     var body: some View {
         Section(header: Text("Folders")) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("The local model invents a new folder structure and moves bookmarks into it. It pauses between batches so the Mac stays cooler. A backup is written first. Old folders stay, even when they end up empty.")
+                Text("Links to the same site, such as YouTube, go into one folder. The local model sorts the rest and moves the bookmarks. It pauses between batches. A backup is written first. Old folders stay, even when they end up empty.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -29,7 +29,7 @@ struct FolderOrganizeSection: View {
                             .monospacedDigit()
                     }
                 }
-                if status?.phase == "cooldown" {
+                if status?.phase == "cooldown", (status?.cooldownRemaining ?? 0) > 0 {
                     Text("Resting \(status?.cooldownRemaining ?? 0)s so the Mac can cool down.")
                         .font(.caption)
                         .foregroundStyle(.secondary)

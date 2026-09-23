@@ -77,6 +77,47 @@ def test_reorder_children(client):
     assert [ch["name"] for ch in p["children"]] == ["Y", "X"]
 
 
+def test_deleting_several_empty_folders_is_one_request(client):
+    first = _create(client, "Empty A")
+    second = _create(client, "Empty B")
+    child = _create(client, "Empty Child", parent_id=first)
+    assert client.post("/api/collections/delete", json={"ids": [first, second]}).status_code == 200
+
+    def ids(nodes):
+        found = []
+        for node in nodes:
+            found.append(node["id"])
+            found.extend(ids(node.get("children") or []))
+        return found
+
+    remaining = set(ids(client.get("/api/collections").json()))
+    assert first not in remaining
+    assert second not in remaining
+    assert child not in remaining
+
+
+def test_deleting_a_folder_removes_empty_subfolders_and_keeps_bookmarks(client):
+    root = _create(client, "Root")
+    _create(client, "Design")
+    nested = _create(client, "Design", parent_id=root)
+    bookmark = client.post("/api/bookmarks", json={
+        "title": "Kept", "url": "https://kept.example", "collection_id": root, "source": "manual",
+    }).json()
+    assert client.delete(f"/api/collections/{root}").status_code == 204
+
+    def ids(nodes):
+        found = []
+        for node in nodes:
+            found.append(node["id"])
+            found.extend(ids(node.get("children") or []))
+        return found
+
+    remaining = ids(client.get("/api/collections").json())
+    assert root not in remaining
+    assert nested not in remaining
+    assert client.get(f"/api/bookmarks/{bookmark['id']}").json()["collection_id"] is None
+
+
 def test_html_export_respects_folder_order(client):
     a = _create(client, "Alpha")
     b = _create(client, "Beta")

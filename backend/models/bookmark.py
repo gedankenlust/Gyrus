@@ -29,7 +29,7 @@ class Bookmark(Base):
     analysis_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     analysis_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False, server_default="0")
     analysis_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    collection_id: Mapped[str | None] = mapped_column(String, ForeignKey("collections.id"), nullable=True)
+    collection_id: Mapped[str | None] = mapped_column(String, ForeignKey("collections.id", ondelete="SET NULL"), nullable=True)
 
     # Soft-delete: when set, the bookmark is in the Trash (hidden from all normal
     # views) and is purged for good after TRASH_RETENTION_DAYS.
