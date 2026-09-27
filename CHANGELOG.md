@@ -7,14 +7,23 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.5.1] – 2026-09-27
+
 ### Added
 - Similar bookmarks on the page overview, using embeddings that are already indexed. The list stays hidden when that page has no vector.
 - The Markdown mirror links each note to those neighbors with wikilinks, so the vault graph connects pages as well as tags.
 - A local, unsigned Safari build of Gyrus Saver for this Mac. It is not notarized and is not part of the GitHub download.
-- A slow folder sort under Settings → AI. The local model proposes a new folder structure and moves bookmarks into it. The sidebar reloads when that move finishes, even if Settings is closed.
+- A slow folder sort under Settings → AI. Links to the same site share a folder once there are three of them. The local model sorts the rest, pauses between batches, and writes a backup before anything moves. The sidebar reloads when the move finishes.
+- A persistent gentle mode for tag generation, with cancellable rests between batches.
 
 ### Changed
-- The design inspector helpers now live in separate files for color, CSS variables, type scale, screenshots, the report, PDF export, and components.
+- Design navigation and detail views are simpler. Inspector helpers now live in separate files for color, CSS variables, type scale, screenshots, the report, PDF export, and components.
+- Large libraries stay responsive while metadata is fetched. Semantic indexing reports errors in the app language and keeps the previous index if a rebuild fails.
+- Deleting folders no longer rewrites the whole Markdown mirror. Several folders can be selected and removed together. Bookmarks inside them stay in the library.
+
+### Fixed
+- Folder sorting waits long enough for a cold Ollama model to load, and the Mac gets a real pause between batches.
+- The sidebar updates after a folder sort even when Settings is already closed.
 
 ## [1.5.0] – 2026-08-22
 

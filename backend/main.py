@@ -10,7 +10,7 @@ from security import (API_TOKEN, EXTENSION_TOKEN, EXTENSION_ORIGINS, has_valid_a
 
 logger = logging.getLogger(__name__)
 MAX_REQUEST_BYTES = 100 * 1024 * 1024
-APP_VERSION = "1.5.0"
+APP_VERSION = "1.5.1"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
