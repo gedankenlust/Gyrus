@@ -17,13 +17,28 @@ final class BackendLauncher {
     private var isStopping = false
     private var setupProcess: Process?
 
-    private var backendDir: URL {
-        let bundled = Bundle.main.resourceURL?.appendingPathComponent("backend")
-        let repo = URL(fileURLWithPath: #filePath)
+    /// `Gyrus.app/Contents/Resources/backend` when this process is the app bundle.
+    private var bundledBackendDirectory: URL? {
+        Bundle.main.resourceURL?.appendingPathComponent("backend")
+    }
+
+    /// Source-tree backend next to this file: `<repo>/backend`.
+    private var repoBackendDirectory: URL {
+        URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("backend")
+    }
+
+    /// Dev interpreter lives in `<repo>/backend/venv`, not under a name that
+    /// merely contains that substring.
+    private var projectVenvDirectory: URL {
+        repoBackendDirectory.appendingPathComponent("venv")
+    }
+
+    private var backendDir: URL {
+        let repo = repoBackendDirectory
 
         // Built and installed apps must exercise the exact backend they ship.
         // Xcode users can explicitly opt into the faster repo venv when needed.
@@ -32,7 +47,7 @@ final class BackendLauncher {
             return repo
         }
 
-        if let bundlePath = bundled,
+        if let bundlePath = bundledBackendDirectory,
            FileManager.default.fileExists(atPath: bundlePath.appendingPathComponent("main.py").path) {
             return bundlePath
         }
@@ -118,9 +133,21 @@ final class BackendLauncher {
         let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
         guard length > 0 else { return false }
         let path = String(cString: buffer)
-        return path == pythonExecutable.path
-            || path.contains("/Gyrus.app/Contents/Resources/backend/")
-            || path.contains("/Gyrus/backend/venv/")
+        if path == pythonExecutable.path { return true }
+        if let bundled = bundledBackendDirectory, pathIsInside(path, bundled) {
+            return true
+        }
+        return pathIsInside(path, projectVenvDirectory)
+    }
+
+    /// True when `path` is the directory or a file inside it. A trailing
+    /// separator keeps `/tmp/Gyrus/backend/venv/fake` from matching a real venv.
+    private func pathIsInside(_ path: String, _ directory: URL) -> Bool {
+        let root = directory.path
+        guard !root.isEmpty else { return false }
+        if path == root { return true }
+        let prefix = root.hasSuffix("/") ? root : root + "/"
+        return path.hasPrefix(prefix)
     }
 
     nonisolated static let apiToken = UUID().uuidString

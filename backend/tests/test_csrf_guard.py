@@ -50,17 +50,17 @@ def test_extension_token_endpoint_blocks_get():
     assert r.status_code == 405
 
 
-def test_safari_extension_can_pair_and_save_only():
+def test_safari_extension_origin_is_rejected():
+    # The unsigned Safari wrapper was abandoned. A safari-web-extension origin
+    # is not a fixed id, so it must not pair or call the API.
     origin = "safari-web-extension://local-gyrus-saver"
-    token = client.post("/api/auth/extension-token", headers={"Origin": origin}).json()["token"]
+    assert client.post("/api/auth/extension-token", headers={"Origin": origin}).status_code == 403
     saved = client.post(
         "/api/bookmarks",
-        headers={"Origin": origin, "X-Gyrus-Token": token},
+        headers={"Origin": origin, "X-Gyrus-Token": "not-a-real-token"},
         json={"title": "Safari", "url": "https://example.com/from-safari", "source": "extension"},
     )
-    assert saved.status_code == 201
-    headers = {"Origin": origin, "X-Gyrus-Token": token}
-    assert client.get("/api/data/backup", headers=headers).status_code == 403
+    assert saved.status_code == 403
 
 
 def test_gyrus_extension_health_is_allowed():

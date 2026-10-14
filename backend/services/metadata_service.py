@@ -94,8 +94,8 @@ async def fetch_metadata(url: str) -> dict:
     return result
 
 
-# Image content types the app can render via NSImage — including SVG, which
-# many modern sites (e.g. agenturincognito.de) use as their only favicon.
+# Raster types NSImage can show. SVG is not stored: a raw image/svg+xml
+# response is active content, and this process has no SVG rasterizer.
 _IMAGE_EXT_BY_CONTENT_TYPE = {
     "image/png": ".png",
     "image/x-icon": ".ico",
@@ -104,7 +104,6 @@ _IMAGE_EXT_BY_CONTENT_TYPE = {
     "image/jpg": ".jpg",
     "image/gif": ".gif",
     "image/webp": ".webp",
-    "image/svg+xml": ".svg",
 }
 
 
@@ -166,21 +165,31 @@ def _favicon_candidates(soup, page_url: str) -> list[str]:
     return ordered
 
 
-def _image_extension(content: bytes, content_type: str) -> str | None:
-    """Return a file extension if the bytes look like a renderable image.
+def _is_svg_favicon(content: bytes, content_type: str) -> bool:
+    """True when the response is SVG markup a browser could execute.
 
-    Trusts the content type when it names a known format, otherwise sniffs the
-    content. Returns None for the soft-404 HTML pages many sites serve at
-    /favicon.ico.
+    Content-Type image/svg+xml counts even if the body is unusual. A body that
+    itself starts as SVG counts even when the server mislabels the type.
     """
+    ct = content_type.split(";")[0].strip().lower()
+    if ct == "image/svg+xml":
+        return True
+    head = content[:512].lstrip()
+    return head.startswith(b"<svg") or (head.startswith(b"<?xml") and b"<svg" in head)
+
+
+def _image_extension(content: bytes, content_type: str) -> str | None:
+    """Return a file extension if the bytes look like a renderable raster image.
+
+    Trusts the content type when it names a known raster format, otherwise
+    sniffs the content. Returns None for SVG and for the soft-404 HTML pages
+    many sites serve at /favicon.ico.
+    """
+    if _is_svg_favicon(content, content_type):
+        return None
     ct = content_type.split(";")[0].strip().lower()
     if ct in _IMAGE_EXT_BY_CONTENT_TYPE:
         return _IMAGE_EXT_BY_CONTENT_TYPE[ct]
-    # Detect SVG by content (some servers send it as text/xml or text/plain),
-    # but only when it actually starts as SVG — not an HTML page with svg inside.
-    head = content[:512].lstrip()
-    if head.startswith(b"<svg") or (head.startswith(b"<?xml") and b"<svg" in head):
-        return ".svg"
     if ct in ("text/html", "application/xml") or ct.startswith("text/"):
         return None
     # Fall back to magic-byte sniffing when the header is missing or generic.
