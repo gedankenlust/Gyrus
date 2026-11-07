@@ -32,9 +32,11 @@ jobs:
   macos-backend-tests:
     # The backend only ever runs on macOS, and parts of it are platform-specific
     # (0o700/0o600 permissions, SQLite file locking), so the ubuntu run above is
-    # not sufficient on its own. macOS 14 is the oldest release we support.
-    name: Backend tests on macOS 14
-    runs-on: macos-14
+    # not sufficient on its own. macOS 14 is the oldest release we support, but
+    # GitHub no longer offers macOS 14 runners, so this runs on the oldest one
+    # it still has.
+    name: Backend tests on macOS 15
+    runs-on: macos-15
     defaults:
       run:
         working-directory: backend
@@ -50,14 +52,14 @@ jobs:
       - run: pip install --require-hashes -r requirements.lock
       - run: pytest -q
 
-  macos-14-backend-smoke:
+  macos-backend-smoke:
     # The unit tests above run against pip-installed packages on a CI Python.
     # Users get something different: a relocatable interpreter with pinned
     # wheels and a bundled Chromium, all inside the .app. This job builds that
-    # exact artifact on the oldest supported macOS and drives it over HTTP, so
-    # "works on Sonoma" covers the shipped stack and not just the source.
-    name: Backend smoke test on macOS 14
-    runs-on: macos-14
+    # exact artifact on the oldest macOS runner GitHub offers and drives it
+    # over HTTP, so the check covers the shipped stack and not just the source.
+    name: Backend smoke test on macOS 15
+    runs-on: macos-15
     defaults:
       run:
         working-directory: backend
@@ -156,7 +158,7 @@ jobs:
     # Builds on the newest runner because the source needs a current Swift: the
     # compiler applies default main-actor isolation to SwiftUI views, and older
     # toolchains reject every access to @MainActor state from a view body. That
-    # is a build-time requirement only — see macos-14-launch for what users get.
+    # is a build-time requirement only — see macos-launch for what users get.
     name: macOS build and tests
     runs-on: macos-latest
     steps:
@@ -194,7 +196,7 @@ jobs:
 
       # ditto rather than uploading the .app directly: upload-artifact does not
       # preserve symlinks or the executable bit, both of which a bundle needs.
-      - name: Package the app for the macOS 14 launch check
+      - name: Package the app for the launch check
         run: ditto -c -k --keepParent ci-build/Build/Products/Debug/Gyrus.app Gyrus-app.zip
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -202,14 +204,16 @@ jobs:
           path: Gyrus-app.zip
           retention-days: 1
 
-  macos-14-launch:
-    # The point of the macOS 14 promise is that a binary built on current Xcode
-    # still *runs* on Sonoma. Compiling there proves nothing about that (and is
-    # impossible anyway, see macos-tests), so take the real artifact to a real
-    # macOS 14 machine and let dyld try to load it. If anything the app links
-    # against were unavailable on Sonoma, the process aborts here.
-    name: Launch on macOS 14
-    runs-on: macos-14
+  macos-launch:
+    # A binary built on current Xcode must still *run* on older systems.
+    # Compiling there proves nothing about that (and is impossible anyway, see
+    # macos-tests), so take the real artifact to an older machine and let dyld
+    # try to load it. GitHub retired its macOS 14 runners in 2026, so this is
+    # macOS 15, the oldest it still offers. macOS 14 itself is covered only by
+    # the deployment target check in macos-tests and the compiler's
+    # availability checks against it.
+    name: Launch on macOS 15
+    runs-on: macos-15
     needs: macos-tests
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -217,14 +221,14 @@ jobs:
           name: gyrus-app-debug
       - run: ditto -x -k Gyrus-app.zip .
 
-      - name: Confirm the runner really is macOS 14
+      - name: Confirm the runner really is macOS 15
         run: |
           set -euo pipefail
           version=$(sw_vers -productVersion)
           echo "Runner macOS: $version"
           case "$version" in
-            14.*) ;;
-            *) echo "::error::Expected a macOS 14 runner, got $version. This job no longer tests the advertised minimum."; exit 1 ;;
+            15.*) ;;
+            *) echo "::error::Expected a macOS 15 runner, got $version. This job no longer tests the oldest available release."; exit 1 ;;
           esac
 
       - name: Load and link the app under dyld
@@ -235,7 +239,7 @@ jobs:
 
           # The bundled Python runtime is not in the repository, so the app
           # cannot reach a working backend here and may well exit on its own.
-          # That is fine: this step only asks whether macOS 14 can load and link
+          # That is fine: this step only asks whether this macOS can load and link
           # the binary. Only dyld failures are treated as failures.
           #
           # Backgrounding rather than `timeout`, which is GNU coreutils and not
@@ -261,12 +265,12 @@ jobs:
           echo "--------------"
 
           if grep -qE "dyld|Symbol not found|Library not loaded|Incompatible library version|image not found" launch.log; then
-            echo "::error::dyld could not load the app on macOS $(sw_vers -productVersion). The macOS 14 minimum in the README is not accurate."
+            echo "::error::dyld could not load the app on macOS $(sw_vers -productVersion). The app does not run on this release."
             exit 1
           fi
 
           if [ "$status" = "still-running" ]; then
             echo "::notice::App was still alive after 20s on macOS $(sw_vers -productVersion) — loaded and linked cleanly."
           else
-            echo "::notice::App exited with $status and no dyld error. Linking on macOS 14 is fine; an early exit is expected without a bundled backend."
+            echo "::notice::App exited with $status and no dyld error. Linking is fine; an early exit is expected without a bundled backend."
           fi
