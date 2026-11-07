@@ -1,92 +1,6 @@
 import SwiftUI
 import AppKit
 
-struct NavigationTreeGroup: View {
-    let group: APIClient.VisualNavigationGroupDTO
-
-    var body: some View {
-        DisclosureGroup {
-            OutlineGroup(group.items, children: \.outlineChildren) { item in
-                TreeLinkRow(
-                    label: item.label,
-                    detail: item.url,
-                    url: item.url,
-                    icon: item.children.isEmpty ? "link" : "folder"
-                )
-            }
-            .padding(.top, 6)
-        } label: {
-            Label(group.label, systemImage: "rectangle.3.group")
-                .font(.caption.weight(.semibold))
-        }
-    }
-}
-
-struct SitePageTreeRow: View {
-    let node: APIClient.VisualSitePageNodeDTO
-
-    var body: some View {
-        TreeLinkRow(
-            label: node.label,
-            detail: node.path,
-            url: node.url,
-            icon: node.children.isEmpty ? "doc.text" : "folder"
-        )
-    }
-}
-
-private struct TreeLinkRow: View {
-    let label: String
-    let detail: String?
-    let url: String?
-    let icon: String
-
-    var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: icon)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .frame(width: 14)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(label)
-                    .font(.caption)
-                    .lineLimit(2)
-                if let detail, !detail.isEmpty, detail != label {
-                    Text(detail)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-            }
-
-            Spacer(minLength: 4)
-
-            if let url, !url.isEmpty {
-                Button {
-                    copy(url)
-                    AppStore.shared.uiStateStore.showInfo(String(localized: "Copied URL."))
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                }
-                .buttonStyle(.borderless)
-                .help("Copy URL")
-
-                Button {
-                    guard let target = URL(string: url) else { return }
-                    NSWorkspace.shared.open(target)
-                } label: {
-                    Image(systemName: "arrow.up.right.square")
-                }
-                .buttonStyle(.borderless)
-                .help("Open in browser")
-            }
-        }
-        .padding(.vertical, 2)
-    }
-}
-
 struct TechnologyCard: View {
     let technology: APIClient.VisualTechnologyDTO
 
@@ -125,114 +39,6 @@ struct TechnologyCard: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(technology.name), \(technology.category)")
         .accessibilityHint(evidenceSummary)
-    }
-}
-
-struct SnapshotColorChip: View {
-    let color: SnapshotColor
-
-    var body: some View {
-        Button {
-            copy(color.hex)
-            AppStore.shared.uiStateStore.showInfo(String(localized: "Copied \(color.hex)."))
-        } label: {
-            HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(hexString: color.hex) ?? .secondary.opacity(0.2))
-                    .frame(width: 28, height: 28)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(.secondary.opacity(0.2), lineWidth: 1)
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(color.hex.uppercased())
-                        .font(.system(.caption, design: .monospaced).weight(.semibold))
-                    if color.source != color.hex {
-                        Text(color.source)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "doc.on.doc")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(7)
-            .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 7))
-        }
-        .buttonStyle(.plain)
-        .help("Copy \(color.hex)")
-    }
-}
-
-struct PaletteChip: View {
-    let entry: PaletteEntry
-
-    var body: some View {
-        Button {
-            copy(entry.hex)
-            AppStore.shared.uiStateStore.showInfo(String(localized: "Copied \(entry.hex)."))
-        } label: {
-            HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(hexString: entry.hex) ?? .secondary.opacity(0.2))
-                    .frame(width: 28, height: 28)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(.secondary.opacity(0.2), lineWidth: 1)
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.hex.uppercased())
-                        .font(.system(.caption, design: .monospaced).weight(.semibold))
-                    if !entry.caption.isEmpty {
-                        Text(verbatim: entry.caption)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-                }
-                Spacer(minLength: 0)
-                if entry.occurrences > 1 {
-                    Text(verbatim: "\(entry.occurrences)x")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-            .padding(7)
-            .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 7))
-        }
-        .buttonStyle(.plain)
-        .help("Copy \(entry.hex)")
-    }
-}
-
-struct PaletteBand: View {
-    let title: LocalizedStringKey
-    let subtitle: LocalizedStringKey
-    let entries: [PaletteEntry]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title)
-                    .font(.caption2.bold())
-                    .foregroundStyle(.secondary)
-                Text(subtitle)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 132), spacing: 8)], spacing: 8) {
-                ForEach(entries) { entry in
-                    PaletteChip(entry: entry)
-                }
-            }
-        }
     }
 }
 
@@ -353,128 +159,12 @@ struct ComponentThumbnail: View {
     }
 }
 
-struct MetricPill: View {
-    let label: String
-    let value: Int
-
-    var body: some View {
-        VStack(spacing: 2) {
-            Text("\(value)")
-                .font(.caption.bold())
-            Text(LocalizedStringKey(label))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, minHeight: 58)
-        .padding(.vertical, 6)
-        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 6))
-    }
-}
-
 struct ComponentGroup: Identifiable {
     let title: String
     let icon: String
     let variants: [ComponentVariant]
-    /// Instances before collapsing, so the header can say "3 patterns, 11 uses".
-    let instanceCount: Int
 
     var id: String { title }
-}
-
-struct ComponentGroupView: View {
-    let group: ComponentGroup
-    let screenshotPath: String
-    let viewportWidth: Int
-
-    private var summary: LocalizedStringKey {
-        "\(group.variants.count) patterns · \(group.instanceCount) elements"
-    }
-
-    var body: some View {
-        DisclosureGroup {
-            VStack(alignment: .leading, spacing: 8) {
-                ForEach(group.variants) { variant in
-                    ElementSampleRow(
-                        sample: variant.representative,
-                        variant: variant,
-                        screenshotPath: screenshotPath,
-                        viewportWidth: viewportWidth
-                    )
-                }
-            }
-            .padding(.top, 6)
-        } label: {
-            HStack(spacing: 8) {
-                Label(LocalizedStringKey(group.title), systemImage: group.icon)
-                    .font(.caption.bold())
-                Spacer()
-                Text(summary)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .help("Distinct patterns / instances found")
-            }
-        }
-        .padding(8)
-        .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 7))
-    }
-}
-
-struct CSSVariableGroupView: View {
-    let group: CSSVariableGroup
-    @State private var isExpanded: Bool
-
-    init(group: CSSVariableGroup) {
-        self.group = group
-        _isExpanded = State(initialValue: !group.collapsed)
-    }
-
-    var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: 5) {
-                ForEach(group.variables) { variable in
-                    HStack(spacing: 8) {
-                        if let color = SnapshotColor.normalize(variable.value) {
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color(hexString: color.hex) ?? .clear)
-                                .frame(width: 14, height: 14)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 3)
-                                        .stroke(.secondary.opacity(0.25), lineWidth: 1)
-                                )
-                        }
-                        Text(verbatim: variable.name)
-                            .font(.system(.caption2, design: .monospaced).weight(.semibold))
-                            .lineLimit(1)
-                        Text(verbatim: variable.value)
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Spacer(minLength: 0)
-                        Button {
-                            copy("\(variable.name): \(variable.value)")
-                            AppStore.shared.uiStateStore.showInfo(String(localized: "Copied."))
-                        } label: {
-                            Image(systemName: "doc.on.doc")
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.tertiary)
-                    }
-                }
-            }
-            .padding(.top, 6)
-        } label: {
-            HStack(spacing: 8) {
-                Text(group.title)
-                    .font(.caption2.bold())
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text(verbatim: "\(group.variables.count)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-    }
 }
 
 struct InspectorList: View {
@@ -697,149 +387,27 @@ struct NetworkRequestList: View {
     }
 }
 
-struct ElementSampleRow: View {
-    let sample: APIClient.VisualElementSampleDTO
-    /// Present when this row stands for several identical instances.
-    var variant: ComponentVariant? = nil
-    /// Set to show a cut-out of the element; empty disables the thumbnail.
-    var screenshotPath: String = ""
-    var viewportWidth: Int = 0
-
-    var cssText: String {
-        """
-        \(sample.selectorHint) {
-          display: \(sample.display);
-          position: \(sample.position);
-          color: \(cssColor(sample.color));
-          background-color: \(cssColor(sample.backgroundColor));
-          font-family: \(sample.fontFamily);
-          font-size: \(sample.fontSize);
-          font-weight: \(sample.fontWeight);
-          line-height: \(sample.lineHeight);
-          letter-spacing: \(sample.letterSpacing);
-          text-transform: \(sample.textTransform);
-          margin: \(sample.margin);
-          padding: \(sample.padding);
-          border-radius: \(sample.borderRadius);
-          box-shadow: \(sample.boxShadow);
-        }
-        """
-    }
-
-    private var componentRole: String {
-        let tag = sample.tag.lowercased()
-        let selector = sample.selectorHint.lowercased()
-
-        if selector.contains("dropdown") || selector.contains("submenu") {
-            return "Dropdown control"
-        }
-        if tag == "header" { return "Page header" }
-        if tag == "nav" { return "Navigation area" }
-        if tag == "footer" { return "Page footer" }
-        if tag == "main" { return "Page content" }
-        if tag == "aside" { return "Sidebar" }
-        if tag == "section" || tag == "article" { return "Content section" }
-        if tag == "form" { return "Form" }
-        if tag == "input" || tag == "textarea" { return "Text field" }
-        if tag == "select" { return "Selection field" }
-        if tag == "label" { return "Form label" }
-        if tag == "button" { return "Button" }
-        if tag == "a" && (selector.contains("btn") || selector.contains("cta")) {
-            return "Call to action"
-        }
-        if tag == "a" && (selector.contains("nav") || selector.contains("menu") || selector.contains("anchor")) {
-            return "Menu link"
-        }
-        if selector.contains("card") || selector.contains("tile") { return "Card" }
-        return "Component"
-    }
-
-    var body: some View {
-        DisclosureGroup {
-            VStack(alignment: .leading, spacing: 8) {
-                if let variant, variant.texts.count > 1 {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Copy across instances")
-                            .font(.caption2.bold())
-                            .foregroundStyle(.secondary)
-                        ForEach(variant.texts.prefix(8), id: \.self) { text in
-                            Text(verbatim: "· \(text)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .textSelection(.enabled)
-                        }
-                    }
-                } else if !sample.text.isEmpty {
-                    Text(sample.text)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
-
-                Text("x \(sample.x), y \(sample.y), \(sample.width)x\(sample.height)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-
-                Text(cssText)
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 6))
-
-                Button {
-                    copy(cssText)
-                    AppStore.shared.uiStateStore.showInfo(String(localized: "CSS copied."))
-                } label: {
-                    Label("Copy CSS", systemImage: "doc.on.doc")
-                        .font(.caption)
-                }
-                .buttonStyle(.borderless)
-            }
-            .padding(.top, 6)
-        } label: {
-            HStack(spacing: 8) {
-                if !screenshotPath.isEmpty, viewportWidth > 0 {
-                    ComponentThumbnail(
-                        sample: sample,
-                        screenshotPath: screenshotPath,
-                        viewportWidth: viewportWidth
-                    )
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 5) {
-                        Text(LocalizedStringKey(componentRole))
-                            .font(.caption.weight(.semibold))
-                        Text(verbatim: "<\(sample.tag)>")
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                    }
-                    Text(verbatim: sample.selectorHint)
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                .layoutPriority(1)
-                Spacer()
-                VStack(alignment: .trailing, spacing: 3) {
-                    if let variant, variant.count > 1 {
-                        Text("\(variant.count) uses")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(Color.accentColor)
-                    }
-                    Text(verbatim: "\(sample.width) × \(sample.height) px")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(8)
-        .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 7))
-    }
-
-    func cssColor(_ value: String) -> String {
+/// The computed styles of one sampled element as a CSS rule, for copying.
+func elementSampleCSS(_ sample: APIClient.VisualElementSampleDTO) -> String {
+    func color(_ value: String) -> String {
         SnapshotColor.normalize(value)?.hex ?? value
     }
+    return """
+    \(sample.selectorHint) {
+      display: \(sample.display);
+      position: \(sample.position);
+      color: \(color(sample.color));
+      background-color: \(color(sample.backgroundColor));
+      font-family: \(sample.fontFamily);
+      font-size: \(sample.fontSize);
+      font-weight: \(sample.fontWeight);
+      line-height: \(sample.lineHeight);
+      letter-spacing: \(sample.letterSpacing);
+      text-transform: \(sample.textTransform);
+      margin: \(sample.margin);
+      padding: \(sample.padding);
+      border-radius: \(sample.borderRadius);
+      box-shadow: \(sample.boxShadow);
+    }
+    """
 }

@@ -116,13 +116,37 @@ struct InspectorString: Identifiable {
     }
 }
 
+/// The areas of the Styles section. Tokens come last: they summarize what the
+/// other four show value by value.
+enum DesignStylesArea: String, CaseIterable, Identifiable {
+    case colors
+    case type
+    case layout
+    case css
+    case tokens
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .colors: "Colors"
+        case .type: "Type"
+        case .layout: "Layout"
+        case .css: "CSS"
+        case .tokens: "Tokens"
+        }
+    }
+}
+
 struct DesignSystemBrowser: View {
     let viewport: APIClient.VisualViewportDTO
-    @State private var section = "Overview"
+    /// The inspected page, named in exported token files.
+    let pageURL: String
+    /// Owned by the tab so the overview can open a specific area.
+    @Binding var area: DesignStylesArea
     @State private var colorSource = "Design tokens"
     @State private var query = ""
     @State private var variableGroup = "all"
-    private let sections = ["Overview", "Colors", "Type", "Layout", "CSS"]
     private var samples: [APIClient.VisualElementSampleDTO] { viewport.elementSamples ?? [] }
     private var tokens: [PaletteEntry] { (viewport.cssVariables ?? []).colorTokens(limit: .max) }
     private var painted: [PaletteEntry] { samples.paintedPalette(limit: .max) }
@@ -140,62 +164,29 @@ struct DesignSystemBrowser: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("System area", selection: $section) {
-                ForEach(sections, id: \.self) { Text(LocalizedStringKey($0)).tag($0) }
+            Picker("Styles area", selection: $area) {
+                ForEach(DesignStylesArea.allCases) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented).labelsHidden()
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    switch section {
-                    case "Colors": colors
-                    case "Type": typography
-                    case "Layout": layout
-                    case "CSS": variables
-                    default: overview
+                    switch area {
+                    case .colors: colors
+                    case .type: typography
+                    case .layout: layout
+                    case .css: variables
+                    case .tokens:
+                        // Extracted here, once per render of this area, and
+                        // only while it is on screen.
+                        DesignTokensView(
+                            tokens: DesignTokenSet.extract(samples: samples, cssVariables: viewport.cssVariables ?? []),
+                            pageURL: pageURL
+                        )
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 16)
-            }.id(section)
+            }.id(area)
         }
-        .onChange(of: section) { _, _ in query = "" }
+        .onChange(of: area) { _, _ in query = "" }
         .onAppear { if tokens.isEmpty { colorSource = "In use" } }
-    }
-
-    private var overview: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("The visual essentials. Choose an area above for exact values.")
-                .font(.callout).foregroundStyle(.secondary)
-            SnapshotSection(title: "Palette", icon: "paintpalette") {
-                let colors = InspectorPaletteColor.grouped(tokens.isEmpty ? painted : tokens)
-                if colors.isEmpty {
-                    Text("No colors captured.").font(.caption).foregroundStyle(.secondary)
-                } else {
-                    HStack(spacing: 3) {
-                        ForEach(InspectorPaletteColor.preview(colors)) { color in
-                            RoundedRectangle(cornerRadius: 4).fill(Color(hexString: color.hex) ?? .clear)
-                                .frame(height: 32).help(color.hex.uppercased())
-                                .accessibilityLabel(color.hex.uppercased())
-                        }
-                    }
-                    Button("Explore \(colors.count) colors") { section = "Colors" }
-                        .buttonStyle(.borderless)
-                }
-            }
-            SnapshotSection(title: "Typography", icon: "textformat") {
-                let families = Array(Set(samples.map(\.fontFamily).filter { !$0.isEmpty } + viewport.observedFonts)).sorted()
-                Text(families.prefix(2).joined(separator: "\n")).font(.callout).lineLimit(3)
-                Text(samples.typeScale(limit: .max).map(\.fontSize).uniqued().joined(separator: " · "))
-                    .font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(2)
-                Button("Explore typography") { section = "Type" }.buttonStyle(.borderless)
-            }
-            SnapshotSection(title: "Architecture", icon: "cpu") {
-                if let technologies = viewport.technologies, !technologies.isEmpty {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
-                        ForEach(technologies) { TechnologyCard(technology: $0) }
-                    }
-                } else {
-                    Text("No technology signatures detected.").font(.caption).foregroundStyle(.secondary)
-                }
-            }
-        }
     }
 
     private var colors: some View {
@@ -294,12 +285,5 @@ private struct InspectorColorCard: View {
                     }
             }
         }.padding(10).background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-private extension Array where Element == String {
-    func uniqued() -> [String] {
-        var seen = Set<String>()
-        return filter { seen.insert($0).inserted }
     }
 }

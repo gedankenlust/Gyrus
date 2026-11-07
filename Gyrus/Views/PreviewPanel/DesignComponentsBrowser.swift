@@ -28,7 +28,7 @@ struct DesignComponentsBrowser: View {
                 HStack {
                     Picker("Component category", selection: $category) {
                         Text("All components").tag("all")
-                        ForEach(groups) { Text(LocalizedStringKey($0.title)).tag($0.id) }
+                        ForEach(groups) { Label(LocalizedStringKey($0.title), systemImage: $0.icon).tag($0.id) }
                     }.pickerStyle(.menu)
                     Spacer(minLength: 0)
                 }
@@ -87,7 +87,7 @@ struct DesignComponentsBrowser: View {
             InspectorField(title: "Spacing & corners", value: "padding: \(sample.padding) · radius: \(sample.borderRadius)")
             DisclosureGroup("CSS & text details") {
                 VStack(alignment: .leading, spacing: 10) {
-                    let css = ElementSampleRow(sample: sample).cssText
+                    let css = elementSampleCSS(sample)
                     Button("Copy CSS") { copy(css); AppStore.shared.uiStateStore.showInfo(String(localized: "CSS copied.")) }
                         .buttonStyle(.borderless)
                     Text(css).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
