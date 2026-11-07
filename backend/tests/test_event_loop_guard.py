@@ -237,7 +237,10 @@ async def test_background_job_cancel_from_a_worker_thread_stops_the_job():
     await job.start(runner)
     await asyncio.wait_for(started.wait(), 1)
     status = await asyncio.to_thread(job.cancel)
-    assert status["running"] is True  # cancellation is asynchronous
+    # Whether the returned status still says "running" is a race: the loop is
+    # free while the worker thread runs, and may finish the cancellation
+    # before cancel() reads the state. Only the outcome below is certain.
+    assert "running" in status
     for _ in range(100):
         if not job.is_running():
             break
