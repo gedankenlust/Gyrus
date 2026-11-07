@@ -367,6 +367,14 @@ VISUAL_EXTRACTOR_JS = r"""
     );
   }
 
+  function clippedByAncestor(el) {
+    if (getComputedStyle(el).position === 'fixed') return false;
+    for (let node = el.parentElement; node && node !== document.documentElement; node = node.parentElement) {
+      if (['hidden', 'clip', 'auto', 'scroll'].includes(getComputedStyle(node).overflowX)) return true;
+    }
+    return false;
+  }
+
   const visibleElements = Array.from(document.body?.querySelectorAll('*') || [])
     .slice(0, 2500)
     .filter((el) => {
@@ -381,7 +389,13 @@ VISUAL_EXTRACTOR_JS = r"""
     const style = getComputedStyle(el);
     const text = textOf(el);
 
-    if (rect.right > innerWidth + 3 || rect.left < -3) {
+    // Only a partly visible element is cut off for the reader. One entirely
+    // outside the viewport is a parked slide or a closed off-canvas menu,
+    // and one an ancestor clips (sliders, logo strips) never reaches the
+    // edge; a page that really scrolls sideways is reported as
+    // horizontal_overflow above.
+    const partlyVisible = rect.right > 0 && rect.left < innerWidth;
+    if (partlyVisible && (rect.right > innerWidth + 3 || rect.left < -3) && !clippedByAncestor(el)) {
       const outside = Math.max(rect.right - innerWidth, -rect.left);
       if (outside >= 4 && rect.width < documentWidth * 0.98) {
         addIssue(
