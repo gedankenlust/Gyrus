@@ -96,10 +96,8 @@ struct DesignAuditEvidence: View {
         if !description.isEmpty {
             characterCount(description)
         }
-        HStack(alignment: .top) {
-            InspectorField(title: "Language", value: seo?.language ?? "")
-            InspectorField(title: "Robots", value: seo?.robots ?? "")
-        }
+        InspectorField(title: "Language", value: seo?.language ?? "")
+        InspectorField(title: "Robots", value: seo?.robots ?? "")
         InspectorField(title: "Canonical URL", value: seo?.canonical ?? "")
         MetaList(title: "Open Graph", items: seo?.openGraph ?? [])
     }

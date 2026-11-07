@@ -108,7 +108,9 @@ struct ContrastPair: Identifiable, Hashable, Sendable {
 
     var id: String { "\(foregroundHex)|\(backgroundHex)|\(isLargeText)" }
 
-    var formattedRatio: String { String(format: "%.2f:1", ratio) }
+    /// Uses the reader's decimal separator, so the German audit text reads
+    /// "1,20:1" next to the "4,5:1" threshold instead of mixing separators.
+    var formattedRatio: String { ratio.formatted(.number.precision(.fractionLength(2))) + ":1" }
 }
 
 enum ContrastAnalyzer {

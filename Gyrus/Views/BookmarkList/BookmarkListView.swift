@@ -63,13 +63,15 @@ struct BookmarkListView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            // Holds its space, so the title does not jump while refreshing.
-            ProgressView()
-                .controlSize(.small)
-                .opacity(uiStateStore.isRefreshingBookmarks ? 1 : 0)
-                .accessibilityLabel("Refreshing bookmarks")
-                .accessibilityHidden(!uiStateStore.isRefreshingBookmarks)
+        // Only while refreshing: on macOS 26 every toolbar item sits on its own
+        // glass capsule, so a spinner kept invisible to hold its space showed
+        // as an empty capsule next to the title the rest of the time.
+        if uiStateStore.isRefreshingBookmarks {
+            ToolbarItem(placement: .navigation) {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Refreshing bookmarks")
+            }
         }
 
         ToolbarItemGroup(placement: .primaryAction) {
@@ -227,107 +229,28 @@ struct SelectionStatusBar: View {
         HStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(Color.accentColor)
-            Text(count == 1 ? "1 bookmark selected" : "\(count) bookmarks selected")
-                .font(.callout.weight(.medium))
 
-            Spacer()
-
-            // Keep one clear entry point: organize automatically or choose tags manually.
-            if let status = appStore.jobs.batchAutoTagStatus, status.running {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text(progressLabel(status))
-                        .font(.caption).foregroundStyle(.secondary)
-                    Button {
-                        Task { await appStore.jobs.cancelBatchAutoTag() }
-                    } label: {
-                        Label("Stop", systemImage: "stop.fill")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .tint(.red)
-                    .help("Stop analysis — no tags are changed before review")
+            // A narrow list column cannot fit the sentence and the titled
+            // buttons; hyphenating the sentence over four lines and cutting
+            // the buttons to "…" helped nobody. Fall back to the bare count
+            // and icon buttons, whose names stay in the tooltips.
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    Text(count == 1 ? "1 bookmark selected" : "\(count) bookmarks selected")
+                        .font(.callout.weight(.medium))
+                        .lineLimit(1)
+                    Spacer(minLength: 12)
+                    actions
                 }
-            } else if !collectionStore.showTrash {
-                if bookmarkStore.isFilteringSelection {
-                    ProgressView().controlSize(.small)
-                        .accessibilityLabel("Checking tags…")
+                HStack(spacing: 8) {
+                    Text(verbatim: "\(count)")
+                        .font(.callout.weight(.medium).monospacedDigit())
+                        .lineLimit(1)
+                        .accessibilityLabel(count == 1 ? "1 bookmark selected" : "\(count) bookmarks selected")
+                    Spacer(minLength: 8)
+                    actions
+                        .labelStyle(.iconOnly)
                 }
-                Menu {
-                    Button {
-                        Task { await appStore.deselectTaggedBookmarks() }
-                    } label: {
-                        Label("Deselect tagged bookmarks", systemImage: "minus.circle")
-                    }
-
-                    Divider()
-
-                    Button {
-                        let ids = Array(bookmarkStore.selectedIds)
-                        Task { await appStore.jobs.startTaxonomyReview(ids: ids) }
-                    } label: {
-                        Label("Organize with AI", systemImage: "wand.and.stars")
-                    }
-                    .disabled(!AppSettings.shared.aiBrainConfig.aiEnabled
-                              || bookmarkStore.selectedIds.count < BackgroundJobs.minTaxonomyBookmarks)
-
-                    if !AppSettings.shared.aiBrainConfig.aiEnabled {
-                        Text("Enable AI in Settings to organize automatically")
-                    } else if bookmarkStore.selectedIds.count < BackgroundJobs.minTaxonomyBookmarks {
-                        Text("Select at least 10 bookmarks for AI organization")
-                    }
-
-                    Divider()
-
-                    Button {
-                        uiStateStore.tagAssignmentForIds = bookmarkStore.selectedIds
-                    } label: {
-                        Label("Choose Tags Manually…", systemImage: "tag")
-                    }
-                } label: {
-                    Label("Organize", systemImage: "wand.and.stars")
-                }
-                .controlSize(.small)
-                .tint(.purple)
-                .disabled(bookmarkStore.isFilteringSelection)
-                .help("Organize the selected bookmarks automatically or choose tags manually")
-            }
-
-            if collectionStore.showTrash {
-                Button {
-                    let ids = bookmarkStore.selectedIds
-                    Task { await appStore.trash.restoreFromTrash(ids: ids) }
-                } label: {
-                    Label("Restore", systemImage: "arrow.uturn.backward")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-                Button(role: .destructive) {
-                    appStore.trash.requestPurge(ids: bookmarkStore.selectedIds)
-                } label: {
-                    Label("Delete Permanently", systemImage: "trash.slash")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .tint(.red)
-            } else {
-                Button {
-                    appStore.requestOpenInBrowser(ids: bookmarkStore.selectedIds)
-                } label: {
-                    Label("Open", systemImage: "safari")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-                Button(role: .destructive) {
-                    appStore.trash.requestDeleteSelected()
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .tint(.red)
             }
 
             Button {
@@ -345,6 +268,113 @@ struct SelectionStatusBar: View {
         .padding(.vertical, 8)
         .background(.bar)
         .overlay(Divider(), alignment: .top)
+    }
+
+    /// The selection's actions. Both bar layouts show the same controls, so
+    /// the compact one only changes how their labels are drawn.
+    @ViewBuilder
+    private var actions: some View {
+        // Keep one clear entry point: organize automatically or choose tags manually.
+        if let status = appStore.jobs.batchAutoTagStatus, status.running {
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text(progressLabel(status))
+                    .font(.caption).foregroundStyle(.secondary)
+                Button {
+                    Task { await appStore.jobs.cancelBatchAutoTag() }
+                } label: {
+                    Label("Stop", systemImage: "stop.fill")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .tint(.red)
+                .help("Stop analysis — no tags are changed before review")
+            }
+        } else if !collectionStore.showTrash {
+            if bookmarkStore.isFilteringSelection {
+                ProgressView().controlSize(.small)
+                    .accessibilityLabel("Checking tags…")
+            }
+            Menu {
+                Button {
+                    Task { await appStore.deselectTaggedBookmarks() }
+                } label: {
+                    Label("Deselect tagged bookmarks", systemImage: "minus.circle")
+                }
+
+                Divider()
+
+                Button {
+                    let ids = Array(bookmarkStore.selectedIds)
+                    Task { await appStore.jobs.startTaxonomyReview(ids: ids) }
+                } label: {
+                    Label("Organize with AI", systemImage: "wand.and.stars")
+                }
+                .disabled(!AppSettings.shared.aiBrainConfig.aiEnabled
+                          || bookmarkStore.selectedIds.count < BackgroundJobs.minTaxonomyBookmarks)
+
+                if !AppSettings.shared.aiBrainConfig.aiEnabled {
+                    Text("Enable AI in Settings to organize automatically")
+                } else if bookmarkStore.selectedIds.count < BackgroundJobs.minTaxonomyBookmarks {
+                    Text("Select at least 10 bookmarks for AI organization")
+                }
+
+                Divider()
+
+                Button {
+                    uiStateStore.tagAssignmentForIds = bookmarkStore.selectedIds
+                } label: {
+                    Label("Choose Tags Manually…", systemImage: "tag")
+                }
+            } label: {
+                Label("Organize", systemImage: "wand.and.stars")
+            }
+            .controlSize(.small)
+            .tint(.purple)
+            .disabled(bookmarkStore.isFilteringSelection)
+            .help("Organize the selected bookmarks automatically or choose tags manually")
+        }
+
+        if collectionStore.showTrash {
+            Button {
+                let ids = bookmarkStore.selectedIds
+                Task { await appStore.trash.restoreFromTrash(ids: ids) }
+            } label: {
+                Label("Restore", systemImage: "arrow.uturn.backward")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Restore")
+
+            Button(role: .destructive) {
+                appStore.trash.requestPurge(ids: bookmarkStore.selectedIds)
+            } label: {
+                Label("Delete Permanently", systemImage: "trash.slash")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Delete Permanently")
+            .tint(.red)
+        } else {
+            Button {
+                appStore.requestOpenInBrowser(ids: bookmarkStore.selectedIds)
+            } label: {
+                Label("Open", systemImage: "safari")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Open")
+
+            Button(role: .destructive) {
+                appStore.trash.requestDeleteSelected()
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Delete")
+            .tint(.red)
+        }
     }
 
     private func progressLabel(_ status: BatchAutoTagStatus) -> String {

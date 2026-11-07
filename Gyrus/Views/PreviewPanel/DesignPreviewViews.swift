@@ -108,7 +108,7 @@ struct LiveViewportFrame: View {
 struct ViewportComparisonStrip: View {
     let viewports: [APIClient.VisualViewportDTO]
 
-    /// A common width rather than a common scale: at a shared scale the mobile
+    /// At most a common width rather than a common scale: at a shared scale the mobile
     /// frame would be a fifth of the desktop one and too small to read. Equal
     /// width makes the layouts comparable, and the true dimensions are printed
     /// under each frame.
@@ -128,40 +128,44 @@ struct ViewportComparisonStrip: View {
         }
     }
 
+    /// Frames share the panel's width up to `cellWidth` each. A horizontal
+    /// scroll view without indicators cut the last frame off at the panel
+    /// edge with nothing saying more was there.
     private var comparisonRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .top, spacing: 12) {
-                ForEach(viewports, id: \.name) { viewport in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 5) {
-                            Image(systemName: designViewportIcon(viewport.name))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            Text(verbatim: viewport.name.capitalized)
-                                .font(.caption.weight(.semibold))
-                        }
-
-                        ViewportScreenshotImage(viewport: viewport)
-                            .frame(
-                                width: cellWidth,
-                                height: cellWidth * CGFloat(max(viewport.height, 1)) / CGFloat(max(viewport.width, 1))
-                            )
-                            .background(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7)
-                                    .stroke(.secondary.opacity(0.25), lineWidth: 1)
-                            )
-                            .shadow(color: .black.opacity(0.1), radius: 6, y: 3)
-
-                        Text(verbatim: "\(viewport.width)x\(viewport.height)")
+        HStack(alignment: .top, spacing: 12) {
+            ForEach(viewports, id: \.name) { viewport in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 5) {
+                        Image(systemName: designViewportIcon(viewport.name))
                             .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
+                        Text(verbatim: viewport.name.capitalized)
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
                     }
+
+                    ViewportScreenshotImage(viewport: viewport)
+                        .aspectRatio(
+                            CGFloat(max(viewport.width, 1)) / CGFloat(max(viewport.height, 1)),
+                            contentMode: .fit
+                        )
+                        .background(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7)
+                                .stroke(.secondary.opacity(0.25), lineWidth: 1)
+                        )
+                        .shadow(color: .black.opacity(0.1), radius: 6, y: 3)
+
+                    Text(verbatim: "\(viewport.width)x\(viewport.height)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
                 }
+                .frame(maxWidth: cellWidth, alignment: .leading)
             }
-            .padding(.vertical, 2)
         }
+        .padding(.vertical, 2)
     }
 }
 
@@ -351,19 +355,7 @@ struct ResponsiveIssueRow: View {
         }
     }
 
-    private var localizedTitle: Text {
-        switch issue.kind {
-        case "missing_viewport_meta": Text("Mobile viewport configuration is missing")
-        case "horizontal_overflow": Text("Page overflows horizontally")
-        case "offscreen_element": Text("Element extends beyond the viewport")
-        case "clipped_content": Text("Content may be clipped")
-        case "small_text": Text("Very small text")
-        case "small_touch_target": Text("Small touch target")
-        case "large_sticky_element": Text("Sticky element covers much of the viewport")
-        case "overlapping_controls": Text("Interactive controls overlap")
-        default: pageText(issue.title, localize: true)
-        }
-    }
+    private var localizedTitle: Text { Text(verbatim: issue.localizedTitle) }
 
     private var localizedDetail: Text {
         switch issue.kind {

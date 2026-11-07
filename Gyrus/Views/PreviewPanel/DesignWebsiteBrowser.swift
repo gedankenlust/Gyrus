@@ -71,10 +71,10 @@ struct DesignWebsiteBrowser: View {
                 .font(.callout).foregroundStyle(.secondary)
             InspectorField(title: "Page title", value: viewport.seo?.title ?? viewport.pageTitle ?? "")
             InspectorField(title: "Search description", value: viewport.seo?.metaDescription ?? viewport.metaDescription ?? "")
-            HStack(alignment: .top) {
-                InspectorField(title: "Language", value: viewport.seo?.language ?? "")
-                InspectorField(title: "Robots", value: viewport.seo?.robots ?? "")
-            }
+            // One field per row: side by side, the first field's copy button
+            // ended in the middle of the panel and read as belonging to neither.
+            InspectorField(title: "Language", value: viewport.seo?.language ?? "")
+            InspectorField(title: "Robots", value: viewport.seo?.robots ?? "")
             InspectorField(title: "Canonical URL", value: viewport.seo?.canonical ?? "")
             SnapshotSection(title: "Headings", icon: "textformat.123") {
                 let headings = viewport.structure.h1.map { "H1 · \($0)" } + viewport.structure.h2.map { "H2 · \($0)" }
