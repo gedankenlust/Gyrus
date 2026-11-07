@@ -88,7 +88,7 @@ struct DesignComponentsBrowser: View {
             DisclosureGroup("CSS & text details") {
                 VStack(alignment: .leading, spacing: 10) {
                     let css = ElementSampleRow(sample: sample).cssText
-                    Button("Copy CSS") { copy(css); AppStore.shared.uiStateStore.showInfo("CSS copied.") }
+                    Button("Copy CSS") { copy(css); AppStore.shared.uiStateStore.showInfo(String(localized: "CSS copied.")) }
                         .buttonStyle(.borderless)
                     Text(css).font(.system(.caption, design: .monospaced)).textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)

@@ -8,7 +8,6 @@ struct SidebarView: View {
     @Environment(CollectionStore.self) private var collectionStore
     @Environment(TagStore.self) private var tagStore
     @Environment(UIStateStore.self) private var uiStateStore
-    @Binding var showImport: Bool
 
     @State private var selection: Set<String> = ["__all__"]
     @State private var showExportSheet = false
@@ -82,6 +81,7 @@ struct SidebarView: View {
             bookmarkStore: bookmarkStore
         ))
         .navigationTitle("Gyrus")
+        .onReceive(NotificationCenter.default.publisher(for: .showExport)) { _ in showExportSheet = true }
         .sheet(item: $exportFolder) { col in
             ExportSheet(
                 isPresented: Binding(get: { exportFolder != nil },
@@ -108,113 +108,54 @@ struct SidebarView: View {
 
     // MARK: - Sub-areas
 
+    /// Library maintenance (link check, metadata refresh, import/export) lives
+    /// in the Library menu. The sidebar only shows progress while a job runs,
+    /// so the folder list keeps its space the rest of the time.
     @ViewBuilder
     private var bottomActionsArea: some View {
-        VStack(spacing: 0) {
-            if let status = uiStateStore.linkCheckStatus, status.running {
-                LinkCheckProgressBar(status: status)
-            }
-            Divider()
-
-            // Row 1: prominent "Check All Links"
-            Button {
-                Task { await appStore.startLinkCheck() }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: uiStateStore.linkCheckStatus?.running == true
-                          ? "antenna.radiowaves.left.and.right"
-                          : "checkmark.shield.fill")
-                        .foregroundStyle(Color.accentColor)
-                    Text(uiStateStore.linkCheckStatus?.running == true ? "Checking links…" : "Check All Links")
-                        .font(.callout.weight(.medium))
-                    Spacer()
-                    if uiStateStore.linkCheckStatus?.running != true {
-                        Text("\(bookmarkStore.totalBookmarkCount)")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                            .monospacedDigit()
+        let linkCheck = uiStateStore.linkCheckStatus.flatMap { $0.running ? $0 : nil }
+        let metadata = uiStateStore.metadataRefreshStatus.flatMap { $0.running ? $0 : nil }
+        if linkCheck != nil || metadata != nil {
+            VStack(spacing: 0) {
+                Divider()
+                if let linkCheck {
+                    LinkCheckProgressBar(status: linkCheck)
+                }
+                if let metadata {
+                    MetadataRefreshProgressBar(status: metadata) {
+                        Task { await appStore.cancelMetadataRefresh() }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .disabled(uiStateStore.linkCheckStatus?.running == true)
-            .help("Finds dead links (404, timeout). Takes a few minutes for large collections.")
-
-            Divider()
-
-            // Row 2: Refresh Metadata — co-located with the link check so both
-            // "freshen everything" passes live in one place. Kept separate
-            // because a link check is a fast HEAD; metadata needs a full fetch.
-            Button {
-                Task { await appStore.startMetadataRefresh() }
-            } label: {
-                let running = uiStateStore.metadataRefreshStatus?.running == true
-                HStack(spacing: 8) {
-                    Image(systemName: running ? "arrow.triangle.2.circlepath" : "photo.on.rectangle.angled")
-                        .foregroundStyle(.secondary)
-                    Text(running ? "Refreshing metadata…" : "Refresh Metadata")
-                        .font(.callout.weight(.medium))
-                    Spacer()
-                    if let s = uiStateStore.metadataRefreshStatus, s.running {
-                        Text("\(s.processed)/\(s.total)")
-                            .font(.caption2).foregroundStyle(.tertiary).monospacedDigit()
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(uiStateStore.metadataRefreshStatus?.running == true)
-            .help("Re-fetches favicons, descriptions and preview images for every bookmark.")
-
-            if uiStateStore.metadataRefreshStatus?.running == true {
-                Button {
-                    Task { await appStore.cancelMetadataRefresh() }
-                } label: {
-                    Label("Stop metadata refresh", systemImage: "stop.fill")
-                }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
-                .help("Already saved metadata is kept")
-                .padding(.bottom, 6)
-            }
-
-            Divider()
-
-            // Import / Export row
-            HStack(spacing: 8) {
-                Button {
-                    showImport = true
-                } label: {
-                    Label("Import", systemImage: "square.and.arrow.down")
-                        .font(.callout.weight(.medium))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Import bookmarks from a browser")
-
-                Button {
-                    showExportSheet = true
-                } label: {
-                    Label("Export", systemImage: "square.and.arrow.up")
-                        .font(.callout.weight(.medium))
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Export Bookmarks")
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
     }
 
+}
+
+struct MetadataRefreshProgressBar: View {
+    let status: MetadataRefreshStatus
+    let onStop: () -> Void
+
+    var body: some View {
+        let fraction = status.total > 0 ? Double(status.processed) / Double(status.total) : 0
+        VStack(spacing: 4) {
+            HStack {
+                Text("Refreshing metadata… \(status.processed) / \(status.total)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Stop", action: onStop)
+                    .buttonStyle(.borderless)
+                    .controlSize(.mini)
+                    .help("Already saved metadata is kept")
+            }
+            ProgressView(value: fraction)
+                .progressViewStyle(.linear)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+    }
 }
 
 // MARK: - Modifiers
@@ -317,7 +258,6 @@ struct LinkCheckProgressBar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(.bar)
     }
 }
 
@@ -332,53 +272,57 @@ struct TagEditorSheet: View {
     var errorMessage: String? = nil
     var isSaving = false
 
+    private static let presets: [(Color, LocalizedStringKey)] = [
+        (.red, "Red"), (.orange, "Orange"), (.yellow, "Yellow"), (.green, "Green"),
+        (.teal, "Teal"), (.blue, "Blue"), (.purple, "Purple"), (.pink, "Pink"),
+    ]
+
+    private var canSave: Bool {
+        !isSaving && !name.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(alignment: .leading, spacing: 20) {
             Text(title).font(.title3.bold())
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Name").font(.callout.weight(.medium))
-                TextField("e.g. important", text: $name)
-                    .textFieldStyle(.roundedBorder)
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Color").font(.callout.weight(.medium))
-                HStack(spacing: 6) {
-                    ForEach([Color.red, .orange, .yellow, .green, .teal, .blue, .purple, .pink], id: \.self) { preset in
-                        Circle()
-                            .fill(preset)
-                            .frame(width: 22, height: 22)
-                            .overlay(
-                                Circle().strokeBorder(
-                                    color.toHex() == preset.toHex() ? Color.primary : Color.clear,
-                                    lineWidth: 2
-                                )
-                            )
-                            .onTapGesture { color = preset }
+            Form {
+                TextField("Name", text: $name, prompt: Text("e.g. important"))
+                    .onSubmit { if canSave { onSave() } }
+                LabeledContent("Color") {
+                    HStack(spacing: 6) {
+                        ForEach(Self.presets.indices, id: \.self) { index in
+                            let (preset, label) = Self.presets[index]
+                            let selected = color.toHex() == preset.toHex()
+                            Button { color = preset } label: {
+                                Circle()
+                                    .fill(preset)
+                                    .frame(width: 20, height: 20)
+                                    .overlay(Circle().strokeBorder(selected ? Color.primary : .clear, lineWidth: 2))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(Text(label))
+                            .accessibilityAddTraits(selected ? .isSelected : [])
+                        }
+                        ColorPicker("Custom Color", selection: $color, supportsOpacity: false)
+                            .labelsHidden()
+                            .help("Custom color")
                     }
-                    Spacer()
-                    ColorPicker("", selection: $color, supportsOpacity: false)
-                        .labelsHidden()
-                        .help("Custom color")
                 }
             }
 
             if let errorMessage {
-                Label(errorMessage, systemImage: "exclamationmark.triangle").foregroundStyle(.red)
+                Label(errorMessage, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
             }
-            if isSaving { ProgressView() }
-            HStack {
-                Button("Cancel") { onCancel() }.buttonStyle(.bordered)
-                Spacer()
-                Button("Save") { onSave() }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
+
+            SheetButtons(
+                cancel: .cancel(onCancel),
+                primary: SheetAction(title: "Save", isDisabled: !canSave, isWorking: isSaving, perform: onSave)
+            )
         }
-        .disabled(isSaving)
-        .padding(24)
-        .frame(width: 360)
+        .padding(20)
+        .frame(width: 380)
     }
 }
 
@@ -389,16 +333,12 @@ struct ColorPickerSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(alignment: .leading, spacing: 20) {
             Text(title).font(.title3.bold())
             ColorPicker("Color", selection: $color, supportsOpacity: false)
-            HStack {
-                Button("Cancel") { onCancel() }.buttonStyle(.bordered)
-                Spacer()
-                Button("Save") { onSave() }.buttonStyle(.borderedProminent)
-            }
+            SheetButtons(cancel: .cancel(onCancel), primary: SheetAction(title: "Save", perform: onSave))
         }
-        .padding(24)
+        .padding(20)
         .frame(width: 320)
     }
 }

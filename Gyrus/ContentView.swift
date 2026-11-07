@@ -18,10 +18,25 @@ struct ContentView: View {
     @State private var isSavingTag = false
     @State private var newTagColor: Color = .blue
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @AppStorage(InspectorVisibility.storageKey) private var showInspector = true
+
+    private var semanticSearchAvailable: Bool {
+        AppSettings.shared.aiBrainConfig.aiEnabled && bookmarkStore.semanticSearchAvailable
+    }
 
     private var confirmTitle: String {
         let n = uiStateStore.pendingBatchOpen?.count ?? 0
         return String(localized: "Open \(n) bookmarks at once?")
+    }
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var toastAnimation: Animation {
+        reduceMotion ? .easeInOut(duration: 0.15) : .spring(duration: 0.3)
+    }
+
+    private func toastTransition(edge: Edge) -> AnyTransition {
+        reduceMotion ? .opacity : .move(edge: edge).combined(with: .opacity)
     }
 
     private var purgeConfirmTitle: String {
@@ -41,20 +56,44 @@ struct ContentView: View {
     }
 
     var body: some View {
+        let base = librarySplitView
+            .disabled(appStore.isReplacingLibrary)
+        let sheeted = withSheets(base)
+        let confirmed = withDialogs(sheeted)
+        return withOverlays(confirmed)
+    }
+
+    private var librarySplitView: some View {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            SidebarView()
+                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
+        } detail: {
+            BookmarkListView(showAddBookmark: $showAddBookmark, showInspector: $showInspector)
+                .frame(minWidth: 320)
+                // The preview is an inspector the user can hide (⌥⌘I), so a
+                // narrow window keeps a usable list instead of three cramped
+                // fixed columns.
+                .inspector(isPresented: $showInspector) {
+                    PreviewPanelView()
+                        .inspectorColumnWidth(min: 340, ideal: 480, max: 960)
+                }
+        }
+        .searchable(
+            text: Binding(
+                get: { bookmarkStore.searchQuery },
+                set: { appStore.scheduleSearch($0) }
+            ),
+            placement: .toolbar,
+            prompt: bookmarkStore.semanticSearchEnabled && semanticSearchAvailable
+                ? Text("Search by meaning")
+                : Text("Search bookmarks and tags")
+        )
+    }
+
+    private func withSheets(_ content: some View) -> some View {
         @Bindable var bookmarkStore = bookmarkStore
         @Bindable var uiStateStore = uiStateStore
-
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarView(showImport: $showImport)
-                .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 280)
-        } content: {
-            BookmarkListView(showAddBookmark: $showAddBookmark)
-                .navigationSplitViewColumnWidth(min: 280, ideal: 420)
-        } detail: {
-            PreviewPanelView()
-            .navigationSplitViewColumnWidth(min: 380, ideal: 720)
-        }
-        .disabled(appStore.isReplacingLibrary)
+        return content
         .sheet(isPresented: $showImport) {
             ImportWizardView(isPresented: $showImport)
         }
@@ -135,12 +174,28 @@ struct ContentView: View {
                 )
             }
         }
+        .sheet(item: Binding(
+            get: { uiStateStore.batchTagReview },
+            set: { uiStateStore.batchTagReview = $0 }
+        )) { payload in
+            TagReviewSheet(payload: payload) {
+                uiStateStore.batchTagReview = nil
+                Task { await appStore.discardTaxonomyDraft(payload.draft) }
+            } onApply: { edits in
+                uiStateStore.batchTagReview = nil
+                Task { await appStore.applyTaxonomyDraft(payload.draft, edits: edits) }
+            }
+        }
         .onAppear {
             // First launch starts with the core bookmark workflow.
             if !AppSettings.shared.didCompleteBrainOnboarding {
                 showWelcome = true
             }
         }
+    }
+
+    private func withDialogs(_ content: some View) -> some View {
+        content
         .confirmationDialog(
             confirmTitle,
             isPresented: Binding(
@@ -205,34 +260,33 @@ struct ContentView: View {
         } message: {
             Text(uiStateStore.batchTagFailure ?? "No tag system could be created.")
         }
+    }
+
+    private func withOverlays(_ content: some View) -> some View {
+        content
         .overlay(alignment: .top) {
             VStack(spacing: 6) {
-                if let error = appStore.loadError {
-                    HStack {
-                        Label(error, systemImage: "exclamationmark.triangle")
-                        Button("Retry") { Task { await appStore.loadAll() } }
-                    }.padding(10).background(.regularMaterial)
-                }
+                // A failed library load is shown in the list itself, with Retry.
                 if let error = bookmarkStore.draftStorageError {
-                    Label(error, systemImage: "exclamationmark.triangle").padding(10).background(.regularMaterial)
+                    StatusBanner(message: error)
                 }
                 if let error = AIConfigSync.shared.error {
-                    Label(error, systemImage: "exclamationmark.triangle").padding(10).background(.regularMaterial)
+                    StatusBanner(message: error)
                 }
                 if let msg = uiStateStore.errorMessage {
-                    ErrorToast(message: msg) { uiStateStore.errorMessage = nil }
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .animation(.spring(duration: 0.3), value: uiStateStore.errorMessage)
+                    ToastView(kind: .error, message: msg) { uiStateStore.errorMessage = nil }
+                        .transition(toastTransition(edge: .top))
                         .zIndex(100)
                 }
                 if let msg = uiStateStore.infoMessage {
-                    InfoToast(message: msg) { uiStateStore.infoMessage = nil }
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                        .animation(.spring(duration: 0.3), value: uiStateStore.infoMessage)
+                    ToastView(kind: .info, message: msg) { uiStateStore.infoMessage = nil }
+                        .transition(toastTransition(edge: .top))
                         .zIndex(99)
                 }
             }
             .padding(.top, 8)
+            .animation(toastAnimation, value: uiStateStore.errorMessage)
+            .animation(toastAnimation, value: uiStateStore.infoMessage)
         }
         .overlay(alignment: .bottom) {
             if let msg = uiStateStore.undoMessage {
@@ -244,26 +298,14 @@ struct ContentView: View {
                 }
                 .id(uiStateStore.undoGeneration)
                 .padding(.bottom, 20)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .animation(.spring(duration: 0.3), value: uiStateStore.undoMessage)
+                .transition(toastTransition(edge: .bottom))
                 .zIndex(99)
             }
         }
+        .animation(toastAnimation, value: uiStateStore.undoMessage)
         .overlay {
             if showCommandPalette {
                 CommandPaletteView(isPresented: $showCommandPalette)
-            }
-        }
-        .sheet(item: Binding(
-            get: { uiStateStore.batchTagReview },
-            set: { uiStateStore.batchTagReview = $0 }
-        )) { payload in
-            TagReviewSheet(payload: payload) {
-                uiStateStore.batchTagReview = nil
-                Task { await appStore.discardTaxonomyDraft(payload.draft) }
-            } onApply: { edits in
-                uiStateStore.batchTagReview = nil
-                Task { await appStore.applyTaxonomyDraft(payload.draft, edits: edits) }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .showImport)) { _ in showImport = true }
@@ -292,59 +334,61 @@ struct ContentView: View {
 
 }
 
-struct ErrorToast: View {
+/// Transient feedback at the top of the window.
+struct ToastView: View {
+    enum Kind { case error, info }
+    let kind: Kind
     let message: String
     let onDismiss: () -> Void
 
+    private var tint: Color { kind == .error ? .red : .accentColor }
+    private var icon: String { kind == .error ? "exclamationmark.triangle.fill" : "info.circle.fill" }
+
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
+            Image(systemName: icon)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
             Text(message)
                 .font(.callout)
-                .lineLimit(2)
-            Spacer()
-            Button { onDismiss() } label: {
+                .lineLimit(3)
+                .textSelection(.enabled)
+            Spacer(minLength: 8)
+            Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.caption.bold())
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
+            .accessibilityLabel("Dismiss")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.red.opacity(0.3), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(tint.opacity(0.3), lineWidth: 1))
         .padding(.horizontal, 20)
         .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isStaticText)
     }
 }
 
-struct InfoToast: View {
+/// A condition that stays until it is resolved (note drafts can't be saved,
+/// AI settings didn't sync) — same shape as a toast, without a dismiss button.
+struct StatusBanner: View {
     let message: String
-    let onDismiss: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "info.circle.fill")
-                .foregroundStyle(.blue)
-            Text(message)
-                .font(.callout)
-                .lineLimit(2)
-            Spacer()
-            Button { onDismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.bold())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+        Label {
+            Text(message).font(.callout).textSelection(.enabled)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.blue.opacity(0.3), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Color.orange.opacity(0.3), lineWidth: 1))
         .padding(.horizontal, 20)
-        .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
     }
 }
 
@@ -367,67 +411,55 @@ struct UndoToast: View {
             // Countdown ring — how long undo stays available
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.3), lineWidth: 3)
+                    .stroke(Color.secondary.opacity(0.25), lineWidth: 3)
                 Circle()
                     .trim(from: 0, to: progress)
-                    .stroke(Color.white, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 Text("\(secondsLeft)")
                     .font(.footnote.weight(.bold).monospacedDigit())
-                    .foregroundStyle(.white)
             }
-            .frame(width: 32, height: 32)
-
-            Image(systemName: "trash.fill")
-                .foregroundStyle(.white.opacity(0.9))
+            .frame(width: 30, height: 30)
+            .accessibilityHidden(true)
 
             Text(message)
                 .font(.body.weight(.semibold))
-                .foregroundStyle(.white)
                 .lineLimit(1)
 
             Spacer(minLength: 16)
 
-            Button { onUndo() } label: {
+            // Material, not the accent color, behind the text: white on a
+            // yellow or orange accent was unreadable.
+            Button(action: onUndo) {
                 Label("Undo", systemImage: "arrow.uturn.backward")
-                    .font(.body.weight(.bold))
-                    .foregroundStyle(Color.accentColor)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 7)
-                    .background(Color.white, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderedProminent)
 
-            Button { onDismiss() } label: {
+            Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.callout.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.75))
             }
             .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("Dismiss")
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.secondary.opacity(0.2), lineWidth: 1))
+        .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
         .padding(.horizontal, 20)
-        .padding(.vertical, 14)
-        .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(Color.white.opacity(0.25), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
-        .padding(.horizontal, 20)
+        .accessibilityElement(children: .contain)
         .onAppear {
             startDate = Date()
             progress = 1.0
-            
-            // Task-based progress updates
             progressTask?.cancel()
             progressTask = Task {
                 while !Task.isCancelled {
                     let elapsed = Date().timeIntervalSince(startDate)
                     progress = max(0, 1 - elapsed / duration)
-                    
                     if progress <= 0 { break }
-                    
-                    try? await Task.sleep(for: .milliseconds(50))
+                    try? await Task.sleep(for: .milliseconds(100))
                 }
             }
         }

@@ -4,24 +4,24 @@ import ServiceManagement
 // MARK: - Root
 
 struct SettingsView: View {
-    @State private var settings = AppSettings.shared
-
     var body: some View {
-        // Native macOS preferences look: tabs render as a top toolbar, each
-        // pane sizes the window. No NavigationSplitView collapse button.
+        // Native macOS preferences: tabs render as a top toolbar and each
+        // pane sets its own size, so short panes don't sit in a tall empty
+        // window. About lives in the standard About panel (Gyrus menu).
         TabView {
             GeneralPane()
+                .frame(width: 560, height: 560)
                 .tabItem { Label("General", systemImage: "gear") }
             AppearancePane()
+                .frame(width: 560, height: 360)
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
             AISettingsView()
+                .frame(width: 560, height: 620)
                 .tabItem { Label("AI Brain", systemImage: "brain.head.profile") }
             DataPane()
+                .frame(width: 560, height: 620)
                 .tabItem { Label("Data", systemImage: "externaldrive") }
-            AboutPane()
-                .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 560, height: 620)
     }
 }
 
@@ -198,7 +198,7 @@ private struct DataPane: View {
                 if let error = automaticBackup?.error {
                     Label(String(localized: "Automatic backup failed.") + " " + error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                 }
-                Button("Show safety backups in Finder") {
+                Button("Show Safety Backups in Finder") {
                     let root = ProcessInfo.processInfo.environment["GYRUS_DATA_DIR"].map { URL(fileURLWithPath: $0) }
                         ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gyrus")
                     NSWorkspace.shared.open(root.appendingPathComponent("db/backups"))
@@ -208,7 +208,7 @@ private struct DataPane: View {
                     Button {
                         createBackup()
                     } label: {
-                        Label("Create Backup...", systemImage: "arrow.down.doc")
+                        Label("Create Backup…", systemImage: "arrow.down.doc")
                     }
                     .disabled(isExporting)
 
@@ -220,7 +220,7 @@ private struct DataPane: View {
                     .disabled(isExporting)
                 }
 
-                Text("Export all bookmarks, collections, and tags as a Gyrus backup file, or restore from one.")
+                Text("Save all bookmarks, folders and tags as a Gyrus backup file, or restore from one.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -275,16 +275,16 @@ private struct DataPane: View {
                     .fontWeight(.bold)
                 }
             } header: {
-                Text("Danger Zone")
+                Text("Reset")
             } footer: {
-                Text("Destructive actions cannot be undone. Please make sure you have a backup.")
+                Text("These actions can't be undone. Create a backup first.")
             }
         }
         .formStyle(.grouped)
         .disabled(isExporting)
         .task { automaticBackup = try? await APIClient.shared.automaticBackupStatus() }
         .confirmationDialog(
-            "Are you sure?",
+            resetType.map(resetTitle(for:)) ?? "",
             isPresented: $showConfirmReset,
             titleVisibility: .visible,
             presenting: resetType
@@ -339,7 +339,8 @@ private struct DataPane: View {
                 defer { isExporting = false }
                 do {
                     let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-                    guard size <= 100 * 1024 * 1024 else { throw APIError.serverMessage(String(localized: "Backup files are limited to 100 MB.")) }
+                    // Matches the backend's restore limit (main.py MAX_RESTORE_REQUEST_BYTES).
+                    guard size <= 2 * 1024 * 1024 * 1024 else { throw APIError.serverMessage(String(localized: "Backup files are limited to 2 GB.")) }
                     let data = try await Task.detached { try Data(contentsOf: url) }.value
                     restoreSummary = try await APIClient.shared.previewBackup(data)
                     pendingRestoreData = data
@@ -361,7 +362,7 @@ private struct DataPane: View {
                 try await APIClient.shared.restoreBackup(data)
                 store.resetLocalLibraryState()
                 await store.loadAll()
-                store.uiStateStore.showInfo("Backup restored.")
+                store.uiStateStore.showInfo(String(localized: "Backup restored."))
             } catch {
                 await store.loadAll()
                 operationError = String(localized: "Restore failed: \(error.localizedDescription)")
@@ -374,6 +375,17 @@ private struct DataPane: View {
         showConfirmReset = true
     }
     
+    /// Names the action instead of asking "Are you sure?", so the dialog
+    /// still makes sense when read on its own.
+    private func resetTitle(for type: AppStore.ResetType) -> String {
+        switch type {
+        case .cache: return String(localized: "Clear the image cache?")
+        case .brain: return String(localized: "Reset the AI Brain files?")
+        case .bookmarks: return String(localized: "Delete all bookmarks?")
+        case .factory: return String(localized: "Reset Gyrus to factory settings?")
+        }
+    }
+
     private func resetButtonTitle(for type: AppStore.ResetType) -> String {
         switch type {
         case .cache: return String(localized: "Clear Cache")
@@ -386,11 +398,11 @@ private struct DataPane: View {
     private func resetMessage(for type: AppStore.ResetType) -> String {
         switch type {
         case .cache:
-            return String(localized: "This will delete all downloaded favicons and preview images. They will be re-downloaded when needed.")
+            return String(localized: "This deletes all downloaded favicons and preview images. They are downloaded again when needed.")
         case .brain:
-            return String(localized: "This will delete all AI-generated notes and summaries from your brain directory.")
+            return String(localized: "This deletes all AI-generated notes and summaries from your brain folder.")
         case .bookmarks:
-            return String(localized: "This will permanently delete all bookmarks, collections, and tags. This action cannot be undone.")
+            return String(localized: "This permanently deletes all bookmarks, folders and tags. You can't undo this action.")
         case .factory:
             return String(localized: "This resets your library and app preferences. The macOS login setting is kept. Language changes take effect after restarting Gyrus.")
         }
@@ -414,75 +426,5 @@ private struct DataPane: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - About
-
-private struct AboutPane: View {
-    private var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.5.1"
-    }
-    private var build: String {
-        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
-    }
-    private var releaseChannel: String? {
-        guard let channel = Bundle.main.infoDictionary?["GyrusReleaseChannel"] as? String,
-              !channel.isEmpty else {
-            return nil
-        }
-        return channel
-    }
-
-    var body: some View {
-        Form {
-            Section {
-                HStack(spacing: 16) {
-                    Image(nsImage: NSApp.applicationIconImage)
-                        .resizable()
-                        .frame(width: 72, height: 72)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Gyrus")
-                            .font(.title2.bold())
-                        Text(
-                            releaseChannel.map { "Version \(version) \($0) (\(build))" }
-                                ?? "Version \(version) (\(build))"
-                        )
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        Text("Local-first bookmark manager for macOS")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(.vertical, 6)
-            }
-
-            Section {
-                Link(destination: URL(string: "https://github.com/gedankenlust/Gyrus")!) {
-                    Label {
-                        Text("View Source on GitHub")
-                    } icon: {
-                        Image("GitHubMark")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 16, height: 16)
-                    }
-                }
-                Link(destination: URL(string: "https://github.com/gedankenlust/Gyrus/issues")!) {
-                    Label("Report an Issue", systemImage: "exclamationmark.bubble")
-                }
-                Link(destination: URL(string: "https://opensource.org/licenses/MIT")!) {
-                    Label("MIT License", systemImage: "doc.text")
-                }
-            }
-            
-            Section("Acknowledgments") {
-                Text("Built with SwiftUI, FastAPI, SQLAlchemy, BeautifulSoup4, and Readability-lxml.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .formStyle(.grouped)
     }
 }

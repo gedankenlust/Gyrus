@@ -10,72 +10,101 @@ private struct CardFramesKey: PreferenceKey {
     }
 }
 
+/// Width the grid's columns are laid out in, for arrow-key row navigation.
+private struct GridWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct BookmarkGridView: View {
     @Environment(BookmarkStore.self) private var bookmarkStore
     @Environment(UIStateStore.self) private var uiStateStore
     @Environment(CollectionStore.self) private var collectionStore
 
-    private let columns = [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 12)]
+    private static let minCardWidth: CGFloat = 180
+    private static let cardSpacing: CGFloat = 12
+    private let columns = [GridItem(.adaptive(minimum: BookmarkGridView.minCardWidth, maximum: 240),
+                                    spacing: BookmarkGridView.cardSpacing)]
     private let gridSpace = "gridSpace"
 
     @State private var cardFrames: [String: CGRect] = [:]
     @State private var marqueeRect: CGRect? = nil
-    /// Anchor for Shift-click range selection.
+    /// Anchor for Shift-click / Shift-arrow range selection.
     @State private var anchorId: String? = nil
+    /// The card arrow keys move from (the last clicked or arrowed-to card).
+    @State private var cursorId: String? = nil
+    @State private var gridWidth: CGFloat = 0
+    @FocusState private var isGridFocused: Bool
 
     var body: some View {
-        ScrollView {
-            ZStack(alignment: .topLeading) {
-                // Background layer catches marquee drags and background taps in
-                // empty space. It sits behind the cards, so a drag that starts
-                // on a card still drags the card instead.
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        bookmarkStore.selectedIds.removeAll()
-                        bookmarkStore.selectedBookmark = nil
-                        anchorId = nil
-                    }
-                    .gesture(marqueeGesture)
+        ScrollViewReader { proxy in
+            ScrollView {
+                ZStack(alignment: .topLeading) {
+                    // Background layer catches marquee drags and background taps in
+                    // empty space. It sits behind the cards, so a drag that starts
+                    // on a card still drags the card instead.
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            isGridFocused = true
+                            bookmarkStore.selectedIds.removeAll()
+                            bookmarkStore.selectedBookmark = nil
+                            anchorId = nil
+                        }
+                        .gesture(marqueeGesture)
 
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(bookmarkStore.bookmarks) { bookmark in
-                        card(bookmark)
-                            .onAppear { prefetchIfNeeded(bookmark) }
+                    LazyVGrid(columns: columns, spacing: Self.cardSpacing) {
+                        ForEach(bookmarkStore.bookmarks) { bookmark in
+                            card(bookmark)
+                                .id(bookmark.id)
+                                .onAppear { prefetchIfNeeded(bookmark) }
+                        }
+                    }
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: GridWidthKey.self, value: geo.size.width)
+                        }
+                    )
+                    .padding(12)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel(Text("Bookmarks"))
+
+                    // The selection rectangle while dragging.
+                    if let rect = marqueeRect {
+                        Rectangle()
+                            .fill(Color.accentColor.opacity(0.15))
+                            .overlay(Rectangle().strokeBorder(Color.accentColor.opacity(0.7), lineWidth: 1))
+                            .frame(width: rect.width, height: rect.height)
+                            .offset(x: rect.minX, y: rect.minY)
+                            .allowsHitTesting(false)
                     }
                 }
-                .padding(12)
+                .coordinateSpace(name: gridSpace)
+                .onPreferenceChange(CardFramesKey.self) { cardFrames = $0 }
+                .onPreferenceChange(GridWidthKey.self) { gridWidth = $0 }
 
-                // The selection rectangle while dragging.
-                if let rect = marqueeRect {
-                    Rectangle()
-                        .fill(Color.accentColor.opacity(0.15))
-                        .overlay(Rectangle().strokeBorder(Color.accentColor.opacity(0.7), lineWidth: 1))
-                        .frame(width: rect.width, height: rect.height)
-                        .offset(x: rect.minX, y: rect.minY)
-                        .allowsHitTesting(false)
+                // Infinite scroll sentinel
+                if bookmarkStore.hasMore {
+                    LoadingMoreRow(loadsOnAppear: true)
+                        .padding(.bottom, 4)
                 }
             }
-            .coordinateSpace(name: gridSpace)
-            .onPreferenceChange(CardFramesKey.self) { cardFrames = $0 }
-
-            // Infinite scroll sentinel
-            if bookmarkStore.hasMore {
-                HStack {
-                    if let error = bookmarkStore.loadMoreError {
-                        Text(error).font(.caption).foregroundStyle(.secondary)
-                        Button("Retry loading") { Task { try? await bookmarkStore.loadMoreBookmarks() } }
-                    } else if bookmarkStore.isLoadingMore {
-                        ProgressView().scaleEffect(0.7)
-                        Text("Loading more…").font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .onAppear {
-                    guard bookmarkStore.loadMoreError == nil else { return }
-                    Task { try? await bookmarkStore.loadMoreBookmarks() }
-                }
+            // The grid itself takes keyboard focus: arrows move the selection,
+            // Return opens it. Library-wide shortcuts (⌘A, ⌘⌫, ⌘O, Esc) stay
+            // menu items in AppCommands. The ring around the whole scroll view
+            // would add nothing — the selected card already shows where focus is.
+            .focusable()
+            .focusEffectDisabled()
+            .focused($isGridFocused)
+            .onMoveCommand { direction in
+                moveSelection(direction, proxy: proxy)
+            }
+            .onKeyPress(.return) {
+                guard !bookmarkStore.selectedIds.isEmpty else { return .ignored }
+                AppStore.shared.requestOpenInBrowser(ids: bookmarkStore.selectedIds)
+                return .handled
             }
         }
         // Accept URLs dragged from a browser address bar
@@ -85,9 +114,9 @@ struct BookmarkGridView: View {
                 Task {
                     do {
                         _ = try await bookmarkStore.addBookmarkFromURL(url.absoluteString, collectionId: collectionStore.selectedCollectionId)
-                        AppStore.shared.uiStateStore.showInfo("Bookmark added.")
+                        AppStore.shared.uiStateStore.showInfo(String(localized: "Bookmark added."))
                     } catch APIError.duplicate {
-                        AppStore.shared.uiStateStore.showInfo("Already saved.")
+                        AppStore.shared.uiStateStore.showInfo(String(localized: "Already saved."))
                     } catch {
                         AppStore.shared.uiStateStore.showError(error.localizedDescription)
                     }
@@ -112,6 +141,18 @@ struct BookmarkGridView: View {
             .onTapGesture {
                 handleTap(bookmark)
             }
+            // Simultaneous, so a single click still selects immediately
+            // instead of waiting out the double-click interval.
+            .simultaneousGesture(
+                TapGesture(count: 2).onEnded { open(selectionForAction(bookmark)) }
+            )
+            .accessibilityAction {
+                isGridFocused = true
+                select(bookmark)
+            }
+            .accessibilityAction(named: Text("Open")) {
+                open(selectionForAction(bookmark))
+            }
             .contextMenu {
                 BookmarkContextMenu(ids: selectionForAction(bookmark), bookmarks: bookmarkStore.bookmarks)
             }
@@ -126,6 +167,10 @@ struct BookmarkGridView: View {
     // MARK: - Selection
 
     private func handleTap(_ bookmark: Bookmark) {
+        isGridFocused = true
+        // The second click of a double-click opens (see the simultaneous
+        // gesture); re-running the selection logic would undo a ⌘-toggle.
+        if let event = NSApp.currentEvent, event.clickCount > 1 { return }
         let flags = NSEvent.modifierFlags
         if flags.contains(.command) {
             // Toggle this card in/out of the selection.
@@ -136,17 +181,88 @@ struct BookmarkGridView: View {
                 bookmarkStore.selectedBookmark = bookmark
             }
             anchorId = bookmark.id
+            cursorId = bookmark.id
         } else if flags.contains(.shift), let anchor = anchorId,
                   let from = index(of: anchor), let to = index(of: bookmark.id) {
             // Select the contiguous range between the anchor and this card.
             let range = from <= to ? from...to : to...from
             bookmarkStore.selectedIds = Set(bookmarkStore.bookmarks[range].map(\.id))
             bookmarkStore.selectedBookmark = bookmark
+            cursorId = bookmark.id
         } else {
-            bookmarkStore.selectedIds = [bookmark.id]
-            bookmarkStore.selectedBookmark = bookmark
-            anchorId = bookmark.id
+            select(bookmark)
         }
+    }
+
+    /// Plain selection: exactly this card, which also becomes the anchor and
+    /// the keyboard cursor.
+    private func select(_ bookmark: Bookmark) {
+        bookmarkStore.selectedIds = [bookmark.id]
+        bookmarkStore.selectedBookmark = bookmark
+        anchorId = bookmark.id
+        cursorId = bookmark.id
+    }
+
+    private func open(_ ids: Set<String>) {
+        guard !ids.isEmpty else { return }
+        AppStore.shared.requestOpenInBrowser(ids: ids)
+    }
+
+    // MARK: - Keyboard navigation
+
+    /// Columns the adaptive grid currently lays out: as many minimum-width
+    /// cards as fit, with spacing between them (how `.adaptive` computes it).
+    private var columnCount: Int {
+        guard gridWidth > 0 else { return 1 }
+        return max(1, Int((gridWidth + Self.cardSpacing) / (Self.minCardWidth + Self.cardSpacing)))
+    }
+
+    /// The card the arrow keys move from, if it is still selected.
+    private var cursorIndex: Int? {
+        if let cursorId, bookmarkStore.selectedIds.contains(cursorId), let i = index(of: cursorId) {
+            return i
+        }
+        if let id = bookmarkStore.selectedBookmark?.id, bookmarkStore.selectedIds.contains(id) {
+            return index(of: id)
+        }
+        return nil
+    }
+
+    /// Left/right step to the previous/next card, up/down to the same column
+    /// one row away. Shift extends the selection from the anchor.
+    private func moveSelection(_ direction: MoveCommandDirection, proxy: ScrollViewProxy) {
+        let items = bookmarkStore.bookmarks
+        guard !items.isEmpty else { return }
+        let target: Int
+        if let current = cursorIndex {
+            let columns = columnCount
+            switch direction {
+            case .left: target = max(0, current - 1)
+            case .right: target = min(items.count - 1, current + 1)
+            case .up: target = current - columns >= 0 ? current - columns : current
+            case .down:
+                // From the second-to-last row, a short last row still takes
+                // you to its final card (as in Finder).
+                let lastRow = (items.count - 1) / columns
+                target = current / columns < lastRow ? min(items.count - 1, current + columns) : current
+            @unknown default: return
+            }
+        } else {
+            target = 0
+        }
+
+        let bookmark = items[target]
+        if NSEvent.modifierFlags.contains(.shift),
+           let anchor = anchorId ?? cursorId, let from = index(of: anchor) {
+            let range = from <= target ? from...target : target...from
+            bookmarkStore.selectedIds = Set(items[range].map(\.id))
+            bookmarkStore.selectedBookmark = bookmark
+            anchorId = anchor
+            cursorId = bookmark.id
+        } else {
+            select(bookmark)
+        }
+        proxy.scrollTo(bookmark.id)
     }
 
     private func index(of id: String) -> Int? {

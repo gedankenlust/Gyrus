@@ -4,6 +4,7 @@ struct BookmarkCardView: View {
     let bookmark: Bookmark
     @Environment(BookmarkStore.self) private var bookmarkStore
     @State private var isHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isSelected: Bool {
         bookmarkStore.selectedIds.contains(bookmark.id)
@@ -55,14 +56,35 @@ struct BookmarkCardView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .shadow(color: .black.opacity(isHovering ? 0.14 : 0), radius: 7, y: 3)
-        .animation(.easeOut(duration: 0.12), value: isHovering)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isHovering)
         .onHover { isHovering = $0 }
+        // One VoiceOver element per card: "Title, host", with unread state
+        // and tags as its value.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text(accessibilityTitle))
+        .accessibilityValue(Text(accessibilityDetail))
+        .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
         .task(id: bookmark.id) {
             // Lazily fetch a missing favicon when the card scrolls into view.
             if bookmark.faviconPath == nil {
                 try? await bookmarkStore.fetchMeta(bookmark)
             }
         }
+    }
+
+    private var accessibilityTitle: String {
+        let title = bookmark.displayTitle
+        guard let host = URL(string: bookmark.url)?.host, host != title else { return title }
+        return "\(title), \(host)"
+    }
+
+    private var accessibilityDetail: String {
+        var parts: [String] = []
+        if AppSettings.shared.enableReadStatus && !bookmark.isRead {
+            parts.append(String(localized: "Unread"))
+        }
+        parts.append(contentsOf: bookmark.tags.map(\.name))
+        return parts.joined(separator: ", ")
     }
 }
 

@@ -66,7 +66,7 @@ private struct TreeLinkRow: View {
             if let url, !url.isEmpty {
                 Button {
                     copy(url)
-                    AppStore.shared.uiStateStore.showInfo("Copied URL.")
+                    AppStore.shared.uiStateStore.showInfo(String(localized: "Copied URL."))
                 } label: {
                     Image(systemName: "doc.on.doc")
                 }
@@ -134,7 +134,7 @@ struct SnapshotColorChip: View {
     var body: some View {
         Button {
             copy(color.hex)
-            AppStore.shared.uiStateStore.showInfo("Copied \(color.hex).")
+            AppStore.shared.uiStateStore.showInfo(String(localized: "Copied \(color.hex)."))
         } label: {
             HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 4)
@@ -174,7 +174,7 @@ struct PaletteChip: View {
     var body: some View {
         Button {
             copy(entry.hex)
-            AppStore.shared.uiStateStore.showInfo("Copied \(entry.hex).")
+            AppStore.shared.uiStateStore.showInfo(String(localized: "Copied \(entry.hex)."))
         } label: {
             HStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 4)
@@ -281,7 +281,7 @@ struct TypeScaleRow: View {
                 Spacer(minLength: 0)
                 Button {
                     copy(step.css)
-                    AppStore.shared.uiStateStore.showInfo("CSS copied.")
+                    AppStore.shared.uiStateStore.showInfo(String(localized: "CSS copied."))
                 } label: {
                     Image(systemName: "doc.on.doc")
                 }
@@ -453,7 +453,7 @@ struct CSSVariableGroupView: View {
                         Spacer(minLength: 0)
                         Button {
                             copy("\(variable.name): \(variable.value)")
-                            AppStore.shared.uiStateStore.showInfo("Copied.")
+                            AppStore.shared.uiStateStore.showInfo(String(localized: "Copied."))
                         } label: {
                             Image(systemName: "doc.on.doc")
                         }
@@ -516,7 +516,7 @@ struct CopyRow: View {
             Spacer(minLength: 0)
             Button {
                 copy(value)
-                AppStore.shared.uiStateStore.showInfo("Copied.")
+                AppStore.shared.uiStateStore.showInfo(String(localized: "Copied."))
             } label: {
                 Image(systemName: "doc.on.doc")
             }
@@ -790,7 +790,7 @@ struct ElementSampleRow: View {
 
                 Button {
                     copy(cssText)
-                    AppStore.shared.uiStateStore.showInfo("CSS copied.")
+                    AppStore.shared.uiStateStore.showInfo(String(localized: "CSS copied."))
                 } label: {
                     Label("Copy CSS", systemImage: "doc.on.doc")
                         .font(.caption)

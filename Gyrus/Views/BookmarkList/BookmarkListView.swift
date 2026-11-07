@@ -12,6 +12,7 @@ struct BookmarkListView: View {
     @Environment(TagStore.self) private var tagStore
     @Environment(UIStateStore.self) private var uiStateStore
     @Binding var showAddBookmark: Bool
+    @Binding var showInspector: Bool
     @AppStorage("defaultViewMode") private var defaultViewModeRaw = ListDisplayMode.grid.rawValue
     private var displayMode: ListDisplayMode {
         ListDisplayMode(rawValue: defaultViewModeRaw) ?? .grid
@@ -23,132 +24,29 @@ struct BookmarkListView: View {
         )
     }
 
+    private var semanticSearchAvailable: Bool {
+        AppSettings.shared.aiBrainConfig.aiEnabled && bookmarkStore.semanticSearchAvailable
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            // Toolbar
-            HStack(spacing: 12) {
-                Picker("View Mode", selection: displayModeBinding) {
-                    ForEach(ListDisplayMode.allCases, id: \.self) { mode in
-                        Image(systemName: mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 80)
-
-                SearchField(
-                    text: Binding(
-                        get: { bookmarkStore.searchQuery },
-                        set: { appStore.scheduleSearch($0) }
-                    ),
-                    semanticAvailable: AppSettings.shared.aiBrainConfig.aiEnabled && bookmarkStore.semanticSearchAvailable,
-                    semanticEnabled: Binding(
-                        get: { bookmarkStore.semanticSearchEnabled },
-                        set: { bookmarkStore.semanticSearchEnabled = $0 }
-                    ),
-                    onToggleSemantic: {
-                        if !bookmarkStore.searchQuery.isEmpty {
-                            Task { await appStore.loadBookmarks() }
-                        }
-                    }
-                )
-                .frame(maxWidth: 360)
-                if bookmarkStore.usingKeywordFallback {
-                    Image(systemName: "text.magnifyingglass")
-                        .foregroundStyle(.secondary)
-                        .help("Showing keyword results because semantic search returned no results.")
-                        .accessibilityLabel("Keyword search fallback")
-                }
-
-                ZStack {
-                    if uiStateStore.isRefreshingBookmarks {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-                }
-                .frame(width: 16, height: 16)
-                .help("Refreshing bookmarks")
-
-                Spacer()
-
-                Button {
-                    Task { await appStore.selectAllInCurrentView() }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checklist")
-                            .frame(width: 16, height: 16)
-                        if !bookmarkStore.selectedIds.isEmpty {
-                            Text("\(bookmarkStore.selectedIds.count)")
-                                .font(.caption.monospacedDigit())
-                        }
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(bookmarkStore.bookmarks.isEmpty)
-                .help("Select all (⌘A)")
-                .accessibilityLabel("Select all")
-
-                Menu {
-                    Section("Sort by Name") {
-                        sortButton("Name (A-Z)", by: "title", order: "asc")
-                        sortButton("Name (Z-A)", by: "title", order: "desc")
-                    }
-                    Section("Sort by Date") {
-                        sortButton("Newest first", by: "created_at", order: "desc")
-                        sortButton("Oldest first", by: "created_at", order: "asc")
-                    }
-                    Section("Sort by Tag") {
-                        sortButton("Tag (A-Z)", by: "tag", order: "asc")
-                        sortButton("Tag (Z-A)", by: "tag", order: "desc")
-                    }
-                    Section("Sort by Site") {
-                        sortButton("Group by favicon", by: "favicon", order: "asc")
-                    }
-                } label: {
-                    Label("Sort", systemImage: "arrow.up.arrow.down")
-                }
-                .frame(width: 100)
-
-                if collectionStore.showTrash {
-                    Button(role: .destructive) {
-                        appStore.requestEmptyTrash()
-                    } label: {
-                        Label("Empty Trash", systemImage: "trash.slash")
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                    .disabled(bookmarkStore.bookmarks.isEmpty)
-                    .help("Permanently delete everything in the Trash")
-                }
-
-                Button {
-                    showAddBookmark = true
-                } label: {
-                    Image(systemName: "plus")
-                        .frame(width: 16, height: 16)
-                }
-                .buttonStyle(.bordered)
-                .help("Add bookmark (⌘N)")
-                .accessibilityLabel("Add bookmark")
-
-                SettingsLink {
-                    Image(systemName: "gearshape")
-                        .frame(width: 16, height: 16)
-                }
-                .buttonStyle(.bordered)
-                .help("Settings (⌘,)")
-                .accessibilityLabel("Settings")
+            if bookmarkStore.usingKeywordFallback && !bookmarkStore.searchQuery.isEmpty {
+                Label("No results by meaning. Showing keyword matches instead.",
+                      systemImage: "text.magnifyingglass")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 6)
+                    .background(.bar)
+                Divider()
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.bar)
 
-            Divider()
-
-            // List Content
             Group {
-                if bookmarkStore.bookmarks.isEmpty && !uiStateStore.isLoading {
-                    EmptyStateView()
+                if appStore.loadError != nil && bookmarkStore.bookmarks.isEmpty {
+                    LibraryLoadErrorView()
+                } else if bookmarkStore.bookmarks.isEmpty && !uiStateStore.isLoading {
+                    EmptyStateView(showAddBookmark: $showAddBookmark)
                 } else {
                     content
                 }
@@ -160,6 +58,95 @@ struct BookmarkListView: View {
             }
         }
         .navigationTitle(navigationTitle)
+        .toolbar { toolbarContent }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItem(placement: .navigation) {
+            // Holds its space, so the title does not jump while refreshing.
+            ProgressView()
+                .controlSize(.small)
+                .opacity(uiStateStore.isRefreshingBookmarks ? 1 : 0)
+                .accessibilityLabel("Refreshing bookmarks")
+                .accessibilityHidden(!uiStateStore.isRefreshingBookmarks)
+        }
+
+        ToolbarItemGroup(placement: .primaryAction) {
+            Picker("View", selection: displayModeBinding) {
+                Label("Grid", systemImage: ListDisplayMode.grid.rawValue).tag(ListDisplayMode.grid)
+                Label("List", systemImage: ListDisplayMode.table.rawValue).tag(ListDisplayMode.table)
+            }
+            .pickerStyle(.segmented)
+            .help("Show bookmarks as a grid or a list")
+
+            Menu {
+                sortSection
+            } label: {
+                Label("Sort", systemImage: "arrow.up.arrow.down")
+            }
+            .help("Sort bookmarks")
+
+            if semanticSearchAvailable {
+                Toggle(isOn: Binding(
+                    get: { bookmarkStore.semanticSearchEnabled },
+                    set: { enabled in
+                        bookmarkStore.semanticSearchEnabled = enabled
+                        if !bookmarkStore.searchQuery.isEmpty {
+                            Task { await appStore.loadBookmarks() }
+                        }
+                    }
+                )) {
+                    Label("Search by Meaning", systemImage: "sparkles")
+                }
+                .help(bookmarkStore.semanticSearchEnabled
+                      ? "Search by meaning is on: it finds related concepts, not just matching words."
+                      : "Search by meaning instead of matching words.")
+            }
+
+            if collectionStore.showTrash {
+                Button(role: .destructive) {
+                    appStore.requestEmptyTrash()
+                } label: {
+                    Label("Empty Trash", systemImage: "trash.slash")
+                }
+                .disabled(bookmarkStore.bookmarks.isEmpty)
+                .help("Permanently delete everything in the Trash")
+            }
+
+            Button {
+                showAddBookmark = true
+            } label: {
+                Label("Add Bookmark", systemImage: "plus")
+            }
+            .help("Add bookmark (⌘N)")
+
+            Button {
+                showInspector.toggle()
+            } label: {
+                Label(showInspector ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.trailing")
+            }
+            .help("Show or hide the preview (⌥⌘I)")
+        }
+    }
+
+    @ViewBuilder
+    private var sortSection: some View {
+        Section("Name") {
+            sortButton("Name (A–Z)", by: "title", order: "asc")
+            sortButton("Name (Z–A)", by: "title", order: "desc")
+        }
+        Section("Date Added") {
+            sortButton("Newest First", by: "created_at", order: "desc")
+            sortButton("Oldest First", by: "created_at", order: "asc")
+        }
+        Section("Tag") {
+            sortButton("Tag (A–Z)", by: "tag", order: "asc")
+            sortButton("Tag (Z–A)", by: "tag", order: "desc")
+        }
+        Section("Site") {
+            sortButton("Group by Site", by: "favicon", order: "asc")
+        }
     }
 
     @ViewBuilder
@@ -185,23 +172,20 @@ struct BookmarkListView: View {
         }
     }
 
-    @ViewBuilder
-    private func sortButton(_ label: String, by: String, order: String) -> some View {
-        Button {
-            Task { await appStore.setSort(by: by, order: order) }
-        } label: {
-            if bookmarkStore.sortBy == by && bookmarkStore.sortOrder == order {
-                Label(label, systemImage: "checkmark")
-            } else {
-                Text(label)
-            }
+    /// Takes a catalog key, not a String, so the sort labels are translated.
+    private func sortButton(_ label: LocalizedStringKey, by: String, order: String) -> some View {
+        Toggle(isOn: Binding(
+            get: { bookmarkStore.sortBy == by && bookmarkStore.sortOrder == order },
+            set: { _ in Task { await appStore.setSort(by: by, order: order) } }
+        )) {
+            Text(label)
         }
     }
 
     private var navigationTitle: String {
         let s = AppSettings.shared
         if !bookmarkStore.searchQuery.isEmpty {
-            return s.localized("Search: \"\(bookmarkStore.searchQuery)\"")
+            return s.localized("Search: “\(bookmarkStore.searchQuery)”")
         }
         if collectionStore.showTrash { return s.localized("Trash") }
         if collectionStore.showUnreadOnly { return s.localized("Unread") }
@@ -213,75 +197,21 @@ struct BookmarkListView: View {
     }
 }
 
-/// A rounded search field for the list toolbar. Searches everything —
-/// titles, URLs, descriptions, notes and tags — via the backend.
-struct SearchField: View {
-    @Binding var text: String
-    /// When available, a ✨ toggle inside the field switches between keyword and
-    /// meaning-based (semantic) search — far clearer than a separate cryptic
-    /// toolbar button, and it puts the control where searching happens.
-    var semanticAvailable: Bool = false
-    @Binding var semanticEnabled: Bool
-    var onToggleSemantic: () -> Void = {}
-
-    @FocusState private var focused: Bool
-
-    private var isSemantic: Bool { semanticAvailable && semanticEnabled }
+/// The library could not be loaded at all. "No bookmarks yet" here would
+/// suggest the data is gone.
+struct LibraryLoadErrorView: View {
+    @Environment(AppStore.self) private var appStore
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
-                .font(.callout)
-
-            TextField(isSemantic ? "Search by meaning…" : "Search bookmarks & tags…", text: $text)
-                .textFieldStyle(.plain)
-                .focused($focused)
-                .onSubmit { focused = false }
-
-            if !text.isEmpty {
-                Button {
-                    text = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-                .help("Clear search")
-                .accessibilityLabel("Clear search")
-            }
-
-            if semanticAvailable {
-                Button {
-                    semanticEnabled.toggle()
-                    onToggleSemantic()
-                } label: {
-                    Image(systemName: "sparkles")
-                        .font(.callout)
-                        .foregroundStyle(isSemantic ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.secondary))
-                        .padding(3)
-                        .background(isSemantic ? Color.accentColor.opacity(0.15) : Color.clear,
-                                    in: RoundedRectangle(cornerRadius: 5))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Semantic search")
-                .accessibilityValue(isSemantic ? String(localized: "On") : String(localized: "Off"))
-                .help(isSemantic
-                      ? "Meaning-based search is ON — finds by concept, not just words. Click for keyword search."
-                      : "Click to search by meaning (semantic), not just keywords.")
-            }
+        ContentUnavailableView {
+            Label("Library Unavailable", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(appStore.loadError ?? "")
+                .textSelection(.enabled)
+        } actions: {
+            Button("Try Again") { Task { await appStore.loadAll() } }
+                .buttonStyle(.borderedProminent)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(
-            RoundedRectangle(cornerRadius: 7)
-                .fill(Color(.textBackgroundColor).opacity(0.6))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 7)
-                .strokeBorder((focused || isSemantic) ? Color.accentColor.opacity(0.6) : Color.secondary.opacity(0.25),
-                              lineWidth: 1)
-        )
     }
 }
 
@@ -503,6 +433,7 @@ struct EmptyStateView: View {
     @Environment(BookmarkStore.self) private var bookmarkStore
     @Environment(CollectionStore.self) private var collectionStore
     @Environment(TagStore.self) private var tagStore
+    @Binding var showAddBookmark: Bool
 
     private var context: EmptyContext {
         if !bookmarkStore.searchQuery.isEmpty  { return .search(bookmarkStore.searchQuery) }
@@ -515,19 +446,23 @@ struct EmptyStateView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: context.icon)
-                .font(.system(size: 40))
-                .foregroundStyle(.quaternary)
-            Text(context.title)
-                .font(.headline)
-                .foregroundStyle(.secondary)
+        ContentUnavailableView {
+            Label(context.title, systemImage: context.icon)
+        } description: {
             Text(context.subtitle(totalCount: bookmarkStore.totalBookmarkCount))
-                .font(.callout)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
+        } actions: {
+            switch context {
+            case .all:
+                Button("Add Bookmark") { showAddBookmark = true }
+                    .buttonStyle(.borderedProminent)
+                Button("Import Bookmarks…") {
+                    NotificationCenter.default.post(name: .showImport, object: nil)
+                }
+            case .collection:
+                Button("Add Bookmark") { showAddBookmark = true }
+            default:
+                EmptyView()
+            }
         }
-        .padding()
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

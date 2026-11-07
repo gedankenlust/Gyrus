@@ -79,20 +79,16 @@ struct BookmarkTableView: View {
             } primaryAction: { ids in
                 appStore.requestOpenInBrowser(ids: ids)
             }
-            .onChange(of: bookmarkStore.selectedIds) {
-                handleSelectionChange(bookmarkStore.selectedIds)
+            .onChange(of: bookmarkStore.selectedIds) { oldIds, newIds in
+                handleSelectionChange(from: oldIds, to: newIds)
             }
             .onChange(of: sortOrder) {
                 handleSortChange(sortOrder)
             }
 
-            if let error = bookmarkStore.loadMoreError {
-                HStack {
-                    Text(error).font(.caption).foregroundStyle(.secondary)
-                    Button("Retry loading") { Task { try? await bookmarkStore.loadMoreBookmarks() } }
-                }.padding(8)
-            } else if bookmarkStore.isLoadingMore {
-                loadingMoreIndicator
+            if bookmarkStore.loadMoreError != nil || bookmarkStore.isLoadingMore {
+                LoadingMoreRow()
+                    .background(Color(.windowBackgroundColor))
             }
         }
         .onAppear {
@@ -186,22 +182,29 @@ struct BookmarkTableView: View {
         }
     }
 
-    private var loadingMoreIndicator: some View {
-        HStack(spacing: 8) {
-            ProgressView().scaleEffect(0.7)
-            Text("Loading more…").font(.caption).foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 6)
-        .background(Color(.windowBackgroundColor))
-    }
-
-    private func handleSelectionChange(_ ids: Set<String>) {
-        if let id = ids.first,
-           let bm = bookmarkStore.bookmarks.first(where: { $0.id == id }) {
-            bookmarkStore.selectedBookmark = bm
-        } else if ids.isEmpty {
+    /// Picks the bookmark the preview shows. A Set has no order, so
+    /// `ids.first` would preview an arbitrary row of a multi-selection.
+    /// Instead: the row just added (a click or ⌘-click), else the current
+    /// preview if it is still selected, else the first selected row in display
+    /// order. Ids outside the loaded rows (set by Quick Search or Add
+    /// Bookmark, together with their own preview) leave the preview alone.
+    private func handleSelectionChange(from oldIds: Set<String>, to newIds: Set<String>) {
+        guard !newIds.isEmpty else {
             bookmarkStore.selectedBookmark = nil
+            return
+        }
+        let added = newIds.subtracting(oldIds)
+        if added.count == 1, let id = added.first {
+            if let bm = bookmarkStore.bookmarks.first(where: { $0.id == id }) {
+                bookmarkStore.selectedBookmark = bm
+            }
+            return
+        }
+        if let current = bookmarkStore.selectedBookmark, newIds.contains(current.id) {
+            return
+        }
+        if let bm = bookmarkStore.bookmarks.first(where: { newIds.contains($0.id) }) {
+            bookmarkStore.selectedBookmark = bm
         }
     }
 

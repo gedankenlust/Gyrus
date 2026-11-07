@@ -265,15 +265,39 @@
     "%lld tags": {
       "localizations": {
         "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld Tags"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Tag"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Tags"
+                }
+              }
+            }
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld tags"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld tag"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld tags"
+                }
+              }
+            }
           }
         }
       }
@@ -762,15 +786,39 @@
     "Analyzing %lld bookmarks…": {
       "localizations": {
         "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld Lesezeichen werden analysiert…"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Lesezeichen wird analysiert …"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Lesezeichen werden analysiert …"
+                }
+              }
+            }
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Analyzing %lld bookmarks…"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Analyzing %lld bookmark…"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Analyzing %lld bookmarks…"
+                }
+              }
+            }
           }
         }
       }
@@ -2718,9 +2766,21 @@
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete %lld Bookmarks"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld Bookmark"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld Bookmarks"
+                }
+              }
+            }
           }
         }
       }
@@ -2747,15 +2807,39 @@
       "extractionState": "manual",
       "localizations": {
         "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld Tags löschen"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Tag löschen"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Tags löschen"
+                }
+              }
+            }
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete %lld Tags"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld Tag"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld Tags"
+                }
+              }
+            }
           }
         }
       }
@@ -2771,15 +2855,26 @@
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete %lld bookmarks?"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld bookmark?"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld bookmarks?"
+                }
+              }
+            }
           }
         }
       }
     },
     "Delete %lld folders?": {
-      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2788,9 +2883,21 @@
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete %lld folders?"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld folder?"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld folders?"
+                }
+              }
+            }
           }
         }
       }
@@ -2799,15 +2906,39 @@
       "extractionState": "manual",
       "localizations": {
         "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld Tags löschen?"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Tag löschen?"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Tags löschen?"
+                }
+              }
+            }
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete %lld tags?"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld tag?"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld tags?"
+                }
+              }
+            }
           }
         }
       }
@@ -2925,9 +3056,21 @@
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deleted %lld bookmarks"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Deleted %lld bookmark"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Deleted %lld bookmarks"
+                }
+              }
+            }
           }
         }
       }
@@ -2936,15 +3079,39 @@
       "extractionState": "manual",
       "localizations": {
         "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld Tags gelöscht"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Tag gelöscht"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Tags gelöscht"
+                }
+              }
+            }
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deleted %lld tags"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Deleted %lld tag"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Deleted %lld tags"
+                }
+              }
+            }
           }
         }
       }
@@ -3122,15 +3289,39 @@
       "extractionState": "manual",
       "localizations": {
         "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld Tags verworfen."
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Tag verworfen."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Tags verworfen."
+                }
+              }
+            }
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Discarded %lld tags."
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Discarded %lld tag."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Discarded %lld tags."
+                }
+              }
+            }
           }
         }
       }
@@ -6276,9 +6467,21 @@
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open %lld bookmarks at once?"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Open %lld bookmark at once?"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Open %lld bookmarks at once?"
+                }
+              }
+            }
           }
         }
       }
@@ -6544,8 +6747,18 @@
     },
     "Sort into new folders": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "In neue Ordner sortieren" } },
-        "en": { "stringUnit": { "state": "translated", "value": "Sort into new folders" } }
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In neue Ordner sortieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort into new folders"
+          }
+        }
       }
     },
     "Moves loose bookmarks into a folder that already belongs to the same site, such as YouTube links into the YouTube folder. Mixed piles stay put. Nothing moves until you review it.": {
@@ -6566,14 +6779,34 @@
     },
     "Nothing fits an existing folder clearly enough to move.": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Nichts passt klar genug in einen vorhandenen Ordner." } },
-        "en": { "stringUnit": { "state": "translated", "value": "Nothing fits an existing folder clearly enough to move." } }
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nichts passt klar genug in einen vorhandenen Ordner."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing fits an existing folder clearly enough to move."
+          }
+        }
       }
     },
     "Nothing has moved yet. %lld bookmarks would move into a folder that already belongs to the same site. %lld stay where they are.": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Noch ist nichts verschoben. %lld Lesezeichen würden in einen Ordner derselben Seite ziehen. %lld bleiben, wo sie sind." } },
-        "en": { "stringUnit": { "state": "translated", "value": "Nothing has moved yet. %lld bookmarks would move into a folder that already belongs to the same site. %lld stay where they are." } }
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch ist nichts verschoben. %lld Lesezeichen würden in einen Ordner derselben Seite ziehen. %lld bleiben, wo sie sind."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing has moved yet. %lld bookmarks would move into a folder that already belongs to the same site. %lld stay where they are."
+          }
+        }
       }
     },
     "Uses your existing folders and adds only a few extra ones. At most one extra folder under a folder. Relies on the search index and pauses between names, so it can take a while and the Mac stays cooler.": {
@@ -6594,44 +6827,114 @@
     },
     "Sorting…": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Sortiert…" } },
-        "en": { "stringUnit": { "state": "translated", "value": "Sorting…" } }
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sortiert…"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sorting…"
+          }
+        }
       }
     },
     "Resting %llds so the Mac can cool down.": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Pause für %lld s, damit der Rechner abkühlen kann." } },
-        "en": { "stringUnit": { "state": "translated", "value": "Resting %llds so the Mac can cool down." } }
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pause für %lld s, damit der Rechner abkühlen kann."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resting %llds so the Mac can cool down."
+          }
+        }
       }
     },
     "Nothing has moved yet. %lld bookmarks would move. %lld stay. %lld are left alone because they have no search vector.": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Noch ist nichts verschoben. %lld Lesezeichen würden umziehen. %lld bleiben. %lld bleiben unberührt, weil sie keinen Suchvektor haben." } },
-        "en": { "stringUnit": { "state": "translated", "value": "Nothing has moved yet. %lld bookmarks would move. %lld stay. %lld are left alone because they have no search vector." } }
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch ist nichts verschoben. %lld Lesezeichen würden umziehen. %lld bleiben. %lld bleiben unberührt, weil sie keinen Suchvektor haben."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing has moved yet. %lld bookmarks would move. %lld stay. %lld are left alone because they have no search vector."
+          }
+        }
       }
     },
     "Build the search index first.": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Baue zuerst den Suchindex auf." } },
-        "en": { "stringUnit": { "state": "translated", "value": "Build the search index first." } }
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baue zuerst den Suchindex auf."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build the search index first."
+          }
+        }
       }
     },
     "Sort folders slowly": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Ordner langsam sortieren" } },
-        "en": { "stringUnit": { "state": "translated", "value": "Sort folders slowly" } }
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordner langsam sortieren"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort folders slowly"
+          }
+        }
       }
     },
     "Review folder sort": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Ordnersortierung prüfen" } },
-        "en": { "stringUnit": { "state": "translated", "value": "Review folder sort" } }
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordnersortierung prüfen"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Review folder sort"
+          }
+        }
       }
     },
     "Move bookmarks": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Lesezeichen verschieben" } },
-        "en": { "stringUnit": { "state": "translated", "value": "Move bookmarks" } }
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen verschieben"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move bookmarks"
+          }
+        }
       }
     },
     "Similar bookmarks": {
@@ -9124,22 +9427,48 @@
         }
       }
     },
-    "Delete %lld folders?": {
-      "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "%lld Ordner löschen?" } },
-        "en": { "stringUnit": { "state": "translated", "value": "Delete %lld folders?" } }
-      }
-    },
     "Delete %lld folders": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "%lld Ordner löschen" } },
-        "en": { "stringUnit": { "state": "translated", "value": "Delete %lld folders" } }
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Ordner löschen"
+          }
+        },
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld folder"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Delete %lld folders"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "The bookmarks inside are kept — they just lose their folder assignment. Subfolders are removed with the folder.": {
       "localizations": {
-        "de": { "stringUnit": { "state": "translated", "value": "Die Lesezeichen bleiben erhalten und verlieren nur den Ordner. Unterordner werden mitgelöscht." } },
-        "en": { "stringUnit": { "state": "translated", "value": "The bookmarks inside are kept — they just lose their folder assignment. Subfolders are removed with the folder." } }
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Lesezeichen bleiben erhalten und verlieren nur den Ordner. Unterordner werden mitgelöscht."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The bookmarks inside are kept — they just lose their folder assignment. Subfolders are removed with the folder."
+          }
+        }
       }
     },
     "The bookmarks inside are kept — they just lose their folder assignment.": {
@@ -9362,15 +9691,39 @@
     "This opens %lld tabs in your browser. That can put it under heavy load.": {
       "localizations": {
         "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dies öffnet %lld Tabs in deinem Browser. Das kann ihn stark belasten."
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Dies öffnet %lld Tab in deinem Browser."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Dies öffnet %lld Tabs in deinem Browser. Das kann ihn stark belasten."
+                }
+              }
+            }
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This opens %lld tabs in your browser. That can put it under heavy load."
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "This opens %lld tab in your browser."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "This opens %lld tabs in your browser. That can put it under heavy load."
+                }
+              }
+            }
           }
         }
       }
@@ -9860,9 +10213,21 @@
           }
         },
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Updated %lld bookmarks."
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Updated %lld bookmark."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Updated %lld bookmarks."
+                }
+              }
+            }
           }
         }
       }
@@ -11994,9 +12359,21 @@
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This moves %lld bookmarks to Trash for 30 days. You can undo for 5 seconds."
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "This moves %lld bookmark to Trash for 30 days. You can undo for 5 seconds."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "This moves %lld bookmarks to Trash for 30 days. You can undo for 5 seconds."
+                }
+              }
+            }
           }
         },
         "de": {
@@ -13614,6 +13991,1264 @@
           "stringUnit": {
             "state": "translated",
             "value": "Erneut laden"
+          }
+        }
+      }
+    },
+    " %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " %@"
+          }
+        }
+      }
+    },
+    "%@ %lldx%lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %lldx%lld"
+          }
+        }
+      }
+    },
+    "%@, %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@"
+          }
+        }
+      }
+    },
+    "%@: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@: %@"
+          }
+        }
+      }
+    },
+    "%lld / %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld / %lld"
+          }
+        }
+      }
+    },
+    "JSON-LD": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JSON-LD"
+          }
+        }
+      }
+    },
+    "PDF": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF"
+          }
+        }
+      }
+    },
+    "·": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "·"
+          }
+        }
+      }
+    },
+    "x %lld, y %lld, %lldx%lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "x %lld, y %lld, %lldx%lld"
+          }
+        }
+      }
+    },
+    "Robots": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Robots"
+          }
+        }
+      }
+    },
+    "Sitemap": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sitemap"
+          }
+        }
+      }
+    },
+    "About Gyrus": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Über Gyrus"
+          }
+        }
+      }
+    },
+    "Add a note…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notiz hinzufügen …"
+          }
+        }
+      }
+    },
+    "Another copy of Gyrus is already using port 8080. Quit it (or stop the Xcode run) and try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine andere Gyrus-Instanz verwendet bereits Port 8080. Beende sie (oder stoppe den Xcode-Lauf) und versuche es erneut."
+          }
+        }
+      }
+    },
+    "Ask the Brain…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frag das Brain …"
+          }
+        }
+      }
+    },
+    "Assigned": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zugewiesen"
+          }
+        }
+      }
+    },
+    "Assigned to some": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teilweise zugewiesen"
+          }
+        }
+      }
+    },
+    "Back": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurück"
+          }
+        }
+      }
+    },
+    "Backup files are limited to 2 GB.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup-Dateien sind auf 2 GB begrenzt."
+          }
+        }
+      }
+    },
+    "Blue": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blau"
+          }
+        }
+      }
+    },
+    "Bookmark": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen"
+          }
+        }
+      }
+    },
+    "Bookmarks": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen"
+          }
+        }
+      }
+    },
+    "Checking Links…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Links werden geprüft …"
+          }
+        }
+      }
+    },
+    "Choose viewport": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Viewport wählen"
+          }
+        }
+      }
+    },
+    "Clear Conversation": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterhaltung löschen"
+          }
+        }
+      }
+    },
+    "Clear the image cache?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild-Cache leeren?"
+          }
+        }
+      }
+    },
+    "Copied %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ kopiert."
+          }
+        }
+      }
+    },
+    "Copy Text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text kopieren"
+          }
+        }
+      }
+    },
+    "Create Backup…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup erstellen …"
+          }
+        }
+      }
+    },
+    "Custom Color": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eigene Farbe"
+          }
+        }
+      }
+    },
+    "Cut": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausschneiden"
+          }
+        }
+      }
+    },
+    "Delete Note": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notiz löschen"
+          }
+        }
+      }
+    },
+    "Delete Note…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notiz löschen …"
+          }
+        }
+      }
+    },
+    "Delete Permanently…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Endgültig löschen …"
+          }
+        }
+      }
+    },
+    "Delete all bookmarks?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Lesezeichen löschen?"
+          }
+        }
+      }
+    },
+    "Delete this note?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Notiz löschen?"
+          }
+        }
+      }
+    },
+    "Deselect All": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auswahl aufheben"
+          }
+        }
+      }
+    },
+    "Dismiss": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schließen"
+          }
+        }
+      }
+    },
+    "Edit Bookmark": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen bearbeiten"
+          }
+        }
+      }
+    },
+    "Edit Bookmark…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen bearbeiten …"
+          }
+        }
+      }
+    },
+    "Empty the Trash?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Papierkorb leeren?"
+          }
+        }
+      }
+    },
+    "Export Bookmarks…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen exportieren …"
+          }
+        }
+      }
+    },
+    "Find Bookmarks…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen suchen …"
+          }
+        }
+      }
+    },
+    "Formatting Reader with AI…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reader wird mit KI formatiert …"
+          }
+        }
+      }
+    },
+    "Forward": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorwärts"
+          }
+        }
+      }
+    },
+    "Generating reply": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Antwort wird erstellt"
+          }
+        }
+      }
+    },
+    "Green": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Grün"
+          }
+        }
+      }
+    },
+    "Group by Site": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Website gruppieren"
+          }
+        }
+      }
+    },
+    "Gyrus couldn’t start": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gyrus konnte nicht starten"
+          }
+        }
+      }
+    },
+    "Hide Inspector": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informationen ausblenden"
+          }
+        }
+      }
+    },
+    "Library": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliothek"
+          }
+        }
+      }
+    },
+    "Library Unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bibliothek nicht verfügbar"
+          }
+        }
+      }
+    },
+    "Loading Reader…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reader wird geladen …"
+          }
+        }
+      }
+    },
+    "Loading details": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details werden geladen"
+          }
+        }
+      }
+    },
+    "Missing: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlt: %@"
+          }
+        }
+      }
+    },
+    "Mode": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modus"
+          }
+        }
+      }
+    },
+    "More Actions": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weitere Aktionen"
+          }
+        }
+      }
+    },
+    "Move to Trash": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In den Papierkorb legen"
+          }
+        }
+      }
+    },
+    "Name (A–Z)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name (A–Z)"
+          }
+        }
+      }
+    },
+    "Name (Z–A)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name (Z–A)"
+          }
+        }
+      }
+    },
+    "New Bookmark…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neues Lesezeichen …"
+          }
+        }
+      }
+    },
+    "Newest First": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neueste zuerst"
+          }
+        }
+      }
+    },
+    "No results by meaning. Showing keyword matches instead.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Treffer nach Bedeutung. Stattdessen werden Treffer nach Stichwort angezeigt."
+          }
+        }
+      }
+    },
+    "Not assigned": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht zugewiesen"
+          }
+        }
+      }
+    },
+    "Not secure": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht sicher"
+          }
+        }
+      }
+    },
+    "Oldest First": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Älteste zuerst"
+          }
+        }
+      }
+    },
+    "Orange": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orange"
+          }
+        }
+      }
+    },
+    "Page can't be shown": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seite kann nicht angezeigt werden"
+          }
+        }
+      }
+    },
+    "Paste": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einsetzen"
+          }
+        }
+      }
+    },
+    "Paste and Match Style": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einsetzen und Stil anpassen"
+          }
+        }
+      }
+    },
+    "Pink": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pink"
+          }
+        }
+      }
+    },
+    "Please enter a valid URL (https://…)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bitte gib eine gültige URL ein (https://…)"
+          }
+        }
+      }
+    },
+    "Preview Tab": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorschau-Tab"
+          }
+        }
+      }
+    },
+    "Purple": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lila"
+          }
+        }
+      }
+    },
+    "Quick Search…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schnellsuche …"
+          }
+        }
+      }
+    },
+    "Red": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rot"
+          }
+        }
+      }
+    },
+    "Redo": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiederholen"
+          }
+        }
+      }
+    },
+    "Refreshing Metadata…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadaten werden aktualisiert …"
+          }
+        }
+      }
+    },
+    "Refreshing metadata… %lld / %lld": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadaten werden aktualisiert … %1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "Reload": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neu laden"
+          }
+        }
+      }
+    },
+    "Reset": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zurücksetzen"
+          }
+        }
+      }
+    },
+    "Reset Gyrus to factory settings?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gyrus auf Werkseinstellungen zurücksetzen?"
+          }
+        }
+      }
+    },
+    "Reset the AI Brain files?": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI-Brain-Dateien zurücksetzen?"
+          }
+        }
+      }
+    },
+    "Save all bookmarks, folders and tags as a Gyrus backup file, or restore from one.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Lesezeichen, Ordner und Tags als Gyrus-Backup sichern oder daraus wiederherstellen."
+          }
+        }
+      }
+    },
+    "Search bookmarks and tags": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen und Tags durchsuchen"
+          }
+        }
+      }
+    },
+    "Search by Meaning": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Bedeutung suchen"
+          }
+        }
+      }
+    },
+    "Search by meaning": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Bedeutung suchen"
+          }
+        }
+      }
+    },
+    "Search by meaning instead of matching words.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Bedeutung statt nach passenden Wörtern suchen."
+          }
+        }
+      }
+    },
+    "Search by meaning is on: it finds related concepts, not just matching words.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suche nach Bedeutung ist aktiv: Sie findet verwandte Begriffe, nicht nur passende Wörter."
+          }
+        }
+      }
+    },
+    "Search failed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suche fehlgeschlagen"
+          }
+        }
+      }
+    },
+    "Search: “%@”": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suche: „%@“"
+          }
+        }
+      }
+    },
+    "Secure connection": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichere Verbindung"
+          }
+        }
+      }
+    },
+    "Send": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Senden"
+          }
+        }
+      }
+    },
+    "Show Inspector": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informationen einblenden"
+          }
+        }
+      }
+    },
+    "Show Log": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protokoll zeigen"
+          }
+        }
+      }
+    },
+    "Show Safety Backups in Finder": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sicherheits-Backups im Finder zeigen"
+          }
+        }
+      }
+    },
+    "Show bookmarks as a grid or a list": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen als Raster oder Liste anzeigen"
+          }
+        }
+      }
+    },
+    "Show or hide the preview (⌥⌘I)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vorschau ein- oder ausblenden (⌥⌘I)"
+          }
+        }
+      }
+    },
+    "Show the backend log in Finder": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backend-Protokoll im Finder zeigen"
+          }
+        }
+      }
+    },
+    "Site": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Website"
+          }
+        }
+      }
+    },
+    "Sort bookmarks": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lesezeichen sortieren"
+          }
+        }
+      }
+    },
+    "Stop Loading": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Laden stoppen"
+          }
+        }
+      }
+    },
+    "Stop Metadata Refresh": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metadaten-Aktualisierung stoppen"
+          }
+        }
+      }
+    },
+    "Summarize to Notes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Notizen zusammenfassen"
+          }
+        }
+      }
+    },
+    "Tag": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tag"
+          }
+        }
+      }
+    },
+    "Tag (A–Z)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tag (A–Z)"
+          }
+        }
+      }
+    },
+    "Tag (Z–A)": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tag (Z–A)"
+          }
+        }
+      }
+    },
+    "Teal": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Türkis"
+          }
+        }
+      }
+    },
+    "The backend could not start because another program is using port 8080.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backend konnte nicht starten, weil ein anderes Programm Port 8080 verwendet."
+          }
+        }
+      }
+    },
+    "The backend stopped during startup.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backend wurde beim Starten beendet."
+          }
+        }
+      }
+    },
+    "These actions can't be undone. Create a backup first.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Aktionen können nicht widerrufen werden. Erstelle vorher ein Backup."
+          }
+        }
+      }
+    },
+    "Thinking…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Denkt nach …"
+          }
+        }
+      }
+    },
+    "This bookmark's address is not a valid web address.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Adresse dieses Lesezeichens ist keine gültige Webadresse."
+          }
+        }
+      }
+    },
+    "This can't be undone.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das kann nicht widerrufen werden."
+          }
+        }
+      }
+    },
+    "This deletes all AI-generated notes and summaries from your brain folder.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dadurch werden alle KI-erstellten Notizen und Zusammenfassungen aus deinem Brain-Ordner gelöscht."
+          }
+        }
+      }
+    },
+    "This deletes all downloaded favicons and preview images. They are downloaded again when needed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dadurch werden alle geladenen Favicons und Vorschaubilder gelöscht. Sie werden bei Bedarf erneut geladen."
+          }
+        }
+      }
+    },
+    "This page can't be shown in the preview. Open it in your browser instead.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese Seite kann in der Vorschau nicht angezeigt werden. Öffne sie stattdessen im Browser."
+          }
+        }
+      }
+    },
+    "This permanently deletes all bookmarks, folders and tags. You can't undo this action.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dadurch werden alle Lesezeichen, Ordner und Tags endgültig gelöscht. Du kannst diese Aktion nicht widerrufen."
+          }
+        }
+      }
+    },
+    "Translating…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wird übersetzt …"
+          }
+        }
+      }
+    },
+    "Undo Delete": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Löschen widerrufen"
+          }
+        }
+      }
+    },
+    "Yellow": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gelb"
+          }
+        }
+      }
+    },
+    "You": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du"
+          }
+        }
+      }
+    },
+    "You can't undo this action.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Du kannst diese Aktion nicht widerrufen."
+          }
+        }
+      }
+    },
+    "Permanently delete %lld bookmarks?": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Permanently delete %lld bookmark?"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Permanently delete %lld bookmarks?"
+                }
+              }
+            }
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld Lesezeichen endgültig löschen?"
           }
         }
       }

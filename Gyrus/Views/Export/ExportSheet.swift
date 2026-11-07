@@ -100,29 +100,22 @@ struct ExportSheet: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .accessibilityAddTraits(selected == fmt ? .isSelected : [])
                 }
             }
-
             .disabled(isExporting)
 
-            HStack {
-                Button("Cancel") { exportTask?.cancel(); isPresented = false }.buttonStyle(.bordered)
-                Spacer()
-                Button {
+            SheetButtons(
+                cancel: .cancel { exportTask?.cancel(); isPresented = false },
+                primary: SheetAction(
+                    title: "Export as .\(selected.ext)",
+                    systemImage: "square.and.arrow.up",
+                    isWorking: isExporting,
+                    workingTitle: "Exporting…"
+                ) {
                     exportTask = Task { await doExport() }
-                } label: {
-                    if isExporting {
-                        HStack(spacing: 6) {
-                            ProgressView().scaleEffect(0.7)
-                            Text("Exporting…")
-                        }
-                    } else {
-                        Label("Export as .\(selected.ext)", systemImage: "square.and.arrow.up")
-                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isExporting)
-            }
+            )
         }
         .padding(24)
         .frame(width: 420)
@@ -212,7 +205,7 @@ struct ExportSheet: View {
         for bm in bms { grouped[bm.collectionId ?? "", default: []].append(bm) }
 
         if let noFolder = grouped[""], !noFolder.isEmpty {
-            out += ["## No folder", ""]
+            out += ["## No Folder", ""]
             for bm in noFolder { out.append(mdLink(bm)) }
             out.append("")
         }

@@ -11,6 +11,7 @@ struct AddBookmarkView: View {
     @State private var selectedCollectionId: String? = nil
     @State private var isSaving = false
     @State private var errorMsg: String? = nil
+    @FocusState private var isURLFocused: Bool
 
     var body: some View {
         VStack(spacing: 24) {
@@ -30,6 +31,7 @@ struct AddBookmarkView: View {
                     HStack {
                         TextField("https://example.com", text: $url)
                             .textFieldStyle(.roundedBorder)
+                            .focused($isURLFocused)
                         Button {
                             if let clip = NSPasteboard.general.string(forType: .string) {
                                 url = clip.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -53,7 +55,7 @@ struct AddBookmarkView: View {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Folder").font(.callout.weight(.medium))
                     Picker("Folder", selection: $selectedCollectionId) {
-                        Text("No folder").tag(Optional<String>.none)
+                        Text("No Folder").tag(Optional<String>.none)
                         ForEach(collectionStore.flatCollections) { col in
                             Text(col.name).tag(Optional(col.id))
                         }
@@ -66,26 +68,38 @@ struct AddBookmarkView: View {
                 Text(err).font(.callout).foregroundStyle(.red).multilineTextAlignment(.center)
             }
 
-            // Actions
-            HStack {
-                Button("Cancel") { isPresented = false }
-                    .buttonStyle(.bordered)
-                Spacer()
-                Button {
+            SheetButtons(
+                cancel: .cancel { isPresented = false },
+                primary: SheetAction(
+                    title: "Add",
+                    isDisabled: url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                    isWorking: isSaving
+                ) {
                     Task { await save() }
-                } label: {
-                    if isSaving {
-                        ProgressView().scaleEffect(0.8)
-                    } else {
-                        Text("Add")
-                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSaving)
-            }
+            )
         }
         .padding(24)
         .frame(width: 440)
+        .onAppear {
+            prefillFromClipboard()
+            // Focusing selects the field's text, so a prefilled URL can be
+            // replaced by just typing.
+            DispatchQueue.main.async { isURLFocused = true }
+        }
+    }
+
+    /// Offer the clipboard's link when the sheet opens, as Quick Add does.
+    /// Only on appear and only into an empty field — never over typing.
+    private func prefillFromClipboard() {
+        guard url.isEmpty,
+              let clip = NSPasteboard.general.string(forType: .string)?
+                  .trimmingCharacters(in: .whitespacesAndNewlines),
+              !clip.contains(where: \.isWhitespace),
+              let parsed = URL(string: clip),
+              parsed.scheme == "https" || parsed.scheme == "http",
+              parsed.host != nil else { return }
+        url = clip
     }
 
     private func save() async {
@@ -94,7 +108,7 @@ struct AddBookmarkView: View {
 
         guard let parsed = URL(string: trimmedURL),
               parsed.scheme == "https" || parsed.scheme == "http" else {
-            errorMsg = String(localized: "Please enter a valid URL (https://...)")
+            errorMsg = String(localized: "Please enter a valid URL (https://…)")
             return
         }
 

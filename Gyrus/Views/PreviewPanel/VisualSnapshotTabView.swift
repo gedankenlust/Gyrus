@@ -683,7 +683,7 @@ struct VisualSnapshotTabView: View {
             }
 
             guard !pages.isEmpty else {
-                AppStore.shared.uiStateStore.showError("No screenshots available for PDF export.")
+                AppStore.shared.uiStateStore.showError(String(localized: "No screenshots available for PDF export."))
                 return
             }
 
@@ -694,12 +694,12 @@ struct VisualSnapshotTabView: View {
             guard panel.runModal() == .OK, let outputURL = panel.url else { return }
 
             guard let data = viewportPDFData(snapshot: snapshot, pages: pages) else {
-                AppStore.shared.uiStateStore.showError("Could not create PDF.")
+                AppStore.shared.uiStateStore.showError(String(localized: "Could not create PDF."))
                 return
             }
 
             try data.write(to: outputURL)
-            AppStore.shared.uiStateStore.showInfo("Viewport PDF exported.")
+            AppStore.shared.uiStateStore.showInfo(String(localized: "Viewport PDF exported."))
         } catch {
             AppStore.shared.uiStateStore.showError(error.localizedDescription)
         }
@@ -775,7 +775,7 @@ struct VisualSnapshotTabView: View {
         selectedViewportName = captured.viewports.first?.name
         updateBookmarkSnapshotStatus(captured)
         await loadRuns()
-        AppStore.shared.uiStateStore.showInfo("Snapshot captured.")
+        AppStore.shared.uiStateStore.showInfo(String(localized: "Snapshot captured."))
     }
 
     private func cancelSnapshotJob() async {

@@ -43,11 +43,18 @@ struct ImportWizardView: View {
                     .multilineTextAlignment(.center)
             }
 
-            HStack {
-                Spacer()
-                Button("Done") { isPresented = false }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isImporting)
+            // Nothing has happened until an import ran, so offer Cancel;
+            // afterwards the library has changed and the sheet is "Done".
+            if result == nil {
+                SheetButtons(
+                    cancel: .cancel(isDisabled: isImporting) { isPresented = false },
+                    primary: nil
+                )
+            } else {
+                SheetButtons(
+                    cancel: nil,
+                    primary: SheetAction(title: "Done") { isPresented = false }
+                )
             }
         }
         .padding(24)

@@ -10,6 +10,7 @@ struct BulkTagAssignmentSheet: View {
 
     @State private var searchText = ""
     @State private var choices: [String: Bool] = [:]
+    @FocusState private var isSearchFocused: Bool
 
     private var filteredTags: [Tag] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -36,8 +37,6 @@ struct BulkTagAssignmentSheet: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Cancel", action: onCancel)
-                    .keyboardShortcut(.cancelAction)
             }
             .padding(20)
 
@@ -53,6 +52,7 @@ struct BulkTagAssignmentSheet: View {
             } else {
                 TextField("Search tags", text: $searchText)
                     .textFieldStyle(.roundedBorder)
+                    .focused($isSearchFocused)
                     .padding(16)
 
                 if shouldOfferNewTag {
@@ -81,21 +81,23 @@ struct BulkTagAssignmentSheet: View {
 
             Divider()
 
-            HStack {
+            SheetButtons(
+                cancel: .cancel(onCancel),
+                primary: SheetAction(title: "Apply", isDisabled: choices.isEmpty) {
+                    onApply(addTagIds, removeTagIds)
+                }
+            ) {
                 Text("A dash means the tag is assigned to only some bookmarks.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Spacer()
-                Button("Apply") {
-                    onApply(addTagIds, removeTagIds)
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(choices.isEmpty)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(16)
         }
         .frame(width: 460, height: 520)
+        .onAppear {
+            DispatchQueue.main.async { isSearchFocused = true }
+        }
     }
 
     private func tagRow(_ tag: Tag) -> some View {
@@ -127,6 +129,7 @@ struct BulkTagAssignmentSheet: View {
         }
         .buttonStyle(.plain)
         .background(Color.primary.opacity(0.001), in: RoundedRectangle(cornerRadius: 6))
+        .accessibilityValue(Text(accessibilityState(for: visualPresence)))
     }
 
     private var shouldOfferNewTag: Bool {
@@ -143,6 +146,14 @@ struct BulkTagAssignmentSheet: View {
         if count == 0 { return .none }
         if count == selected.count { return .all }
         return .some
+    }
+
+    private func accessibilityState(for presence: TagPresence) -> String {
+        switch presence {
+        case .all: return String(localized: "Assigned")
+        case .some: return String(localized: "Assigned to some")
+        case .none: return String(localized: "Not assigned")
+        }
     }
 
     private func icon(for presence: TagPresence) -> String {
