@@ -157,8 +157,10 @@ VISUAL_EXTRACTOR_JS = r"""
       tag: el.tagName.toLowerCase(),
       selector_hint: selectorHint(el),
       text: textOf(el),
-      x: Math.round(rect.x),
-      y: Math.round(rect.y),
+      // Page coordinates, like the issue evidence below: thumbnails are cut
+      // out of a full-page screenshot, which starts at the top of the page.
+      x: Math.round(rect.left + scrollX),
+      y: Math.round(rect.top + scrollY),
       width: Math.round(rect.width),
       height: Math.round(rect.height),
       display: s.display,

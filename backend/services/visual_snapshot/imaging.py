@@ -22,7 +22,12 @@ def dominant_colors(path: Path, max_colors: int = 8) -> list[str]:
     try:
         with Image.open(path) as img:
             img = img.convert("RGB")
-            img.thumbnail(PALETTE_SAMPLE_SIZE)
+            # The same pixel budget as a 240 x 240 sample, spread over the page
+            # in its own proportions: thumbnail() into a square would turn a
+            # full-page capture of a long site into a strip a few pixels wide.
+            budget = PALETTE_SAMPLE_SIZE[0] * PALETTE_SAMPLE_SIZE[1]
+            factor = min(1.0, (budget / max(1, img.width * img.height)) ** 0.5)
+            img = img.resize((max(1, round(img.width * factor)), max(1, round(img.height * factor))))
             pixels = list(img.get_flattened_data())
     except Exception:
         return []

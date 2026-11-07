@@ -358,7 +358,7 @@ class _FakePage:
             return {"responsive_issues": [], "navigation": [], "_technology_signals": None}
         return 1200  # document height
 
-    async def screenshot(self, path, clip):
+    async def screenshot(self, path, clip, full_page=False):
         self.behaviour["events"].append(("screenshot", self.menus_open))
         Image.new("RGB", (clip["width"] // 10, clip["height"] // 10), "white").save(path)
 

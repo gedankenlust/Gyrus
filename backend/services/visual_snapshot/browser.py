@@ -165,6 +165,12 @@ async def capture_screenshot(page, viewport: dict[str, Any], path: Path) -> tupl
     await asyncio.wait_for(
         page.screenshot(
             path=str(path),
+            # Without full_page Playwright clips to the visible viewport, however
+            # tall the clip: every capture used to end at the first screen, so
+            # nothing below it had a component thumbnail or issue evidence.
+            # With full_page the clip applies to the whole page and keeps the
+            # height and pixel bounds above.
+            full_page=True,
             clip={
                 "x": 0,
                 "y": 0,

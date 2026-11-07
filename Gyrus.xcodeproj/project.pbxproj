@@ -131,6 +131,7 @@
 		6B418993C3F987559AC37448 = {isa = PBXBuildFile; fileRef = 60A22B70EE846A1E34C30F73; };
 		462B47DEC14862FEE78C0E5C = {isa = PBXBuildFile; fileRef = 5040842FBCB26B85951B7A25; };
 		95369B2170E9CC4D38E8A660 = {isa = PBXBuildFile; fileRef = 156E72DA689F507587B2052A; };
+		0CA001658C6F18FAFBDC75FE = {isa = PBXBuildFile; fileRef = 3E4778953B13E5646CF84FB9; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -253,14 +254,15 @@
 		E5BB69F832B136A82CA5035C = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DesignAnalysisTests.swift"; sourceTree = "<group>"; };
 		E764EE4D3899585413AC0C5D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DesignInspectorGroupingTests.swift"; sourceTree = "<group>"; };
 		CD1602D43269DCE5F42A796E = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DesignInspectorReportTests.swift"; sourceTree = "<group>"; };
-		44F28DB027511E0EFDACD044 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryControllerTests.swift"; sourceTree = "<group>"; };
-		2AEF02A4B2208CB82C0A9E98 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MainWindowLifecycleTests.swift"; sourceTree = "<group>"; };
-		1190965FEB4D23E07252DE73 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ModelEncodingTests.swift"; sourceTree = "<group>"; };
-		C285E0D9D510CFD51A7CB413 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SnapshotColorTests.swift"; sourceTree = "<group>"; };
-		8DBD1C0CEB34C0331EB87E5D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StabilizationTests.swift"; sourceTree = "<group>"; };
-		60A22B70EE846A1E34C30F73 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrashControllerTests.swift"; sourceTree = "<group>"; };
-		5040842FBCB26B85951B7A25 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIStateStoreTests.swift"; sourceTree = "<group>"; };
-		156E72DA689F507587B2052A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WebPreviewDelegateTests.swift"; sourceTree = "<group>"; };
+		44F28DB027511E0EFDACD044 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "DesignInspectorWidthTests.swift"; sourceTree = "<group>"; };
+		2AEF02A4B2208CB82C0A9E98 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "LibraryControllerTests.swift"; sourceTree = "<group>"; };
+		1190965FEB4D23E07252DE73 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MainWindowLifecycleTests.swift"; sourceTree = "<group>"; };
+		C285E0D9D510CFD51A7CB413 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ModelEncodingTests.swift"; sourceTree = "<group>"; };
+		8DBD1C0CEB34C0331EB87E5D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SnapshotColorTests.swift"; sourceTree = "<group>"; };
+		60A22B70EE846A1E34C30F73 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StabilizationTests.swift"; sourceTree = "<group>"; };
+		5040842FBCB26B85951B7A25 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrashControllerTests.swift"; sourceTree = "<group>"; };
+		156E72DA689F507587B2052A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIStateStoreTests.swift"; sourceTree = "<group>"; };
+		3E4778953B13E5646CF84FB9 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WebPreviewDelegateTests.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -296,6 +298,7 @@
 				60A22B70EE846A1E34C30F73,
 				5040842FBCB26B85951B7A25,
 				156E72DA689F507587B2052A,
+				3E4778953B13E5646CF84FB9,
 			);
 			path = GyrusTests;
 			sourceTree = "<group>";
@@ -817,6 +820,7 @@
 				6B418993C3F987559AC37448,
 				462B47DEC14862FEE78C0E5C,
 				95369B2170E9CC4D38E8A660,
+				0CA001658C6F18FAFBDC75FE,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

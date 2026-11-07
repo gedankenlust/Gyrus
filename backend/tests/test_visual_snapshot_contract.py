@@ -198,7 +198,10 @@ class _Page:
             return copy.deepcopy(EXTRACTION_FIXTURE)
         return 1200
 
-    async def screenshot(self, path, clip):
+    async def screenshot(self, path, clip, full_page=False):
+        # Without full_page Playwright stops at the first screen whatever the
+        # clip says, and nothing below the fold gets a thumbnail.
+        assert full_page, "screenshots must cover the page, not only the viewport"
         image = Image.new("RGB", (clip["width"] // 4, clip["height"] // 4), "white")
         for x in range(image.width // 3):
             for y in range(image.height):
