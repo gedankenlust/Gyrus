@@ -12,6 +12,7 @@ extension Notification.Name {
     static let showImport = Notification.Name("showImport")
     static let showCommandPalette = Notification.Name("showCommandPalette")
     static let showAddBookmark = Notification.Name("showAddBookmark")
+    static let showExport = Notification.Name("showExport")
     static let bookmarksMoved = Notification.Name("bookmarksMoved")
 }
 
@@ -45,11 +46,15 @@ struct GyrusApp: App {
         }
     }
 
-    private var resolvedScheme: ColorScheme? {
+    /// The theme applies to every window (Settings, Quick Add, the menu bar
+    /// extra), not just the main one, and "System" really returns to the
+    /// system appearance; `.preferredColorScheme(nil)` does not undo an
+    /// earlier explicit scheme.
+    private func applyAppTheme() {
         switch settings.appTheme {
-        case "light": return .light
-        case "dark":  return .dark
-        default:      return nil
+        case "light": NSApp.appearance = NSAppearance(named: .aqua)
+        case "dark":  NSApp.appearance = NSAppearance(named: .darkAqua)
+        default:      NSApp.appearance = nil
         }
     }
 
@@ -68,7 +73,7 @@ struct GyrusApp: App {
                         .environment(launcher)
                 }
             }
-            .preferredColorScheme(resolvedScheme)
+            .onChange(of: settings.appTheme, initial: true) { applyAppTheme() }
             .background(MainWindowRegistration(appDelegate: appDelegate).frame(width: 0, height: 0))
             .task {
                 guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
@@ -105,12 +110,6 @@ struct GyrusApp: App {
         .commands {
             MainWindowCommands(appDelegate: appDelegate)
             LibraryCommands(appDelegate: appDelegate, appStore: store)
-            CommandGroup(after: .newItem) {
-                Button("Import Bookmarks…") {
-                    NotificationCenter.default.post(name: .showImport, object: nil)
-                }
-                .keyboardShortcut("i", modifiers: .command)
-            }
         }
 
         Settings {

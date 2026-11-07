@@ -10,6 +10,7 @@ struct QuickAddPanel: View {
     @State private var url: String = ""
     @State private var selectedCollectionId: String? = nil   // nil = Inbox (auto)
     @State private var phase: Phase = .idle
+    @FocusState private var isURLFocused: Bool
 
     private enum Phase: Equatable {
         case idle, saving, saved, duplicate, error(String)
@@ -30,6 +31,7 @@ struct QuickAddPanel: View {
             TextField("https://…", text: $url)
                 .textFieldStyle(.roundedBorder)
                 .font(.body)
+                .focused($isURLFocused)
                 .onSubmit(save)
 
             HStack {
@@ -50,25 +52,17 @@ struct QuickAddPanel: View {
 
             statusRow
 
-            HStack {
-                Button("Cancel", action: onClose)
-                    .keyboardShortcut(.cancelAction)
-                Spacer()
-                Button(action: save) {
-                    if phase == .saving {
-                        ProgressView().scaleEffect(0.6)
-                    } else {
-                        Text("Save")
-                    }
-                }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .disabled(!isValidURL || phase == .saving)
-            }
+            SheetButtons(
+                cancel: .cancel(onClose),
+                primary: SheetAction(title: "Save", isDisabled: !isValidURL, isWorking: phase == .saving, perform: save)
+            )
         }
         .padding(18)
         .frame(width: 380)
-        .onAppear(perform: prefillFromClipboard)
+        .onAppear {
+            prefillFromClipboard()
+            DispatchQueue.main.async { isURLFocused = true }
+        }
     }
 
     @ViewBuilder
@@ -105,7 +99,7 @@ struct QuickAddPanel: View {
 
     private func save() {
         let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard isValidURL else { return }
+        guard isValidURL, phase != .saving else { return }
         phase = .saving
         Task {
             do {

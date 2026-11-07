@@ -114,7 +114,7 @@ struct BookmarkContextMenu: View {
 
             // Move to Collection submenu
             Menu {
-                Button("No Folder (Root)") {
+                Button("No Folder") {
                     Task { await appStore.moveBookmarks(ids: ids, to: nil) }
                 }
                 Divider()

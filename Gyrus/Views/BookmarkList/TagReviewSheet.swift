@@ -154,15 +154,13 @@ struct TagReviewSheet: View {
     }
 
     private var footer: some View {
-        HStack {
+        SheetButtons(
+            cancel: .cancel(onCancel),
+            primary: SheetAction(title: "Apply Suggestions", isDisabled: !canApply) { onApply(edits) }
+        ) {
             Text("\(enabledCount) selected")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Spacer()
-            Button("Cancel", role: .cancel, action: onCancel)
-            Button("Apply Suggestions") { onApply(edits) }
-                .keyboardShortcut(.defaultAction)
-                .disabled(!canApply)
         }
         .padding(18)
     }

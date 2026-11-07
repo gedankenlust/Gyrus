@@ -57,7 +57,9 @@ struct SidebarOutlineView: NSViewRepresentable {
         let outline = KeyHandlingOutlineView()
         outline.onDelete = { context.coordinator.deleteSelection() }
         outline.headerView = nil
-        outline.rowHeight = 28
+        // Follows System Settings › Appearance › Sidebar icon size, like Finder
+        // and Mail, instead of a fixed 28 pt row.
+        outline.rowSizeStyle = .default
         outline.style = .sourceList
         outline.indentationPerLevel = 12
         outline.floatsGroupRows = false
@@ -647,13 +649,20 @@ struct SidebarOutlineView: NSViewRepresentable {
             }
         }
 
+        /// Name prompt. The primary button says what happens ("Rename",
+        /// "Create") and the field starts focused with its text selected, so
+        /// typing replaces the old name right away.
         private func promptText(_ title: String, initial: String) -> String? {
             let alert = NSAlert()
             alert.messageText = title
-            let tf = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+            let tf = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
             tf.stringValue = initial
+            tf.placeholderString = loc("Name")
             alert.accessoryView = tf
-            alert.addButton(withTitle: loc("OK")); alert.addButton(withTitle: loc("Cancel"))
+            alert.addButton(withTitle: initial.isEmpty ? loc("Create") : loc("Rename"))
+            alert.addButton(withTitle: loc("Cancel"))
+            alert.window.initialFirstResponder = tf
+            DispatchQueue.main.async { tf.selectText(nil) }
             let ok = alert.runModal() == .alertFirstButtonReturn
             let value = tf.stringValue.trimmingCharacters(in: .whitespaces)
             return (ok && !value.isEmpty) ? value : nil
@@ -813,7 +822,8 @@ final class GroupCellView: NSTableCellView {
     required init?(coder: NSCoder) { fatalError() }
     func configure(title: String, showAdd: Bool, target: AnyObject, action: Selector,
                    showFolderControls: Bool, expandAction: Selector, collapseAction: Selector) {
-        label.stringValue = title.uppercased()
+        // Title case, as in macOS 11+ sidebars; all caps reads as shouting.
+        label.stringValue = title
         add.isHidden = !showAdd
         add.target = target; add.action = action
         expand.isHidden = !showFolderControls
@@ -831,17 +841,20 @@ final class ItemCellView: NSTableCellView {
     override init(frame: NSRect) {
         super.init(frame: frame)
         icon.translatesAutoresizingMaskIntoConstraints = false
-        name.font = .systemFont(ofSize: 13)
         name.lineBreakMode = .byTruncatingTail
         name.translatesAutoresizingMaskIntoConstraints = false
         count.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         count.textColor = .secondaryLabelColor
         count.translatesAutoresizingMaskIntoConstraints = false
         addSubview(icon); addSubview(name); addSubview(count)
+        // Registered as the cell's image view and text field so the source
+        // list scales the icon and font with the sidebar size setting.
+        imageView = icon
+        textField = name
         NSLayoutConstraint.activate([
             icon.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 2),
             icon.centerYAnchor.constraint(equalTo: centerYAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 16),
+            icon.widthAnchor.constraint(greaterThanOrEqualToConstant: 16),
             name.leadingAnchor.constraint(equalTo: icon.trailingAnchor, constant: 6),
             name.centerYAnchor.constraint(equalTo: centerYAnchor),
             count.leadingAnchor.constraint(greaterThanOrEqualTo: name.trailingAnchor, constant: 6),
@@ -869,13 +882,13 @@ final class TagCellView: NSTableCellView {
         dot.wantsLayer = true
         dot.layer?.cornerRadius = 5
         dot.translatesAutoresizingMaskIntoConstraints = false
-        name.font = .systemFont(ofSize: 13)
         name.lineBreakMode = .byTruncatingTail
         name.translatesAutoresizingMaskIntoConstraints = false
         count.font = .monospacedDigitSystemFont(ofSize: 11, weight: .regular)
         count.textColor = .secondaryLabelColor
         count.translatesAutoresizingMaskIntoConstraints = false
         addSubview(dot); addSubview(name); addSubview(count)
+        textField = name
         NSLayoutConstraint.activate([
             dot.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
             dot.centerYAnchor.constraint(equalTo: centerYAnchor),

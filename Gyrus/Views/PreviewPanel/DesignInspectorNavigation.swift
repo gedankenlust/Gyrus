@@ -273,7 +273,7 @@ private struct InspectorColorCard: View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
                 copy(entry.hex.uppercased())
-                AppStore.shared.uiStateStore.showInfo("Copied.")
+                AppStore.shared.uiStateStore.showInfo(String(localized: "Copied."))
             } label: {
                 VStack(alignment: .leading, spacing: 6) {
                     RoundedRectangle(cornerRadius: 5).fill(Color(hexString: entry.hex) ?? .clear)

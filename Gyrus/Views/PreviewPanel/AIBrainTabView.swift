@@ -43,9 +43,18 @@ struct AIBrainTabView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let error = chat.errors[bookmark.id] {
-                Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.red)
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
             }
-            if chat.clearing.contains(bookmark.id) { ProgressView("Clearing conversation…") }
+            if chat.clearing.contains(bookmark.id) {
+                ProgressView("Clearing conversation…")
+                    .controlSize(.small)
+                    .padding(.vertical, 6)
+            }
 
             header
             
@@ -63,12 +72,21 @@ struct AIBrainTabView: View {
         }
     }
     
+    /// One row: what the Brain reads on the left, conversation actions on
+    /// the right. Previously an empty-looking action bar plus a badge strip.
     private var header: some View {
         VStack(spacing: 0) {
-            HStack {
-                Spacer()
+            HStack(spacing: 8) {
+                // Badges drop their titles before the actions get squeezed.
+                ViewThatFits(in: .horizontal) {
+                    contextBadges(compact: false)
+                    contextBadges(compact: true)
+                }
+                Spacer(minLength: 0)
                 if isSending {
-                    ProgressView().scaleEffect(0.5)
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("Generating reply")
                 }
                 // Summarize button — quick one-tap note generation
                 Button {
@@ -76,7 +94,7 @@ struct AIBrainTabView: View {
                         do {
                             let resp = try await APIClient.shared.summarize(bookmarkId: bookmark.id, config: config)
                             if !resp.summary.isEmpty {
-                                AppStore.shared.uiStateStore.showInfo("Summary added to Notes.")
+                                AppStore.shared.uiStateStore.showInfo(String(localized: "Summary added to Notes."))
                             }
                         } catch {
                             AppStore.shared.uiStateStore.showError(error.localizedDescription)
@@ -85,9 +103,9 @@ struct AIBrainTabView: View {
                 } label: {
                     Image(systemName: "text.quote")
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .buttonStyle(.borderless)
                 .help("Generate a summary and save it to Notes")
+                .accessibilityLabel("Summarize to Notes")
                 .disabled(isSending)
                 if chat.hasConversation(bookmark.id) {
                     Button {
@@ -95,29 +113,28 @@ struct AIBrainTabView: View {
                     } label: {
                         Image(systemName: "trash")
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
+                    .buttonStyle(.borderless)
                     .help("Clear this conversation")
+                    .accessibilityLabel("Clear Conversation")
                 }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.bar)
-            Divider()
-            HStack(spacing: 6) {
-                BrainContextBadge(title: "Page text", icon: "doc.text")
-                BrainContextBadge(title: "Chat history", icon: "bubble.left.and.bubble.right")
-                if hasDesignSnapshot {
-                    BrainContextBadge(title: "3 viewports", icon: "rectangle.3.group")
-                }
-                Spacer(minLength: 0)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
             Divider()
         }
     }
-    
+
+    private func contextBadges(compact: Bool) -> some View {
+        HStack(spacing: 6) {
+            BrainContextBadge(title: "Page text", icon: "doc.text", compact: compact)
+            BrainContextBadge(title: "Chat history", icon: "bubble.left.and.bubble.right", compact: compact)
+            if hasDesignSnapshot {
+                BrainContextBadge(title: "3 viewports", icon: "rectangle.3.group", compact: compact)
+            }
+        }
+        .fixedSize()
+    }
+
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -131,8 +148,8 @@ struct AIBrainTabView: View {
                     }
                     if isSending && (messages.last?.text.isEmpty ?? true) {
                         HStack {
-                            ProgressView().scaleEffect(0.6)
-                            Text("Thinking...")
+                            ProgressView().controlSize(.small)
+                            Text("Thinking…")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -153,8 +170,9 @@ struct AIBrainTabView: View {
         VStack(spacing: 12) {
             Spacer()
             Image(systemName: "brain.head.profile")
-                .font(.system(size: 40))
+                .font(.largeTitle)
                 .foregroundStyle(.secondary.opacity(0.5))
+                .accessibilityHidden(true)
             
             Text("Ask anything about this bookmark")
                 .font(.callout)
@@ -175,7 +193,7 @@ struct AIBrainTabView: View {
         VStack(spacing: 0) {
             Divider()
             HStack(spacing: 10) {
-                TextField("Ask the Brain...", text: $currentPrompt, axis: .vertical)
+                TextField("Ask the Brain…", text: $currentPrompt, axis: .vertical)
                     .textFieldStyle(.plain)
                     .padding(8)
                     .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
@@ -191,20 +209,23 @@ struct AIBrainTabView: View {
                         chat.stop(bookmark.id)
                     } label: {
                         Image(systemName: "stop.circle.fill")
-                            .font(.system(size: 24))
+                            .font(.title2)
                             .foregroundStyle(Color.red)
                     }
                     .buttonStyle(.plain)
                     .help("Stop generating")
+                    .accessibilityLabel("Stop generating")
                 } else {
                     Button {
                         sendPrompt(currentPrompt)
                     } label: {
                         Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 24))
+                            .font(.title2)
                             .foregroundStyle(currentPrompt.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
                     }
                     .buttonStyle(.plain)
+                    .help("Send")
+                    .accessibilityLabel("Send")
                     .disabled(currentPrompt.isEmpty || chat.clearing.contains(bookmark.id))
                 }
             }
@@ -234,34 +255,58 @@ struct AIBrainTabView: View {
 private struct BrainContextBadge: View {
     let title: LocalizedStringKey
     let icon: String
+    var compact = false
 
     var body: some View {
         Label(title, systemImage: icon)
+            .labelStyle(BadgeLabelStyle(compact: compact))
+            .help(title)
             .font(.caption2.weight(.medium))
             .foregroundStyle(.secondary)
             .padding(.horizontal, 7)
             .padding(.vertical, 4)
             .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 6))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(title)
     }
 }
 
+/// Icon + title, or icon alone (title kept for VoiceOver via the badge's
+/// accessibility label) when the inspector is narrow.
+private struct BadgeLabelStyle: LabelStyle {
+    let compact: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.icon
+            if !compact { configuration.title }
+        }
+    }
+}
+
+/// One chat message. "Save to Notes" appears on hover, but also when it has
+/// keyboard focus, in the context menu and as a VoiceOver action, so it is
+/// never pointer-only.
 struct ChatBubble: View {
     let message: ChatMessage
     let onSaveToNotes: () -> Void
     @State private var isHovering = false
     @State private var didSave = false
-    
+    @FocusState private var isSaveFocused: Bool
+
+    private var canSave: Bool { !message.isUser && !message.isError }
+
     var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
             if message.isUser { Spacer() }
-            
+
             VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
                 bubbleText
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                     .background(bubbleBackground)
                     .foregroundStyle(message.isUser ? .white : .primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                     .textSelection(.enabled)
                     .contextMenu {
                         Button {
@@ -270,28 +315,28 @@ struct ChatBubble: View {
                         } label: {
                             Label("Copy", systemImage: "doc.on.doc")
                         }
-                        
-                        Button(action: onSaveToNotes) {
-                            Label("Add to Notes", systemImage: "note.text.badge.plus")
+
+                        Button(action: save) {
+                            Label("Save to Notes", systemImage: "note.text.badge.plus")
                         }
+                        .disabled(didSave)
                     }
-                
-                if !message.isUser && !message.isError {
-                    Button {
-                        onSaveToNotes()
-                        withAnimation { didSave = true }
-                    } label: {
+
+                if canSave {
+                    let saveTitle: LocalizedStringKey = didSave ? "Saved to Notes" : "Save to Notes"
+                    Button(action: save) {
                         HStack(spacing: 4) {
                             Image(systemName: didSave ? "checkmark" : "note.text.badge.plus")
-                            Text(didSave ? "Saved to Notes" : "Save to Notes")
+                            Text(saveTitle)
                         }
                         .font(.caption2.bold())
                         .foregroundStyle(didSave ? Color.green : Color.secondary)
                         .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(.quaternary.opacity(0.5), in: Capsule())
+                        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
                     }
                     .buttonStyle(.plain)
-                    .opacity(didSave || isHovering ? 1 : 0)
+                    .focused($isSaveFocused)
+                    .opacity(didSave || isHovering || isSaveFocused ? 1 : 0)
                     .disabled(didSave)
                 }
             }
@@ -301,6 +346,15 @@ struct ChatBubble: View {
         .padding(.horizontal, 16)
         .contentShape(Rectangle())
         .onHover { isHovering = $0 }
+        .accessibilityElement(children: .contain)
+        // Same reach as the context menu, which also offers your own messages.
+        .accessibilityAction(named: Text("Save to Notes"), save)
+    }
+
+    private func save() {
+        guard !didSave else { return }
+        onSaveToNotes()
+        withAnimation { didSave = true }
     }
 
     /// Render assistant replies as Markdown (bold, lists, code, links) while

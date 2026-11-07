@@ -645,7 +645,14 @@ final class BookmarkStore {
     // MARK: - Browser
 
     func openInBrowser(ids: Set<String>) {
-        bookmarks.filter { ids.contains($0.id) }.forEach { safeBrowserOpen($0.url) }
+        var targets = bookmarks.filter { ids.contains($0.id) }
+        // A Quick Search result can be selected while it is outside the loaded
+        // rows; it is still the previewed bookmark, so ⌘O must open it.
+        if let selected = selectedBookmark, ids.contains(selected.id),
+           !targets.contains(where: { $0.id == selected.id }) {
+            targets.append(selected)
+        }
+        targets.forEach { safeBrowserOpen($0.url) }
     }
 
     func safeBrowserOpen(_ urlString: String) {

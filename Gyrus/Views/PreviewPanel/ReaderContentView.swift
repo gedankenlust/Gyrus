@@ -102,57 +102,81 @@ enum ReaderContentParser {
     }
 }
 
+/// Reader text as one view per block instead of a single giant `Text`, so
+/// VoiceOver can move by heading and long articles render lazily. Text
+/// selection works within each block (`.textSelection` set by the caller
+/// reaches every `Text`); "Copy Text" in the header copies the whole article.
 struct ReaderFormattedContent: View {
     let title: String
     let content: String
 
+    private var blocks: [ReaderContentBlock] { ReaderContentParser.parse(content) }
+
     var body: some View {
-        Text(attributedContent)
-            .font(.body)
-            .lineSpacing(5)
+        LazyVStack(alignment: .leading, spacing: 14) {
+            Text(inlineMarkdown(title))
+                .font(.title.bold())
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityHeading(.h1)
+                .padding(.bottom, 4)
+
+            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                blockView(block)
+            }
+        }
+        .font(.body)
+        .lineSpacing(5)
         .frame(maxWidth: 760, alignment: .leading)
     }
 
-    private var attributedContent: AttributedString {
-        var output = inlineMarkdown(title)
-        output.font = .title.bold()
-        let blocks = ReaderContentParser.parse(content)
-
-        for block in blocks {
-            output.append(AttributedString("\n\n"))
-
-            switch block {
-            case let .heading(level, text):
-                var heading = inlineMarkdown(text)
-                heading.font = headingFont(level)
-                output.append(heading)
-            case let .paragraph(text):
-                output.append(inlineMarkdown(text))
-            case let .unorderedList(items):
-                appendList(items, ordered: false, to: &output)
-            case let .orderedList(items):
-                appendList(items, ordered: true, to: &output)
-            case let .quote(text):
-                var quote = inlineMarkdown(text)
-                quote.font = .body.italic()
-                quote.foregroundColor = .secondary
-                output.append(AttributedString("│ "))
-                output.append(quote)
+    @ViewBuilder
+    private func blockView(_ block: ReaderContentBlock) -> some View {
+        switch block {
+        case let .heading(level, text):
+            Text(inlineMarkdown(text))
+                .font(headingFont(level))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityHeading(headingLevel(level))
+        case let .paragraph(text):
+            paragraph(text)
+        case let .unorderedList(items):
+            list(items, ordered: false)
+        case let .orderedList(items):
+            list(items, ordered: true)
+        case let .quote(text):
+            HStack(alignment: .top, spacing: 10) {
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(.quaternary)
+                    .frame(width: 3)
+                    .accessibilityHidden(true)
+                paragraph(text)
+                    .italic()
+                    .foregroundStyle(.secondary)
             }
         }
-
-        return output
     }
 
-    private func appendList(
-        _ items: [String],
-        ordered: Bool,
-        to output: inout AttributedString
-    ) {
-        for (index, item) in items.enumerated() {
-            if index > 0 { output.append(AttributedString("\n")) }
-            output.append(AttributedString(ordered ? "\(index + 1). " : "• "))
-            output.append(inlineMarkdown(item))
+    private func paragraph(_ text: String) -> some View {
+        Text(inlineMarkdown(text))
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func list(_ items: [String], ordered: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(verbatim: ordered ? "\(index + 1)." : "•")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(!ordered)
+                    paragraph(item)
+                }
+                .accessibilityElement(children: .combine)
+            }
         }
     }
 
@@ -172,6 +196,17 @@ struct ReaderFormattedContent: View {
         case 2: .title3.bold()
         case 3: .headline
         default: .subheadline.bold()
+        }
+    }
+
+    private func headingLevel(_ level: Int) -> AccessibilityHeadingLevel {
+        // The article title is h1, so Markdown headings start one level down.
+        switch level {
+        case 1: .h2
+        case 2: .h3
+        case 3: .h4
+        case 4: .h5
+        default: .h6
         }
     }
 }

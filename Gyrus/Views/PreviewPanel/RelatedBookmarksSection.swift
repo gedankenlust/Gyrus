@@ -11,21 +11,25 @@ struct RelatedBookmarksSection: View {
         Group {
             if !related.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Similar bookmarks")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    DetailSectionHeader("Similar bookmarks")
                     ForEach(related) { item in
                         Button {
                             bookmarkStore.selectedBookmark = item
                             bookmarkStore.selectedIds = [item.id]
                         } label: {
-                            Text(item.title.isEmpty ? item.url : item.title)
-                                .font(.callout)
-                                .foregroundStyle(.primary)
-                                .lineLimit(2)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            HStack(spacing: 8) {
+                                FaviconView(faviconPath: item.faviconPath, bookmarkURL: item.url, size: 14)
+                                    .accessibilityHidden(true)
+                                Text(item.displayTitle)
+                                    .font(.callout)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(2)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .help(item.url)
                     }
                 }
             }
