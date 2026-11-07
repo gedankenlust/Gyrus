@@ -63,6 +63,30 @@ final class UIStateStoreTests: XCTestCase {
         XCTAssertEqual(store.errorMessage, "direct")
     }
 
+    func testBackgroundErrorsSkipTransientBackendFailuresOnly() {
+        store.showError(for: APIError.serverError(503), background: true)
+        XCTAssertNil(store.errorMessage)
+        store.showError(for: APIError.networkError(URLError(.cancelled)))
+        XCTAssertNil(store.errorMessage)
+        // The same failure from a user's action is reported.
+        store.showError(for: APIError.serverError(503))
+        XCTAssertNotNil(store.errorMessage)
+    }
+
+    func testNewUndoReplacesThePreviousOne() {
+        var undone: [String] = []
+        store.offerUndo("first") { undone.append("first") }
+        let firstGeneration = store.undoGeneration
+        store.offerUndo("second") { undone.append("second") }
+        XCTAssertEqual(store.undoMessage, "second")
+        XCTAssertGreaterThan(store.undoGeneration, firstGeneration)
+        store.undoAction?()
+        XCTAssertEqual(undone, ["second"])
+        store.dismissUndo()
+        XCTAssertNil(store.undoMessage)
+        XCTAssertNil(store.undoAction)
+    }
+
     func testJobPollerStopsAfterRepeatedStatusFailures() async {
         struct TestStatus: JobStatusReporting { let running: Bool }
         enum TestError: Error { case unavailable }

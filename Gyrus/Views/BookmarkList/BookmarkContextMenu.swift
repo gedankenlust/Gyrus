@@ -40,22 +40,22 @@ struct BookmarkContextMenu: View {
                     } label: {
                         Label("Deselect tagged bookmarks", systemImage: "minus.circle")
                     }
-                    .disabled(uiStateStore.batchAutoTagStatus?.running == true)
+                    .disabled(appStore.jobs.batchAutoTagStatus?.running == true)
 
                     Divider()
                 }
                 Button {
-                    Task { await appStore.startTaxonomyReview(ids: Array(ids)) }
+                    Task { await appStore.jobs.startTaxonomyReview(ids: Array(ids)) }
                 } label: {
                     Label("Organize with AI", systemImage: "wand.and.stars")
                 }
                 .disabled(!AppSettings.shared.aiBrainConfig.aiEnabled
-                          || uiStateStore.batchAutoTagStatus?.running == true
-                          || ids.count < AppStore.minTaxonomyBookmarks)
+                          || appStore.jobs.batchAutoTagStatus?.running == true
+                          || ids.count < BackgroundJobs.minTaxonomyBookmarks)
 
                 if !AppSettings.shared.aiBrainConfig.aiEnabled {
                     Text("Enable AI in Settings to organize automatically")
-                } else if ids.count < AppStore.minTaxonomyBookmarks {
+                } else if ids.count < BackgroundJobs.minTaxonomyBookmarks {
                     Text("Select at least 10 bookmarks for AI organization")
                 }
 
@@ -197,12 +197,12 @@ struct BookmarkContextMenu: View {
                 Divider()
                 // Trash view: restore or permanently delete.
                 Button {
-                    Task { await appStore.restoreFromTrash(ids: ids) }
+                    Task { await appStore.trash.restoreFromTrash(ids: ids) }
                 } label: {
                     Label(single ? "Restore" : "Restore \(count)", systemImage: "arrow.uturn.backward")
                 }
                 Button(role: .destructive) {
-                    appStore.requestPurge(ids: ids)
+                    appStore.trash.requestPurge(ids: ids)
                 } label: {
                     Label(single ? "Delete Permanently" : "Delete \(count) Permanently",
                           systemImage: "trash.slash")
@@ -226,10 +226,10 @@ struct BookmarkContextMenu: View {
                 // Delete (moves to Trash)
                 Button(role: .destructive) {
                     if single, let bm = firstBookmark {
-                        Task { await appStore.deleteBookmark(bm) }
+                        Task { await appStore.trash.deleteBookmark(bm) }
                     } else {
                         bookmarkStore.selectedIds = ids
-                        appStore.requestDeleteSelected()
+                        appStore.trash.requestDeleteSelected()
                     }
                 } label: {
                     Label(single ? "Delete" : "Delete \(count) Bookmarks",

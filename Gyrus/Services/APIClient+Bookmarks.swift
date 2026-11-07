@@ -21,7 +21,6 @@ extension APIClient {
         sortBy: String = "created_at",
         order: String = "desc"
     ) async throws -> [Bookmark] {
-        var components = URLComponents(url: base.appending(path: "/api/bookmarks"), resolvingAgainstBaseURL: false)!
         var items: [URLQueryItem] = [
             .init(name: "limit",   value: "\(limit)"),
             .init(name: "offset",  value: "\(offset)"),
@@ -32,8 +31,7 @@ extension APIClient {
         if let t = tag { items.append(.init(name: "tag", value: t)) }
         if deadOnly { items.append(.init(name: "dead_only", value: "true")) }
         if unreadOnly { items.append(.init(name: "unread_only", value: "true")) }
-        components.queryItems = items
-        return try await get(components.url!)
+        return try await get(base.appending(path: "/api/bookmarks"), query: items)
     }
 
     func bookmarkIds(
@@ -43,15 +41,13 @@ extension APIClient {
         unreadOnly: Bool = false,
         query: String? = nil
     ) async throws -> [String] {
-        var components = URLComponents(url: base.appending(path: "/api/bookmarks/ids"), resolvingAgainstBaseURL: false)!
         var items: [URLQueryItem] = []
         if let cid = collectionId { items.append(.init(name: "collection_id", value: cid)) }
         if let t = tag { items.append(.init(name: "tag", value: t)) }
         if deadOnly { items.append(.init(name: "dead_only", value: "true")) }
         if unreadOnly { items.append(.init(name: "unread_only", value: "true")) }
         if let q = query { items.append(.init(name: "q", value: q)) }
-        components.queryItems = items.isEmpty ? nil : items
-        return try await get(components.url!)
+        return try await get(base.appending(path: "/api/bookmarks/ids"), query: items)
     }
 
     func createBookmark(_ body: BookmarkCreate) async throws -> Bookmark {
@@ -122,12 +118,10 @@ extension APIClient {
     // MARK: Trash
 
     func trashedBookmarks(limit: Int = 200, offset: Int = 0) async throws -> [Bookmark] {
-        var components = URLComponents(url: base.appending(path: "/api/bookmarks/trash"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [
+        try await get(base.appending(path: "/api/bookmarks/trash"), query: [
             .init(name: "limit", value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
-        ]
-        return try await get(components.url!)
+        ])
     }
 
     func trashCount() async throws -> Int {

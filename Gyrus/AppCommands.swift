@@ -166,7 +166,7 @@ struct LibraryCommands: Commands {
 
             Button(appStore.collectionsStore.showTrash ? "Delete Permanently…" : "Move to Trash") {
                 if libraryOwnsKeyboard() {
-                    appStore.requestDeleteSelected()
+                    appStore.trash.requestDeleteSelected()
                 } else {
                     LibraryCommandRouting.forward(#selector(NSResponder.deleteToBeginningOfLine(_:)))
                 }
@@ -182,23 +182,23 @@ struct LibraryCommands: Commands {
         }
 
         CommandMenu("Library") {
-            let linkCheckRunning = uiState.linkCheckStatus?.running == true
-            let metadataRunning = uiState.metadataRefreshStatus?.running == true
+            let linkCheckRunning = appStore.jobs.linkCheckStatus?.running == true
+            let metadataRunning = appStore.jobs.metadataRefreshStatus?.running == true
             Button(linkCheckRunning ? "Checking Links…" : "Check All Links") {
-                Task { await appStore.startLinkCheck() }
+                Task { await appStore.jobs.startLinkCheck() }
             }
             .disabled(linkCheckRunning)
             .help("Finds dead links (404, timeout). Takes a few minutes for large collections.")
 
             Button(metadataRunning ? "Refreshing Metadata…" : "Refresh All Metadata") {
-                Task { await appStore.startMetadataRefresh() }
+                Task { await appStore.jobs.startMetadataRefresh() }
             }
             .disabled(metadataRunning)
             .help("Re-fetches favicons, descriptions and preview images for every bookmark.")
 
             if metadataRunning {
                 Button("Stop Metadata Refresh") {
-                    Task { await appStore.cancelMetadataRefresh() }
+                    Task { await appStore.jobs.cancelMetadataRefresh() }
                 }
             }
         }

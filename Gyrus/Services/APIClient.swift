@@ -1,7 +1,9 @@
 import Foundation
 
 // The backend API surface is split by domain to keep each file reviewable:
-//   APIClient.swift              core: session plumbing, HTTP verbs, errors
+//   APIClient.swift              core: sessions, the request pipeline, HTTP verbs
+//   APIRequest.swift             the request description every call is built from
+//   APIError.swift               errors, user-facing texts, FastAPI detail parsing
 //   APIClient+Bookmarks.swift    bookmark CRUD, trash, reader, notes
 //   APIClient+Collections.swift  folder CRUD, move, reorder
 //   APIClient+Tags.swift         tag CRUD, restore
@@ -33,26 +35,6 @@ private let _iso8601Formatters: [DateFormatter] = {
         return f
     }
 }()
-
-enum APIError: LocalizedError {
-    case invalidURL
-    case serverError(Int)
-    case decodingError(String)
-    case networkError(Error)
-    case duplicate
-    case serverMessage(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL: return "Invalid URL"
-        case .serverError(let code): return "Server error \(code)"
-        case .duplicate: return "Bookmark already exists"
-        case .decodingError(let message): return message
-        case .networkError(let e): return "Network error: \(e.localizedDescription)"
-        case .serverMessage(let m): return m
-        }
-    }
-}
 
 struct EmptyBody: Encodable {}
 
@@ -128,13 +110,60 @@ final class APIClient {
         return e
     }()
 
+    // MARK: - Request pipeline
+
+    /// Every request carries this header; the backend refuses anything else.
+    static let tokenHeader = "X-Gyrus-Token"
+
+    private func urlSession(for transport: APIRequest.Transport) -> URLSession {
+        switch transport {
+        case .standard: return session
+        case .metadata: return metadataSession
+        case .custom(let custom): return custom
+        }
+    }
+
+    /// The one place a request is put on the wire: adds the token and turns
+    /// transport failures into `APIError.networkError` (or a cancellation).
+    /// Status codes are left to the caller, because the health check reads a
+    /// non-2xx answer as "not ready" rather than as an error.
+    func exchange(_ request: URLRequest, on session: URLSession) async throws -> (Data, URLResponse) {
+        var request = request
+        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: Self.tokenHeader)
+        do {
+            return try await session.data(for: request)
+        } catch {
+            throw transportError(error)
+        }
+    }
+
+    /// Build, send and status-check a request; returns the raw body.
+    func send(_ request: APIRequest) async throws -> Data {
+        let (data, response) = try await exchange(request.urlRequest(base: base),
+                                                  on: urlSession(for: request.transport))
+        try checkStatus(response, data: data)
+        return data
+    }
+
+    /// `send` plus decoding with the shared date-tolerant decoder.
+    func send<T: Decodable>(_ request: APIRequest, decoding type: T.Type = T.self) async throws -> T {
+        let url = try request.resolvedURL(base: base)
+        let data = try await send(request)
+        return try decode(data, from: url)
+    }
+
+    /// JSON request bodies are encoded before anything is sent, so an encoding
+    /// failure surfaces as itself and never as a network error.
+    func jsonBody<Body: Encodable>(_ body: Body) throws -> APIRequest.Body {
+        .json(try encoder.encode(body))
+    }
+
     // MARK: - Health
 
     func health() async throws -> Bool {
-        var request = URLRequest(url: base.appending(path: "/api/ready"))
-        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
-        request.timeoutInterval = 2.0 // Short timeout for health check
-        let (data, response) = try await session.data(for: request)
+        let request = try APIRequest(path: "/api/ready", timeout: 2.0) // Short timeout for health check
+            .urlRequest(base: base)
+        let (data, response) = try await exchange(request, on: session)
         guard (response as? HTTPURLResponse)?.statusCode == 200,
               let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return false }
@@ -155,97 +184,39 @@ final class APIClient {
         return APIError.networkError(error)
     }
 
-    func get<T: Decodable>(_ url: URL) async throws -> T {
-        var request = URLRequest(url: url)
-        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
-        do {
-            let (data, response) = try await session.data(for: request)
-            try checkStatus(response, data: data)
-            return try decode(data, from: url)
-        } catch let e as APIError {
-            throw e
-        } catch {
-            throw transportError(error)
-        }
+    func get<T: Decodable>(_ url: URL, query: [URLQueryItem] = []) async throws -> T {
+        try await send(APIRequest(.get, url: url, query: query))
     }
 
     func post<Body: Encodable, T: Decodable>(_ url: URL, body: Body, timeout: TimeInterval? = nil, using requestSession: URLSession? = nil) async throws -> T {
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
-        request.httpBody = try encoder.encode(body)
-        if let timeout { request.timeoutInterval = timeout }
-        do {
-            let (data, response) = try await (requestSession ?? session).data(for: request)
-            try checkStatus(response, data: data)
-            return try decode(data, from: url)
-        } catch let e as APIError {
-            throw e
-        } catch {
-            throw transportError(error)
-        }
+        let transport: APIRequest.Transport = requestSession.map {
+            $0 === metadataSession ? .metadata : .custom($0)
+        } ?? .standard
+        return try await send(APIRequest(.post, url: url, body: jsonBody(body), timeout: timeout, transport: transport))
     }
 
     func postIgnoreResponse<Body: Encodable>(_ url: URL, body: Body) async throws {
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
-        request.httpBody = try encoder.encode(body)
-        do {
-            let (data, response) = try await session.data(for: request)
-            try checkStatus(response, data: data)
-        } catch let e as APIError {
-            throw e
-        } catch {
-            throw transportError(error)
-        }
+        _ = try await send(APIRequest(.post, url: url, body: jsonBody(body)))
     }
 
     func put<Body: Encodable, T: Decodable>(_ url: URL, body: Body) async throws -> T {
-        var request = URLRequest(url: url)
-        request.httpMethod = "PUT"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
-        request.httpBody = try encoder.encode(body)
-        do {
-            let (data, response) = try await session.data(for: request)
-            try checkStatus(response, data: data)
-            return try decode(data, from: url)
-        } catch let e as APIError {
-            throw e
-        } catch {
-            throw transportError(error)
-        }
+        try await send(APIRequest(.put, url: url, body: jsonBody(body)))
     }
 
     func delete(_ url: URL) async throws {
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
-        do {
-            let (data, response) = try await session.data(for: request)
-            try checkStatus(response, data: data)
-        } catch let e as APIError {
-            throw e
-        } catch {
-            throw transportError(error)
-        }
+        _ = try await send(APIRequest(.delete, url: url))
     }
 
     func checkStatus(_ response: URLResponse, data: Data = Data()) throws {
         guard let http = response as? HTTPURLResponse else { return }
+        let detail = APIError.serverDetail(from: data)
         if http.statusCode == 409 {
-            let detail = serverDetail(from: data)
             if detail == nil || detail?.lowercased().contains("already exists") == true {
                 throw APIError.duplicate
             }
         }
         if !(200...299).contains(http.statusCode) {
-            if let message = serverDetail(from: data) {
-                throw APIError.serverMessage(message)
-            }
+            if let detail { throw APIError.serverMessage(detail) }
             throw APIError.serverError(http.statusCode)
         }
     }
@@ -258,13 +229,5 @@ final class APIClient {
             let raw = String(data: data.prefix(600), encoding: .utf8) ?? "<\(data.count) bytes>"
             throw APIError.decodingError("Could not parse \(endpoint): \(error). Response: \(raw)")
         }
-    }
-
-    private func serverDetail(from data: Data) -> String? {
-        guard !data.isEmpty,
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let detail = obj["detail"] else { return nil }
-        if let text = detail as? String { return text }
-        return String(describing: detail)
     }
 }

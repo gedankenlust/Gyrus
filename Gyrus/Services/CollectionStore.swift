@@ -10,8 +10,10 @@ final class CollectionStore {
     var showUnreadOnly: Bool = false
     var showTrash: Bool = false
 
-    private let api = APIClient.shared
+    private let api: APIClient
     private var generation = 0
+
+    init(api: APIClient = .shared) { self.api = api }
 
     func resetLocalState() { generation += 1; collections = []; selectedCollectionId = nil }
 

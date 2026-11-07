@@ -4,25 +4,21 @@ import Foundation
 
 extension APIClient {
     func search(query: String, limit: Int = 100, offset: Int = 0) async throws -> [Bookmark] {
-        var components = URLComponents(url: base.appending(path: "/api/search"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [
+        try await get(base.appending(path: "/api/search"), query: [
             .init(name: "q", value: query),
             .init(name: "limit", value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
-        ]
-        return try await get(components.url!)
+        ])
     }
 
     /// Semantic / meaning-based search. Returns an empty list when Ollama is
     /// unreachable — the caller should fall back to keyword search silently.
     func searchSemantic(query: String, limit: Int = 20, offset: Int = 0) async throws -> [Bookmark] {
-        var components = URLComponents(url: base.appending(path: "/api/search/semantic"), resolvingAgainstBaseURL: false)!
-        components.queryItems = [
+        try await get(base.appending(path: "/api/search/semantic"), query: [
             .init(name: "q", value: query),
             .init(name: "limit", value: "\(limit)"),
             .init(name: "offset", value: "\(offset)"),
-        ]
-        return try await get(components.url!)
+        ])
     }
 
     struct SemanticSearchStatus: Decodable {
@@ -61,12 +57,8 @@ extension APIClient {
 
     /// Nearest indexed bookmarks. An empty list means this page has no embedding.
     func relatedBookmarks(bookmarkId: String, limit: Int = 5) async throws -> [Bookmark] {
-        var components = URLComponents(
-            url: base.appending(path: "/api/search/related/\(bookmarkId)"),
-            resolvingAgainstBaseURL: false
-        )!
-        components.queryItems = [.init(name: "limit", value: "\(limit)")]
-        return try await get(components.url!)
+        try await get(base.appending(path: "/api/search/related/\(bookmarkId)"),
+                      query: [.init(name: "limit", value: "\(limit)")])
     }
 
     struct ReindexResponse: Decodable {
@@ -75,12 +67,8 @@ extension APIClient {
     }
 
     /// Kick off a background rebuild of the semantic search index.
+    /// A bodyless POST, as the endpoint has always been called.
     func reindexEmbeddings() async throws -> ReindexResponse {
-        var req = URLRequest(url: base.appending(path: "/api/search/reindex"))
-        req.httpMethod = "POST"
-        req.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
-        let (data, response) = try await URLSession.shared.data(for: req)
-        try checkStatus(response)
-        return try decoder.decode(ReindexResponse.self, from: data)
+        try await send(APIRequest(.post, path: "/api/search/reindex"))
     }
 }

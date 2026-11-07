@@ -27,17 +27,16 @@ extension APIClient {
     /// failure instead of a bare "Server error" or a decoding dump.
     func sendRaw(_ request: URLRequest, timeout: TimeInterval = APIClient.libraryTransferTimeout) async throws -> Data {
         var request = request
-        request.setValue(BackendLauncher.apiToken, forHTTPHeaderField: "X-Gyrus-Token")
         request.timeoutInterval = timeout
-        do {
-            let (data, response) = try await session.data(for: request)
-            try checkStatus(response, data: data)
-            return data
-        } catch let e as APIError {
-            throw e
-        } catch {
-            throw transportError(error)
-        }
+        let (data, response) = try await exchange(request, on: session)
+        try checkStatus(response, data: data)
+        return data
+    }
+
+    /// A whole-library upload or download with the long transfer timeout.
+    private func transfer(_ method: APIRequest.Method, _ path: String,
+                          query: [URLQueryItem] = [], body: APIRequest.Body = .none) -> APIRequest {
+        APIRequest(method, path: path, query: query, body: body, timeout: APIClient.libraryTransferTimeout)
     }
 
     struct AutomaticBackupStatus: Decodable {
@@ -53,25 +52,18 @@ extension APIClient {
     // MARK: Export / import
 
     func exportHTML(collectionId: String? = nil) async throws -> Data {
-        var components = URLComponents(url: base.appending(path: "/api/export/html"), resolvingAgainstBaseURL: false)!
-        if let collectionId { components.queryItems = [.init(name: "collection_id", value: collectionId)] }
-        return try await sendRaw(URLRequest(url: components.url!))
+        let query = collectionId.map { [URLQueryItem(name: "collection_id", value: $0)] } ?? []
+        return try await send(transfer(.get, "/api/export/html", query: query))
     }
 
     func exportBookmarks(collectionId: String?, limit: Int = 200, offset: Int = 0) async throws -> [Bookmark] {
-        var components = URLComponents(url: base.appending(path: "/api/export/bookmarks"), resolvingAgainstBaseURL: false)!
-        var items = [URLQueryItem(name: "limit", value: String(limit)), .init(name: "offset", value: String(offset))]
-        if let collectionId { items.append(.init(name: "collection_id", value: collectionId)) }
-        components.queryItems = items
-        return try await get(components.url!)
+        var query = [URLQueryItem(name: "limit", value: String(limit)), .init(name: "offset", value: String(offset))]
+        if let collectionId { query.append(.init(name: "collection_id", value: collectionId)) }
+        return try await get(base.appending(path: "/api/export/bookmarks"), query: query)
     }
 
     func importHTML(data: Data, filename: String, rootFolderName: String? = nil) async throws -> ImportResult {
-        let url = base.appending(path: "/api/import/html")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
         let boundary = UUID().uuidString
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         var body = Data()
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
         body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
@@ -85,9 +77,8 @@ extension APIClient {
             body.append("\r\n".data(using: .utf8)!)
         }
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-        request.httpBody = body
-        let respData = try await sendRaw(request)
-        return try decode(respData, from: url)
+        return try await send(transfer(.post, "/api/import/html",
+                                       body: .raw(body, contentType: "multipart/form-data; boundary=\(boundary)")))
     }
 
     // MARK: File URLs
@@ -119,25 +110,16 @@ extension APIClient {
     }
 
     func downloadBackup() async throws -> Data {
-        try await sendRaw(URLRequest(url: base.appending(path: "/api/data/backup")))
+        try await send(transfer(.get, "/api/data/backup"))
+    }
+
+    /// Counts in a JSON backup file, read without restoring anything.
+    func previewBackup(_ json: Data) async throws -> BackupPreview {
+        try await send(transfer(.post, "/api/data/restore/preview", body: .json(json)))
     }
 
     /// Replace all current data with the contents of a JSON backup file.
-    func previewBackup(_ json: Data) async throws -> BackupPreview {
-        let url = base.appending(path: "/api/data/restore/preview")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = json
-        let data = try await sendRaw(request)
-        return try decode(data, from: url)
-    }
-
     func restoreBackup(_ json: Data) async throws {
-        var request = URLRequest(url: base.appending(path: "/api/data/restore"))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = json
-        _ = try await sendRaw(request)
+        _ = try await send(transfer(.post, "/api/data/restore", body: .json(json)))
     }
 }

@@ -15,7 +15,6 @@ protocol JobStatusReporting: Sendable {
 @MainActor
 final class JobPoller<Status: JobStatusReporting> {
     private var task: Task<Void, Never>?
-    private(set) var ticks = 0
 
     func start(
         interval: TimeInterval,
@@ -25,8 +24,7 @@ final class JobPoller<Status: JobStatusReporting> {
         onError: @escaping (Error) async -> Void = { _ in }
     ) {
         task?.cancel()
-        ticks = 0
-        task = Task { [weak self] in
+        task = Task {
             var consecutiveFailures = 0
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
@@ -43,7 +41,6 @@ final class JobPoller<Status: JobStatusReporting> {
                     }
                     continue
                 }
-                self?.ticks += 1
                 await onTick(status)
                 if !status.running {
                     await onFinished(status)

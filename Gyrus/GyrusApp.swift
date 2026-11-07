@@ -95,13 +95,13 @@ struct GyrusApp: App {
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                 if launcher.isRunning {
                     store.uiStateStore.beginResumeGrace()
-                    Task { await store.recoverConnection() }
+                    Task { await store.connection.recoverConnection() }
                 }
             }
             .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in
                 if launcher.isRunning {
                     store.uiStateStore.beginResumeGrace()
-                    Task { await store.recoverConnection() }
+                    Task { await store.connection.recoverConnection() }
                 }
             }
         }

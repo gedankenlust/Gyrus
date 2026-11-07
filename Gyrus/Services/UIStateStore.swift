@@ -1,14 +1,12 @@
 import Foundation
 import Observation
 
-enum PendingPurge: Equatable {
-    case all
-    case ids(Set<String>)
-}
-
 @MainActor
 @Observable
 final class UIStateStore {
+    /// How long a delete can be undone, for bookmarks and tags alike.
+    nonisolated static let undoWindow: TimeInterval = 5
+
     var errorMessage: String? = nil
     var infoMessage: String? = nil
     var undoMessage: String? = nil
@@ -16,26 +14,14 @@ final class UIStateStore {
     private(set) var isRefreshingBookmarks: Bool = false
     var undoAction: (() -> Void)? = nil
     var undoGeneration: Int = 0
-    var linkCheckStatus: LinkCheckStatus? = nil
-    var metadataRefreshStatus: MetadataRefreshStatus? = nil
-    var folderOrganizeStatus: FolderOrganizeStatus? = nil
-    var batchAutoTagStatus: BatchAutoTagStatus? = nil
-    var batchTagFailure: String? = nil
 
-    // Batch selection for confirmations
-    var pendingBatchDelete: Set<String>? = nil
+    /// Bookmarks awaiting the "open this many tabs?" confirmation.
     var pendingBatchOpen: Set<String>? = nil
-    /// A permanent delete from the Trash awaiting confirmation.
-    var pendingPurge: PendingPurge? = nil
     /// Bookmark ids awaiting a "New Tag" dialog. Presented from a stable parent
     /// (ContentView) because a sheet inside a context menu never shows.
     var newTagForIds: Set<String>? = nil
     /// Bookmark ids whose existing tags are being edited in the bulk tag sheet.
     var tagAssignmentForIds: Set<String>? = nil
-
-    /// Tags the LLM created during the last batch auto-tag run, awaiting the
-    /// keep/discard review sheet. Nil = nothing to review.
-    var batchTagReview: TagReviewPayload? = nil
 
     private var errorTask: Task<Void, Never>?
     private var infoTask: Task<Void, Never>?
@@ -47,6 +33,15 @@ final class UIStateStore {
     /// requests can briefly fail (404/5xx/connection) before the backend has
     /// reconnected. Error toasts are swallowed until this moment passes.
     private var suppressErrorsUntil: Date = .distantPast
+
+    /// Drop prompts and toasts that refer to the library being replaced.
+    func resetLocalState() {
+        pendingBatchOpen = nil
+        newTagForIds = nil
+        tagAssignmentForIds = nil
+        errorMessage = nil
+        infoMessage = nil
+    }
 
     func beginLoading() {
         loadingOperations += 1
@@ -92,6 +87,15 @@ final class UIStateStore {
         }
     }
 
+    /// The one route from a caught error to the error toast. Cancellations
+    /// are dropped; background work also drops transient backend failures and
+    /// respects the resume grace, a user's own action never does.
+    func showError(for error: Error, background: Bool = false) {
+        if error.isCancellation { return }
+        if background && error.isTransientBackendFailure { return }
+        showError(error.localizedDescription, respectingResumeGrace: background)
+    }
+
     func showInfo(_ message: String) {
         infoMessage = message
         infoTask?.cancel()
@@ -100,6 +104,25 @@ final class UIStateStore {
             guard !Task.isCancelled else { return }
             infoMessage = nil
         }
+    }
+
+    // MARK: - Undo
+
+    /// Replace any pending undo with a new one. The generation bump gives the
+    /// toast a fresh identity so its countdown restarts.
+    func offerUndo(_ message: String, window: TimeInterval = UIStateStore.undoWindow,
+                   action: @escaping () -> Void) {
+        cancelUndoTimer()
+        undoGeneration += 1
+        undoMessage = message
+        undoAction = action
+        startUndoTimer(window: window)
+    }
+
+    func dismissUndo() {
+        cancelUndoTimer()
+        undoMessage = nil
+        undoAction = nil
     }
 
     func startUndoTimer(window: TimeInterval) {
