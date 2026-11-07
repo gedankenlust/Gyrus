@@ -10,6 +10,7 @@ for directory in (DATA_DIR, DATA_DIR / "favicons", DATA_DIR / "og_images", DATA_
     directory.chmod(0o700)
 
 DB_PATH = DATA_DIR / "db" / "gyrus.db"
+BUSY_TIMEOUT_MS = 10_000
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(
@@ -25,6 +26,10 @@ def set_sqlite_pragma(dbapi_connection, _):
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA journal_mode=WAL")
     cursor.execute("PRAGMA foreign_keys=ON")
+    # Background jobs, request threads and the app's own polling share one
+    # file. Without a busy timeout a writer that meets another writer's lock
+    # fails immediately with "database is locked" instead of waiting briefly.
+    cursor.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
     cursor.close()
 
 

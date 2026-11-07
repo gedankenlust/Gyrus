@@ -111,7 +111,7 @@ struct BookmarkListView: View {
 
                 if collectionStore.showTrash {
                     Button(role: .destructive) {
-                        Task { await appStore.emptyTrash() }
+                        appStore.requestEmptyTrash()
                     } label: {
                         Label("Empty Trash", systemImage: "trash.slash")
                     }
@@ -374,8 +374,7 @@ struct SelectionStatusBar: View {
                 .controlSize(.small)
 
                 Button(role: .destructive) {
-                    let ids = bookmarkStore.selectedIds
-                    Task { await appStore.purgeFromTrash(ids: ids) }
+                    appStore.requestPurge(ids: bookmarkStore.selectedIds)
                 } label: {
                     Label("Delete Permanently", systemImage: "trash.slash")
                 }

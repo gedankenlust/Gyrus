@@ -10,6 +10,19 @@ from security import (API_TOKEN, EXTENSION_TOKEN, EXTENSION_ORIGINS, has_valid_a
 
 logger = logging.getLogger(__name__)
 MAX_REQUEST_BYTES = 100 * 1024 * 1024
+# Backups carry every bookmark's Reader text, so a large library's backup
+# outgrows the general limit (~9k read bookmarks reach 100 MB). Only the
+# restore routes, which validate the whole document before touching data, may
+# receive bodies this large.
+MAX_RESTORE_REQUEST_BYTES = 2 * 1024 * 1024 * 1024
+RESTORE_PATH = "/api/data/restore"
+
+
+def request_byte_limit(path: str) -> int:
+    if path == RESTORE_PATH or path.startswith(RESTORE_PATH + "/"):
+        return MAX_RESTORE_REQUEST_BYTES
+    return MAX_REQUEST_BYTES
+
 APP_VERSION = "1.5.1"
 
 @asynccontextmanager
@@ -77,16 +90,21 @@ async def lifespan(app: FastAPI):
             await asyncio.sleep(60 * 60)
             await asyncio.to_thread(run_daily_backup)
     backup_task = asyncio.create_task(periodic_backup())
+    # Exit with the Mac app instead of lingering as an orphan on port 8080.
+    from services import parent_watchdog
+    stop_watchdog = parent_watchdog.start_parent_watchdog()
     try:
         yield
     finally:
+        if stop_watchdog is not None:
+            stop_watchdog.set()
         backup_task.cancel()
         await asyncio.gather(backup_task, return_exceptions=True)
 
 
 app = FastAPI(title="Gyrus API", version=APP_VERSION, lifespan=lifespan)
 from services.request_limits import RequestSizeMiddleware
-app.add_middleware(RequestSizeMiddleware, limit=lambda: MAX_REQUEST_BYTES)
+app.add_middleware(RequestSizeMiddleware, limit=lambda path: request_byte_limit(path))
 from services.maintenance import MaintenanceMiddleware
 app.add_middleware(MaintenanceMiddleware)
 
@@ -107,7 +125,7 @@ async def block_cross_site_origin(request: Request, call_next):
     content_length = request.headers.get("content-length")
     if content_length:
         try:
-            if int(content_length) > MAX_REQUEST_BYTES:
+            if int(content_length) > request_byte_limit(request.url.path):
                 return JSONResponse(status_code=413, content={"detail": "Request body is too large"})
         except ValueError:
             return JSONResponse(status_code=400, content={"detail": "Invalid Content-Length"})
@@ -123,9 +141,14 @@ async def block_cross_site_origin(request: Request, call_next):
     #   /api/files/*                Favicons, OG images and design screenshots
     #                               are rendered by SwiftUI AsyncImage and
     #                               URLSession.data(from:), neither of which can
-    #                               attach a header. Read-only static files;
-    #                               reaching one still requires knowing its
-    #                               bookmark UUID.
+    #                               attach a header. Read-only static files.
+    #                               Favicon names are guessable (a hash of the
+    #                               site's host), so a web page could otherwise
+    #                               probe which sites are bookmarked; every
+    #                               response therefore carries
+    #                               Cross-Origin-Resource-Policy: same-origin
+    #                               (routers/files.py), which stops browsers
+    #                               from exposing them to other origins.
     if (
         request.method == "OPTIONS"
         or request.url.path in {"/health", "/api/auth/extension-token"}

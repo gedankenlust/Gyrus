@@ -61,13 +61,12 @@ final class AppStore {
 
         let (_, _, _, counts) = try await (bmsResult, colsResult, tagsResult, countsResult)
         guard generation == libraryGeneration else { return }
-        bookmarksStore.totalBookmarkCount = counts.total
-        bookmarksStore.deadBookmarkCount = counts.dead
-        bookmarksStore.unreadBookmarkCount = counts.unread
-        bookmarksStore.trashCount = counts.trash
+        applyCounts(counts)
         loadError = nil
         } catch {
-            guard generation == libraryGeneration else { return }
+            // A superseded or cancelled load (e.g. the startup view swapping to
+            // the library) is not a failure the user needs to see.
+            guard generation == libraryGeneration, !Self.isCancellation(error) else { return }
             loadError = String(localized: "The library could not be fully loaded.") + " " + error.localizedDescription
         }
 
@@ -152,7 +151,7 @@ final class AppStore {
                     // the visible rows while work is pending to keep their
                     // durable status indicators current.
                     if bookmarksStore.bookmarks.contains(where: { $0.analysis?.isActive == true }) {
-                        await loadBookmarks(showsLoadingIndicator: false)
+                        try? await bookmarksStore.refreshLoadedRows()
                     }
                     let serverCount = try await api.bookmarkCount()
                     let localTotal = bookmarksStore.totalBookmarkCount + bookmarksStore.pendingDeletionIds.count
@@ -216,12 +215,7 @@ final class AppStore {
     }
 
     private static func isCancellation(_ error: Error) -> Bool {
-        if error is CancellationError { return true }
-        if case APIError.networkError(let inner) = error {
-            return isCancellation(inner)
-        }
-        let nsError = error as NSError
-        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+        BookmarkStore.isCancellation(error)
     }
 
     func scheduleSearch(_ query: String) {
@@ -318,10 +312,6 @@ final class AppStore {
         isRecovering = true
         defer { isRecovering = false }
 
-        // Mute transient error toasts for the whole recovery, not just the
-        // brief grace set on wake — an actual restart can take a few seconds.
-        uiStateStore.beginResumeGrace(8)
-
         // Right after wake-from-sleep the backend can be momentarily slow to
         // answer (its process was suspended). Retry the lightweight health
         // check a few times before concluding it must be restarted — otherwise
@@ -330,6 +320,10 @@ final class AppStore {
         var healthy = false
         for attempt in 0..<4 {
             if (try? await api.health()) == true { healthy = true; break }
+            // Only mute background error toasts once the backend actually
+            // fails to answer. A healthy resume must not hide the result of a
+            // user's action (a failed delete would just silently reappear).
+            if attempt == 0 { uiStateStore.beginResumeGrace(8) }
             if attempt < 3 { try? await Task.sleep(nanoseconds: 500_000_000) }
         }
 
@@ -525,6 +519,12 @@ final class AppStore {
 
     func requestDeleteSelected() {
         let ids = bookmarksStore.selectedIds
+        guard !ids.isEmpty else { return }
+        // In the Trash a delete is permanent; it always asks first.
+        if collectionsStore.showTrash {
+            requestPurge(ids: ids)
+            return
+        }
         let confirmEnabled = AppSettings.shared.confirmDelete
         if confirmEnabled && !ids.isEmpty {
             uiStateStore.pendingBatchDelete = ids
@@ -651,21 +651,56 @@ final class AppStore {
         } catch { handleUIError(error) }
     }
 
-    func emptyTrash() async {
+    /// Permanent deletes cannot be undone, so every entry point asks first.
+    func requestEmptyTrash() {
+        guard bookmarksStore.trashCount > 0 || !bookmarksStore.bookmarks.isEmpty else { return }
+        uiStateStore.pendingPurge = .all
+    }
+
+    func requestPurge(ids: Set<String>) {
+        guard !ids.isEmpty else { return }
+        uiStateStore.pendingPurge = .ids(ids)
+    }
+
+    func confirmPendingPurge() {
+        guard let pending = uiStateStore.pendingPurge else { return }
+        uiStateStore.pendingPurge = nil
+        Task {
+            switch pending {
+            case .all: await emptyTrash()
+            case .ids(let ids): await purgeFromTrash(ids: ids)
+            }
+        }
+    }
+
+    func cancelPendingPurge() {
+        uiStateStore.pendingPurge = nil
+    }
+
+    private func emptyTrash() async {
         do {
             try await bookmarksStore.purgeTrash(ids: nil)
+            await refreshCounts()
         } catch { handleUIError(error) }
     }
 
-    func purgeFromTrash(ids: Set<String>) async {
+    private func purgeFromTrash(ids: Set<String>) async {
         do {
             try await bookmarksStore.purgeTrash(ids: ids)
+            await refreshCounts()
         } catch { handleUIError(error) }
     }
 
     private func refreshCounts() async {
         guard let counts = try? await api.bookmarkCounts() else { return }
-        bookmarksStore.totalBookmarkCount = counts.total
+        applyCounts(counts)
+    }
+
+    /// Server counts still include bookmarks whose delete is waiting out the
+    /// undo window. Subtract them here so the sidebar matches the list and the
+    /// auto-refresh comparison (server == local + pending) settles.
+    private func applyCounts(_ counts: BookmarkCounts) {
+        bookmarksStore.totalBookmarkCount = max(0, counts.total - bookmarksStore.pendingDeletionIds.count)
         bookmarksStore.deadBookmarkCount = counts.dead
         bookmarksStore.unreadBookmarkCount = counts.unread
         bookmarksStore.trashCount = counts.trash

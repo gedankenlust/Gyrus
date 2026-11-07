@@ -20,6 +20,29 @@ class OutboundURLBlocked(ValueError):
     pass
 
 
+class OutboundHostUnresolvable(OutboundURLBlocked):
+    """The host name does not resolve (NXDOMAIN / no addresses).
+
+    A subclass so every existing caller keeps refusing the request, while the
+    link checker can tell a host that no longer exists (dead) apart from a
+    destination our policy blocks (status unknown).
+    """
+
+
+# getaddrinfo results that mean "this name has no address". Anything else
+# (EAI_AGAIN, EAI_FAIL, system errors) is a transient lookup problem and must
+# not be reported as a missing host.
+_UNRESOLVABLE_GAI_ERRORS = {
+    code
+    for code in (
+        getattr(socket, "EAI_NONAME", None),
+        getattr(socket, "EAI_NODATA", None),
+        getattr(socket, "EAI_ADDRFAMILY", None),
+    )
+    if code is not None
+}
+
+
 def _parsed_http_url(url: str):
     if not isinstance(url, str) or len(url) > 8192:
         raise OutboundURLBlocked("URL is missing or too long")
@@ -95,13 +118,15 @@ async def resolve_outbound_addresses(
                 socket.getaddrinfo, host, port, type=socket.SOCK_STREAM
             )
         except socket.gaierror as exc:
-            raise OutboundURLBlocked(f"Host could not be resolved: {host}") from exc
+            if exc.errno in _UNRESOLVABLE_GAI_ERRORS:
+                raise OutboundHostUnresolvable(f"Host could not be resolved: {host}") from exc
+            raise OutboundURLBlocked(f"Host lookup failed: {host}") from exc
         addresses = tuple(sorted({item[4][0] for item in infos}))
         if dns_cache is not None:
             dns_cache[key] = addresses
 
     if not addresses:
-        raise OutboundURLBlocked(f"Host could not be resolved: {host}")
+        raise OutboundHostUnresolvable(f"Host could not be resolved: {host}")
     for value in addresses:
         try:
             address = ipaddress.ip_address(value)

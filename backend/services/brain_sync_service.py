@@ -315,14 +315,15 @@ class BrainSyncService:
         for bookmark in bookmarks:
             self.delete_bookmark_file(db, bookmark)
 
-    def clear_all_files(self):
-        """Delete only files that can be identified as Gyrus-generated.
+    def clearable_root(self) -> Optional[Path]:
+        """Return the Brain root a reset may sweep, or None when it is absent.
 
-        Users may point the Brain at an existing Obsidian vault. A reset must
-        never treat that whole folder as disposable user data.
+        Raises ValueError for roots that must never be swept. Callers that
+        wipe other data first (factory reset) check this up front, so a
+        refusal cannot leave a half-reset library behind.
         """
         if not self.root_dir.exists():
-            return
+            return None
         root = self.root_dir.resolve()
         home = Path.home().resolve()
         protected = {
@@ -332,7 +333,17 @@ class BrainSyncService:
         }
         if root in protected or len(root.parts) < 3:
             raise ValueError(f"Refusing to clear unsafe Brain root: {root}")
-            
+        return root
+
+    def clear_all_files(self):
+        """Delete only files that can be identified as Gyrus-generated.
+
+        Users may point the Brain at an existing Obsidian vault. A reset must
+        never treat that whole folder as disposable user data.
+        """
+        root = self.clearable_root()
+        if root is None:
+            return
         for item in root.rglob("*.md"):
             if self._owns(item) or self._owns_index(item):
                 item.unlink()

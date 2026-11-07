@@ -13,6 +13,17 @@ job = BackgroundJob(
 )
 
 
+def _failure_message(snapshot: dict) -> str:
+    reasons = [
+        str(error.get("message") or "").strip()
+        for error in snapshot.get("errors") or []
+        if isinstance(error, dict)
+    ]
+    reason = next((text for text in reasons if text), "")
+    message = "The design inspection could not capture the page."
+    return f"{message} {reason}"[:500] if reason else message
+
+
 def get_status() -> dict:
     return job.get_status()
 
@@ -44,7 +55,14 @@ async def start(bookmark_id: str, url: str, title: str = "") -> dict:
                 on_progress=progress,
             )
             active_job.state["snapshot"] = snapshot
-            active_job.state["stage"] = "finished"
+            if not snapshot.get("promoted", True):
+                # Nothing was captured; the previous inspection stays current.
+                # "error" is what the app already surfaces after polling, and
+                # the failed run remains listed in the run history.
+                active_job.state["stage"] = "failed"
+                active_job.state["error"] = _failure_message(snapshot)
+            else:
+                active_job.state["stage"] = "finished"
         finally:
             if active_job.cancelled:
                 visual_snapshot_service.discard_snapshot_run(bookmark_id, run_id)

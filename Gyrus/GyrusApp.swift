@@ -104,6 +104,7 @@ struct GyrusApp: App {
         .windowToolbarStyle(.unified)
         .commands {
             MainWindowCommands(appDelegate: appDelegate)
+            LibraryCommands(appDelegate: appDelegate, appStore: store)
             CommandGroup(after: .newItem) {
                 Button("Import Bookmarks…") {
                     NotificationCenter.default.post(name: .showImport, object: nil)

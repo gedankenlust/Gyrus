@@ -108,22 +108,49 @@ final class BackendLauncher {
         )
     }
 
+    /// Stop the backend a previous launch left behind (Xcode Stop, a crash, a
+    /// different copy of the app). The pid file records pid, start time and
+    /// executable, so a recycled pid never matches and the check does not depend
+    /// on the interpreter path, which differs between venv symlinks, DMG mounts
+    /// and installed copies.
     private func killExistingBackend() async -> Bool {
-        // Kill only a process whose executable belongs to Gyrus. PID files can
-        // become stale and a recycled PID must never terminate another app.
-        if let data = try? Data(contentsOf: pidFile),
-           let pidStr = String(data: data, encoding: .utf8),
-           let pid = Int32(pidStr.trimmingCharacters(in: .whitespacesAndNewlines)),
-           isGyrusBackend(pid: pid) {
-            kill(pid, SIGTERM)
-            for _ in 0..<50 {
-                if !isGyrusBackend(pid: pid) { break }
-                try? await Task.sleep(for: .milliseconds(100))
+        guard let data = try? Data(contentsOf: pidFile),
+              let contents = String(data: data, encoding: .utf8) else { return true }
+
+        if let record = BackendProcessRecord(serialized: contents) {
+            guard record.isAlive else {
+                try? FileManager.default.removeItem(at: pidFile)
+                return true
             }
-            if isGyrusBackend(pid: pid) { return false }
+            let stopped = await terminate(pid: record.pid) { record.isAlive }
+            if stopped { try? FileManager.default.removeItem(at: pidFile) }
+            return stopped
+        }
+
+        // Pid files written before 1.5.2 hold only the pid.
+        if let pid = Int32(contents.trimmingCharacters(in: .whitespacesAndNewlines)),
+           isGyrusBackend(pid: pid) {
+            let stopped = await terminate(pid: pid) { [self] in isGyrusBackend(pid: pid) }
+            if !stopped { return false }
         }
         try? FileManager.default.removeItem(at: pidFile)
         return true
+    }
+
+    /// SIGTERM, then SIGKILL if the process ignores it. A backend hung in a
+    /// long call must not block every later launch with "still stopping".
+    private func terminate(pid: Int32, isAlive: () -> Bool) async -> Bool {
+        kill(pid, SIGTERM)
+        for _ in 0..<50 {
+            if !isAlive() { return true }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        kill(pid, SIGKILL)
+        for _ in 0..<20 {
+            if !isAlive() { return true }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        return !isAlive()
     }
 
     private func isGyrusBackend(pid: Int32) -> Bool {
@@ -172,6 +199,14 @@ final class BackendLauncher {
             error = String(localized: "The previous backend is still stopping. Please try again.")
             return
         }
+        // Anything that still answers the health check now is a Gyrus backend
+        // this launch does not own (another copy of the app, a test run). Its
+        // token differs, so every request would fail with 401 and the library
+        // would look empty. Say so instead of starting a second one.
+        if (try? await APIClient.shared.health()) == true {
+            error = String(localized: "Another copy of Gyrus is already using port 8080. Quit it (or stop the Xcode run) and try again.")
+            return
+        }
 
         guard !isStopping, !Task.isCancelled else { return }
 
@@ -205,6 +240,9 @@ final class BackendLauncher {
         proc.currentDirectoryURL = backendDir
         var environment = ProcessInfo.processInfo.environment
         environment["GYRUS_API_TOKEN"] = Self.apiToken
+        // The backend exits on its own when this process disappears, so a
+        // crash or an Xcode Stop cannot leave an orphan holding the port.
+        environment["GYRUS_PARENT_PID"] = String(ProcessInfo.processInfo.processIdentifier)
         if usesBundledRuntime {
             environment["PLAYWRIGHT_BROWSERS_PATH"] = backendDir
                 .appendingPathComponent("python-runtime/playwright-browsers").path
@@ -217,6 +255,8 @@ final class BackendLauncher {
         let logURL = dataDir.appendingPathComponent("backend.log")
         FileManager.default.createFile(atPath: logURL.path, contents: nil)
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: logURL.path)
+        try? logHandle?.close()
+        logHandle = nil
         if let handle = try? FileHandle(forWritingTo: logURL) {
             try? handle.truncate(atOffset: 0)
             proc.standardOutput = handle
@@ -234,7 +274,9 @@ final class BackendLauncher {
             }
             try proc.run()
             self.process = proc
-            try? String(proc.processIdentifier).write(to: pidFile, atomically: true, encoding: .utf8)
+            let record = BackendProcessRecord.live(pid: proc.processIdentifier)
+            let pidContents = record?.serialized ?? String(proc.processIdentifier)
+            try? pidContents.write(to: pidFile, atomically: true, encoding: .utf8)
             try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: pidFile.path)
         } catch {
             self.error = "Failed to start: \(error.localizedDescription)"
@@ -246,7 +288,7 @@ final class BackendLauncher {
             try? await Task.sleep(nanoseconds: 500_000_000)
             guard !isStopping, !Task.isCancelled else { return }
             guard proc.isRunning else {
-                error = String(localized: "The backend could not start. Another program may be using port 8080.")
+                error = startupFailureMessage(logURL: logURL)
                 return
             }
             if (try? await APIClient.shared.health()) == true, proc.isRunning {
@@ -255,6 +297,33 @@ final class BackendLauncher {
             }
         }
         error = "Backend did not respond.\nPath: \(backendDir.path)"
+    }
+
+    /// Explain an early exit from what the backend actually logged, instead
+    /// of blaming the port for every failure (a migration error looks the same
+    /// from the outside).
+    private func startupFailureMessage(logURL: URL) -> String {
+        let tail = Self.logTail(at: logURL)
+        if tail.contains("address already in use") || tail.contains("Errno 48") {
+            return String(localized: "The backend could not start because another program is using port 8080.")
+        }
+        let lastLine = tail
+            .split(whereSeparator: \.isNewline)
+            .last { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .map(String.init)
+        guard let lastLine else {
+            return String(localized: "The backend stopped during startup.")
+        }
+        return String(localized: "The backend stopped during startup.") + "\n" + String(lastLine.prefix(300))
+    }
+
+    private static func logTail(at url: URL, maxBytes: UInt64 = 4096) -> String {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return "" }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        try? handle.seek(toOffset: size > maxBytes ? size - maxBytes : 0)
+        let data = (try? handle.readToEnd()) ?? Data()
+        return String(decoding: data, as: UTF8.self)
     }
 
     func stopAndWait() async {
@@ -368,5 +437,57 @@ final class BackendLauncher {
                 ]
             )
         }
+    }
+}
+
+/// Identity of a launched backend: pid plus kernel start time. A pid alone can
+/// be recycled by an unrelated process after the backend exits.
+struct BackendProcessRecord: Equatable {
+    let pid: Int32
+    let startSeconds: UInt64
+    let startMicroseconds: UInt64
+    let executable: String
+
+    var serialized: String {
+        "\(pid)\n\(startSeconds).\(startMicroseconds)\n\(executable)"
+    }
+
+    init(pid: Int32, startSeconds: UInt64, startMicroseconds: UInt64, executable: String) {
+        self.pid = pid
+        self.startSeconds = startSeconds
+        self.startMicroseconds = startMicroseconds
+        self.executable = executable
+    }
+
+    init?(serialized: String) {
+        let lines = serialized.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        guard lines.count >= 3,
+              let pid = Int32(lines[0].trimmingCharacters(in: .whitespaces)) else { return nil }
+        let start = lines[1].split(separator: ".")
+        guard start.count == 2,
+              let seconds = UInt64(start[0]), let micros = UInt64(start[1]) else { return nil }
+        let executable = lines[2...].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !executable.isEmpty else { return nil }
+        self.init(pid: pid, startSeconds: seconds, startMicroseconds: micros, executable: executable)
+    }
+
+    /// Reads the running process's start time and executable from the kernel.
+    static func live(pid: Int32) -> BackendProcessRecord? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.stride)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        var buffer = [CChar](repeating: 0, count: 4096)
+        guard proc_pidpath(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
+        return BackendProcessRecord(
+            pid: pid,
+            startSeconds: info.pbi_start_tvsec,
+            startMicroseconds: info.pbi_start_tvusec,
+            executable: String(cString: buffer)
+        )
+    }
+
+    /// True while the very process this record describes is still running.
+    var isAlive: Bool {
+        BackendProcessRecord.live(pid: pid) == self
     }
 }

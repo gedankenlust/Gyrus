@@ -76,7 +76,12 @@ async def clear_cache():
 @router.post("/clear-brain")
 async def clear_brain():
     """Call brain_sync_service.clear_all_files()."""
-    brain_sync_service.clear_all_files()
+    try:
+        brain_sync_service.clear_all_files()
+    except ValueError as exc:
+        # The configured folder is too broad to sweep (home, Documents, ...).
+        logger.warning("Brain files not cleared: %s", exc)
+        raise HTTPException(409, "The AI Brain folder is too broad to clear safely. Remove the files manually.") from exc
     return {"status": "ok"}
 
 @router.post("/clear-bookmarks")
@@ -110,18 +115,39 @@ async def clear_bookmarks(db: Session = Depends(get_db)):
 @router.post("/factory-reset")
 async def factory_reset(db: Session = Depends(get_db)):
     """Remove all Gyrus-owned user data and return to a fresh state."""
+    # Decide about the Brain folder before anything is wiped. A refusal used to
+    # surface as a 500 after the library was already gone, leaving a
+    # half-reset state (settings, caches and backups untouched).
+    try:
+        brain_sync_service.clearable_root()
+        brain_clearable = True
+    except ValueError as exc:
+        logger.warning("Factory reset leaves Brain files in place: %s", exc)
+        brain_clearable = False
     await clear_bookmarks(db)
-    await clear_brain()
+    brain_cleared = False
+    if brain_clearable:
+        try:
+            brain_sync_service.clear_all_files()
+            brain_cleared = True
+        except (OSError, ValueError):
+            logger.exception("Factory reset could not remove all Brain files")
     from services.backup_service import backup_lock
     with backup_lock:
         for directory in FACTORY_RESET_DIRECTORIES:
-            _clear_directory(directory)
+            try:
+                _clear_directory(directory)
+            except OSError:
+                # Generated caches only; finishing the reset matters more.
+                logger.exception("Factory reset could not clear %s", directory.name)
     from services import embedding_service
     ai_policy.configure(False)
     brain_sync_service.update_config(str(DATA_DIR / "brain"), False)
     embedding_service.set_active_model(embedding_service.DEFAULT_MODEL)
     embedding_service.set_active_base_url(embedding_service.DEFAULT_BASE_URL)
-    return {"status": "ok"}
+    # Additive field: false when the Brain folder was unsafe to sweep or some
+    # files could not be removed, so the app can tell the user.
+    return {"status": "ok", "brain_files_cleared": brain_cleared}
 
 @router.get("/backup")
 def backup(db: Session = Depends(get_db)):
@@ -369,7 +395,14 @@ def restore(data: RestoreData, db: Session = Depends(get_db)):
                 og_image_path=None, source=b.get("source", "manual"),
                 is_dead=b.get("is_dead", False), is_read=b.get("is_read", False),
                 scraped_content=b.get("scraped_content"),
-                metadata_status=b.get("metadata_status", "pending"),
+                # favicon/og image files are not part of a backup and the
+                # paths are cleared here, so metadata must be fetched again.
+                # Keeping a restored "ready" meant icons never came back.
+                # Trashed rows keep their state: nothing enriches them, and
+                # the app refetches a missing icon lazily once restored.
+                metadata_status=(
+                    b.get("metadata_status", "pending") if b.get("deleted_at") else "pending"
+                ),
                 reader_status=b.get(
                     "reader_status",
                     "ready" if b.get("scraped_content") else "pending",
@@ -413,6 +446,12 @@ def restore(data: RestoreData, db: Session = Depends(get_db)):
     # Only invalidate derived vectors after a successful data transaction.
     vector_store.clear()
     from services import bookmark_enrichment_service
+    # Refetch favicons/preview images through the normal bounded pipeline.
+    # Reader extraction is not re-run for rows whose reader stage is not
+    # pending, so this never becomes a crawl of every page.
+    for bookmark in data.bookmarks:
+        if not bookmark.get("deleted_at"):
+            bookmark_enrichment_service.schedule_enrichment(bookmark["id"])
     if ai_policy.enabled():
         for bookmark in data.bookmarks:
             if bookmark.get("scraped_content") and not bookmark.get("deleted_at"):

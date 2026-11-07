@@ -81,11 +81,23 @@ struct InspectorPage<Item: Identifiable, Content: View>: View {
 }
 
 struct InspectorField: View {
-    let title: LocalizedStringKey
+    let title: Text
     let value: String
+
+    init(title: LocalizedStringKey, value: String) {
+        self.title = Text(title)
+        self.value = value
+    }
+
+    /// For names taken from the page (CSS variables, menu labels).
+    init(verbatimTitle: String, value: String) {
+        self.title = Text(verbatim: verbatimTitle)
+        self.value = value
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            title.font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             if value.isEmpty {
                 Text("Not captured").font(.caption).foregroundStyle(.tertiary)
             } else {
@@ -248,7 +260,7 @@ struct DesignSystemBrowser: View {
                 return $0.name < $1.name
             }
             InspectorPage(items: sorted, pageSize: 8) { variable in
-                InspectorField(title: LocalizedStringKey(variable.name), value: variable.value)
+                InspectorField(verbatimTitle: variable.name, value: variable.value)
             }
         }
     }

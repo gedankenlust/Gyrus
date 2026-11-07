@@ -104,8 +104,13 @@ final class BrainChatStore {
                     self.appendDelta(to: id, at: replyIndex, delta: delta)
                 }
                 guard self.requestIDs[id] == requestID else { return }
-                // If the model returned nothing at all, show a gentle note.
-                if self.conversations[id]?[safe: replyIndex]?.text.isEmpty == true {
+                // Cancelling the consumer of an AsyncThrowingStream just ends
+                // the loop; it does not throw. Report Stop as stopped, not as
+                // an empty or failed reply.
+                if Task.isCancelled {
+                    self.markStopped(id, replyIndex)
+                } else if self.conversations[id]?[safe: replyIndex]?.text.isEmpty == true {
+                    // If the model returned nothing at all, show a gentle note.
                     self.setMessage(id, replyIndex, text: "(No response)", isError: true)
                 }
             } catch is CancellationError {

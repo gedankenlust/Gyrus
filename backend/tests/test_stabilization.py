@@ -462,3 +462,48 @@ async def test_disabling_ai_prevents_compatibility_retry(monkeypatch):
     with pytest.raises(llm_service.LLMUnavailableError):
         await llm_service.LLMService.ask_llm('Question', 'Context', {'provider': 'ollama', 'model': 'test'}, think=False)
     assert fake.calls == 1
+
+
+def test_fts_update_trigger_only_fires_for_indexed_columns(migrated):
+    trigger = migrated.execute(text("SELECT sql FROM sqlite_master WHERE name='bookmarks_au'")).scalar()
+    assert "AFTER UPDATE OF" in trigger
+    bookmark = Bookmark(id='fts-trigger', title='alpha', url='https://fts-trigger.example',
+                        scraped_content='long article text ' * 200)
+    migrated.add(bookmark)
+    migrated.commit()
+
+    def changes_for(statement: str) -> int:
+        before = migrated.execute(text("SELECT total_changes()")).scalar()
+        migrated.execute(text(statement), {'id': 'fts-trigger'})
+        migrated.commit()
+        return migrated.execute(text("SELECT total_changes()")).scalar() - before
+
+    # Only the bookmark row itself: no FTS delete + reinsert of the article.
+    assert changes_for("UPDATE bookmarks SET is_read = 1 WHERE id = :id") == 1
+    assert changes_for("UPDATE bookmarks SET deleted_at = CURRENT_TIMESTAMP WHERE id = :id") == 1
+    assert changes_for("UPDATE bookmarks SET metadata_status = 'ready' WHERE id = :id") == 1
+    migrated.execute(text("UPDATE bookmarks SET deleted_at = NULL WHERE id = :id"), {'id': 'fts-trigger'})
+
+    # Indexed columns still keep search current.
+    assert changes_for("UPDATE bookmarks SET title = 'omegaword' WHERE id = :id") > 1
+    assert [b.id for b in search_bookmarks(migrated, 'omegaword')] == ['fts-trigger']
+    assert search_bookmarks(migrated, 'alpha') == []
+    migrated.execute(text("UPDATE bookmarks SET scraped_content = 'zetabody' WHERE id = :id"), {'id': 'fts-trigger'})
+    migrated.commit()
+    assert [b.id for b in search_bookmarks(migrated, 'zetabody')] == ['fts-trigger']
+
+
+def test_fts_update_trigger_downgrade_restores_previous_definition(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path / 'downgrade.db'}")
+    cfg = Config(str(Path(__file__).parents[1] / "alembic.ini"))
+    cfg.set_main_option("script_location", str(Path(__file__).parents[1] / "alembic"))
+    try:
+        with engine.begin() as connection:
+            cfg.attributes["connection"] = connection
+            command.upgrade(cfg, "head")
+            command.downgrade(cfg, "a8b9c0d1e2f3")
+            trigger = connection.execute(text("SELECT sql FROM sqlite_master WHERE name='bookmarks_au'")).scalar()
+        assert "AFTER UPDATE ON bookmarks" in trigger
+        assert "UPDATE OF" not in trigger
+    finally:
+        engine.dispose()

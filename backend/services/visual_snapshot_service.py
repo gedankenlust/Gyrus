@@ -17,6 +17,7 @@ from services.outbound_url_security import (
     validate_outbound_url,
 )
 from services.safe_egress_proxy import SafeEgressProxy
+from services.atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,18 @@ VIEWPORTS = [
     {"name": "mobile", "width": 390, "height": 844, "device_scale_factor": 2},
 ]
 DESIGN_INSPECTION_STEPS = len(VIEWPORTS) + 1
+# Page scripts run on the renderer's main thread; a busy-looping page would
+# otherwise block page.evaluate (and the whole inspection job) forever.
+EVALUATE_TIMEOUT_SECONDS = 20.0
+NAVIGATION_EXPLORATION_TIMEOUT_SECONDS = 60.0
+CONTEXT_CLOSE_TIMEOUT_SECONDS = 10.0
+
+
+async def _evaluate(target, expression: str, *args: Any) -> Any:
+    """page/locator.evaluate bounded by EVALUATE_TIMEOUT_SECONDS."""
+    return await asyncio.wait_for(
+        target.evaluate(expression, *args), timeout=EVALUATE_TIMEOUT_SECONDS
+    )
 
 
 _TECHNOLOGY_RULES = (
@@ -614,15 +627,12 @@ async def capture_snapshot(
                         if script_probe_tasks:
                             await asyncio.gather(*script_probe_tasks, return_exceptions=True)
 
-                        rendered_navigation = []
-                        if viewport["name"] == "desktop":
-                            rendered_navigation = await _capture_rendered_navigation(page)
-
                         screenshot_name = f"{viewport['name']}.png"
                         screenshot_path = out_dir / screenshot_name
-                        document_height = await page.evaluate(
+                        document_height = await _evaluate(
+                            page,
                             "Math.max(document.body?.scrollHeight || 0, "
-                            "document.documentElement?.scrollHeight || 0)"
+                            "document.documentElement?.scrollHeight || 0)",
                         )
                         capture_height = _bounded_screenshot_height(viewport, int(document_height or 0))
                         await asyncio.wait_for(
@@ -641,7 +651,8 @@ async def capture_snapshot(
                             screenshot_path.unlink(missing_ok=True)
                             raise RuntimeError("Rendered page exceeds the screenshot safety limit")
 
-                        data = await page.evaluate(
+                        data = await _evaluate(
+                            page,
                             _VISUAL_EXTRACTOR_JS,
                             {
                                 "is_touch": viewport["name"] in {"tablet", "mobile"},
@@ -649,8 +660,6 @@ async def capture_snapshot(
                             },
                         )
                         data.pop("navigation", None)
-                        if rendered_navigation and not snapshot["navigation"]:
-                            snapshot["navigation"] = rendered_navigation
                         technology_signals = data.pop("_technology_signals", None)
                         if technology_signals is not None:
                             technology_signals["script_content_markers"] = sorted(script_content_markers)
@@ -695,6 +704,21 @@ async def capture_snapshot(
                                 "console_messages": console_messages[:60],
                             }
                         )
+                        # Menus are opened by hovering/clicking. Do it only after
+                        # the screenshot and the element/issue extraction, so
+                        # those show the page as a visitor first sees it rather
+                        # than with dropdowns expanded. A failure here must not
+                        # discard the viewport that was already captured.
+                        if viewport["name"] == "desktop" and not snapshot["navigation"]:
+                            try:
+                                snapshot["navigation"] = await asyncio.wait_for(
+                                    _capture_rendered_navigation(page),
+                                    timeout=NAVIGATION_EXPLORATION_TIMEOUT_SECONDS,
+                                )
+                            except asyncio.CancelledError:
+                                raise
+                            except Exception as exc:
+                                logger.debug("Navigation exploration failed: %s", exc)
                         snapshot["viewports"].append(data)
                     except Exception as e:
                         snapshot["errors"].append(
@@ -704,10 +728,18 @@ async def capture_snapshot(
                             }
                         )
                     finally:
-                        if context is not None:
-                            await context.close()
-                        elif page is not None:
-                            await page.close()
+                        try:
+                            if context is not None:
+                                await asyncio.wait_for(
+                                    context.close(), timeout=CONTEXT_CLOSE_TIMEOUT_SECONDS
+                                )
+                            elif page is not None:
+                                await asyncio.wait_for(
+                                    page.close(), timeout=CONTEXT_CLOSE_TIMEOUT_SECONDS
+                                )
+                        except asyncio.TimeoutError:
+                            # browser.close() below still tears the renderer down.
+                            logger.warning("Closing a hung design inspection page timed out")
             finally:
                 await browser.close()
 
@@ -740,14 +772,15 @@ async def capture_snapshot(
     snapshot["status"] = (
         "failed" if not snapshot["viewports"] else "partial" if snapshot["errors"] else "completed"
     )
+    # A run without a single captured viewport is kept in the run history (so
+    # the app can show what went wrong) but never replaces the current
+    # snapshot: a transient failure used to wipe a good inspection.
+    snapshot["promoted"] = bool(snapshot["viewports"])
     run_snapshot_path = out_dir / "snapshot.json"
     encoded = json.dumps(snapshot, ensure_ascii=False, indent=2)
-    run_snapshot_path.write_text(encoded, encoding="utf-8")
-    snapshot_path(bookmark_id).parent.mkdir(parents=True, exist_ok=True)
-    snapshot_path(bookmark_id).write_text(
-        encoded,
-        encoding="utf-8",
-    )
+    atomic_write_text(run_snapshot_path, encoded)
+    if snapshot["promoted"]:
+        atomic_write_text(snapshot_path(bookmark_id), encoded)
     _prune_snapshot_runs(bookmark_id)
     if on_progress:
         on_progress("finished", DESIGN_INSPECTION_STEPS, DESIGN_INSPECTION_STEPS)
@@ -759,7 +792,12 @@ def _prune_snapshot_runs(bookmark_id: str, keep: int = MAX_SNAPSHOT_RUNS) -> Non
     if not root.exists():
         return
     runs = sorted((path for path in root.iterdir() if path.is_dir()), reverse=True)
+    # The current snapshot's screenshots live in its run directory. Failed
+    # runs are not promoted, so a series of them must not prune that run.
+    current_run = (read_snapshot(bookmark_id) or {}).get("run_id")
     for stale in runs[max(1, keep):]:
+        if stale.name == current_run:
+            continue
         shutil.rmtree(stale, ignore_errors=True)
 
 
@@ -922,7 +960,7 @@ def _merge_navigation_groups(
 
 async def _capture_rendered_navigation(page) -> list[dict[str, Any]]:
     """Reveal menu controls without following links and merge every DOM state."""
-    navigation = await page.evaluate(_NAVIGATION_EXTRACTOR_JS)
+    navigation = await _evaluate(page, _NAVIGATION_EXTRACTOR_JS)
 
     # Open the first navigation level before exploring dynamically mounted
     # controls. Otherwise a large first submenu can consume the exploration
@@ -935,14 +973,14 @@ async def _capture_rendered_navigation(page) -> list[dict[str, Any]]:
     for index in range(min(await primary_controls.count(), 24)):
         control = primary_controls.nth(index)
         try:
-            await control.evaluate(
-                "el => el.setAttribute('data-gyrus-navigation-inspected', 'true')"
+            await _evaluate(
+                control, "el => el.setAttribute('data-gyrus-navigation-inspected', 'true')"
             )
             await control.locator("xpath=..").hover(timeout=1_000)
             await page.wait_for_timeout(180)
             navigation = _merge_navigation_groups(
                 navigation,
-                await page.evaluate(_NAVIGATION_EXTRACTOR_JS),
+                await _evaluate(page, _NAVIGATION_EXTRACTOR_JS),
             )
         except Exception as exc:
             logger.debug("Could not reveal a top-level navigation menu: %s", exc)
@@ -957,8 +995,8 @@ async def _capture_rendered_navigation(page) -> list[dict[str, Any]]:
 
         selected = controls.first
         try:
-            await selected.evaluate(
-                "el => el.setAttribute('data-gyrus-navigation-inspected', 'true')"
+            await _evaluate(
+                selected, "el => el.setAttribute('data-gyrus-navigation-inspected', 'true')"
             )
             await selected.locator("xpath=..").hover(timeout=1_000)
             await page.wait_for_timeout(180)
@@ -967,7 +1005,7 @@ async def _capture_rendered_navigation(page) -> list[dict[str, Any]]:
                 await page.wait_for_timeout(120)
             navigation = _merge_navigation_groups(
                 navigation,
-                await page.evaluate(_NAVIGATION_EXTRACTOR_JS),
+                await _evaluate(page, _NAVIGATION_EXTRACTOR_JS),
             )
         except Exception as exc:
             logger.debug("Could not reveal a navigation menu: %s", exc)

@@ -202,7 +202,7 @@ struct BookmarkContextMenu: View {
                     Label(single ? "Restore" : "Restore \(count)", systemImage: "arrow.uturn.backward")
                 }
                 Button(role: .destructive) {
-                    Task { await appStore.purgeFromTrash(ids: ids) }
+                    appStore.requestPurge(ids: ids)
                 } label: {
                     Label(single ? "Delete Permanently" : "Delete \(count) Permanently",
                           systemImage: "trash.slash")

@@ -850,16 +850,22 @@ def apply_draft(db: Session, draft_id: str, edits: list[dict[str, Any]]) -> dict
     selected_ids = {bookmark_id for tag in draft["tags"] for bookmark_id in tag["bookmark_ids"]}
     selected_ids.update(item["id"] for item in draft["untagged"])
 
-    old_ai_tag_ids = {
-        tag_id for (tag_id,) in db.query(BookmarkTag.tag_id).filter(
-            BookmarkTag.bookmark_id.in_(selected_ids),
+    # A whole-library run can select more ids than SQLite binds per statement
+    # (32,766). Chunk the IN lists; all chunks share this one transaction.
+    ordered_ids = sorted(selected_ids)
+    old_ai_tag_ids: set[str] = set()
+    for start in range(0, len(ordered_ids), 500):
+        chunk = ordered_ids[start:start + 500]
+        old_ai_tag_ids.update(
+            tag_id for (tag_id,) in db.query(BookmarkTag.tag_id).filter(
+                BookmarkTag.bookmark_id.in_(chunk),
+                BookmarkTag.source == "ai",
+            ).all()
+        )
+        db.query(BookmarkTag).filter(
+            BookmarkTag.bookmark_id.in_(chunk),
             BookmarkTag.source == "ai",
-        ).all()
-    }
-    db.query(BookmarkTag).filter(
-        BookmarkTag.bookmark_id.in_(selected_ids),
-        BookmarkTag.source == "ai",
-    ).delete(synchronize_session=False)
+        ).delete(synchronize_session=False)
 
     assignments: set[tuple[str, str]] = set()
     applied_tag_ids: set[str] = set()

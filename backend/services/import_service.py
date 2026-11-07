@@ -24,9 +24,19 @@ class ImportLimitExceeded(ValueError):
 def parse_netscape_html(html_content: str, db: Session,
                         root_folder_name: str | None = None) -> dict:
     soup = BeautifulSoup(html_content, "html.parser")
-    stats = {"imported": 0, "skipped": 0, "collections_created": 0, "_imported_bookmarks": []}
+    # "restored": bookmarks whose URL only existed in the Trash. Importing
+    # them again brings them back instead of silently skipping them.
+    stats = {"imported": 0, "skipped": 0, "restored": 0, "collections_created": 0,
+             "_imported_bookmarks": [], "_restored_bookmarks": []}
 
-    existing: set[str] = {normalize_url(url) for (url,) in db.query(Bookmark.url).all()}
+    existing: set[str] = set()
+    trashed: dict[str, str] = {}
+    for bookmark_id, url, deleted_at in db.query(Bookmark.id, Bookmark.url, Bookmark.deleted_at).all():
+        if deleted_at is None:
+            existing.add(normalize_url(url))
+        else:
+            trashed.setdefault(normalize_url(url), bookmark_id)
+    stats["_trashed"] = trashed
     seen: set[str] = set()
 
     try:
@@ -56,7 +66,10 @@ def parse_netscape_html(html_content: str, db: Session,
         brain_sync_service.resync_all(db)
     except Exception as exc:
         logger.warning("AI Brain index refresh after import failed: %s", exc)
+    stats.pop("_trashed")
     stats["_imported_ids"] = [bookmark.id for bookmark in stats.pop("_imported_bookmarks")]
+    # Restored rows need the same follow-up as new ones (re-index, metadata).
+    stats["_imported_ids"].extend(stats.pop("_restored_bookmarks"))
     return stats
 
 
@@ -171,6 +184,19 @@ def _import_anchor(a: Tag, parent_id, db: Session, stats: dict,
     url = normalize_url(raw)
     if url in existing or url in seen:
         stats["skipped"] += 1
+        return
+    trashed_id = stats["_trashed"].get(url)
+    if trashed_id is not None:
+        # Same result as a fresh import of this anchor: active again, in the
+        # imported folder, with the imported title. Notes, Reader text and
+        # tags of the old row are kept.
+        seen.add(url)
+        bookmark = db.get(Bookmark, trashed_id)
+        bookmark.deleted_at = None
+        bookmark.title = (a.get_text(strip=True) or url)[:MAX_IMPORTED_TITLE_CHARS]
+        bookmark.collection_id = parent_id
+        stats["_restored_bookmarks"].append(trashed_id)
+        stats["restored"] += 1
         return
     if stats["imported"] >= MAX_IMPORTED_BOOKMARKS:
         raise ImportLimitExceeded(

@@ -12,6 +12,12 @@ _lock = threading.RLock()
 _requests: set[object] = set()
 _owner = None
 _request = ContextVar("gyrus_request", default=None)
+# Read-only methods never change the library, so they must not make reserve()
+# fail: the app polls status endpoints constantly, and counting those polls as
+# in-flight writers made restore/URL edits fail with spurious 409s. They are
+# still refused while a reservation is held, so readers never see a library
+# that is halfway through being replaced.
+_READ_ONLY_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 BUSY_MESSAGE = "Background work is still running. Wait for it to finish or stop it, then try again."
 
 
@@ -39,9 +45,10 @@ class MaintenanceMiddleware:
         if scope["type"] != "http" or not path.startswith("/api/") or path.startswith("/api/files/"):
             return await self.app(scope, receive, send)
         ident = object()
+        counted = scope.get("method", "GET").upper() not in _READ_ONLY_METHODS
         with _lock:
             blocked = _owner is not None
-            if not blocked:
+            if not blocked and counted:
                 _requests.add(ident)
         if blocked:
             return await JSONResponse({"detail": "Library maintenance is in progress. Please try again."}, status_code=409)(scope, receive, send)

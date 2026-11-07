@@ -52,12 +52,14 @@ final class UIStateStoreTests: XCTestCase {
         XCTAssertNil(store.infoMessage)
     }
 
-    func testDirectErrorCanBypassResumeGrace() {
+    func testOnlyBackgroundErrorsRespectResumeGrace() {
         store.beginResumeGrace(10)
-        store.showError("background")
+        store.showError("background", respectingResumeGrace: true)
         XCTAssertNil(store.errorMessage)
 
-        store.showError("direct", respectingResumeGrace: false)
+        // A user action's failure (e.g. a delete) is shown even right after
+        // the app becomes active again.
+        store.showError("direct")
         XCTAssertEqual(store.errorMessage, "direct")
     }
 

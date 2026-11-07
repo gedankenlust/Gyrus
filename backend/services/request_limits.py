@@ -10,7 +10,8 @@ class RequestSizeMiddleware:
     async def __call__(self, scope, receive, send):
         if scope['type'] != 'http':
             return await self.app(scope, receive, send)
-        maximum = self.limit()
+        # The limit is per path: restore uploads are allowed to be larger.
+        maximum = self.limit(scope.get('path', ''))
         with tempfile.SpooledTemporaryFile(max_size=1024 * 1024) as body:
             size = 0
             while True:

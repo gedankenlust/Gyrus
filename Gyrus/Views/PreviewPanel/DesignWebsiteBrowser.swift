@@ -88,9 +88,9 @@ struct DesignWebsiteBrowser: View {
                 Text("No navigation structure detected.").font(.caption).foregroundStyle(.secondary)
             } else {
                 ForEach(navigation) { group in
-                    SnapshotSection(title: LocalizedStringKey(group.label), icon: "list.bullet.indent") {
+                    SnapshotSection(verbatimTitle: group.label, icon: "list.bullet.indent") {
                         OutlineGroup(group.items, children: \.outlineChildren) { item in
-                            InspectorField(title: LocalizedStringKey(item.label), value: item.url ?? "")
+                            InspectorField(verbatimTitle: item.label, value: item.url ?? "")
                         }
                     }
                 }

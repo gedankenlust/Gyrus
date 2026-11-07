@@ -152,8 +152,12 @@ struct ImportWizardView: View {
                 Task { @MainActor in
                     isImporting = true
                     errorMessage = nil
-                    result = try? await appStore.importHTML(data: data, filename: "bookmarks.html", rootFolderName: folderName)
-                    isImporting = false
+                    defer { isImporting = false }
+                    do {
+                        result = try await appStore.importHTML(data: data, filename: "bookmarks.html", rootFolderName: folderName)
+                    } catch {
+                        errorMessage = error.localizedDescription
+                    }
                 }
             }
             return true

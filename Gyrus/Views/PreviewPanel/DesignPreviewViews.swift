@@ -2,14 +2,37 @@ import SwiftUI
 import AppKit
 import WebKit
 
+/// Text that comes from the inspected page or from backend detection.
+///
+/// `LocalizedStringKey(String)` parses Markdown, so a page could put a
+/// clickable `[label](file:///…)` link into the inspector. Known backend terms
+/// are still looked up in the string catalog, but nothing is interpreted.
+func pageText(_ value: String, localize: Bool = false) -> Text {
+    guard localize else { return Text(verbatim: value) }
+    return Text(verbatim: Bundle.main.localizedString(forKey: value, value: value, table: nil))
+}
+
 struct SnapshotSection<Content: View>: View {
-    let title: LocalizedStringKey
+    let title: Text
     let icon: String
-    @ViewBuilder let content: Content
+    let content: Content
+
+    init(title: LocalizedStringKey, icon: String, @ViewBuilder content: () -> Content) {
+        self.title = Text(title)
+        self.icon = icon
+        self.content = content()
+    }
+
+    /// For titles taken from the page itself (navigation labels).
+    init(verbatimTitle: String, icon: String, @ViewBuilder content: () -> Content) {
+        self.title = Text(verbatim: verbatimTitle)
+        self.icon = icon
+        self.content = content()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label(title, systemImage: icon)
+            Label { title } icon: { Image(systemName: icon) }
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
             content
@@ -183,14 +206,19 @@ struct ViewportScreenshotImage: View {
     }
 
     func loadImage() async {
-        guard !isLoading else { return }
+        // `.task(id:)` cancels the previous load when the viewport changes. A
+        // guard on `isLoading` here used to drop the new load instead, and the
+        // old one then put the previous viewport's image on screen.
+        let path = viewport.screenshotURL
         isLoading = true
-        defer { isLoading = false }
+        defer { if !Task.isCancelled { isLoading = false } }
 
         // Through the shared store: the comparison strip shows every viewport at
         // once, and the component thumbnails cut out of the same screenshots,
         // so each image should be fetched and decoded once.
-        guard let source = await SnapshotImageStore.shared.image(atPath: viewport.screenshotURL) else {
+        let source = await SnapshotImageStore.shared.image(atPath: path)
+        guard !Task.isCancelled, path == viewport.screenshotURL else { return }
+        guard let source else {
             image = nil
             return
         }
@@ -340,31 +368,31 @@ struct ResponsiveIssueRow: View {
         }
     }
 
-    private var localizedTitle: LocalizedStringKey {
+    private var localizedTitle: Text {
         switch issue.kind {
-        case "missing_viewport_meta": "Mobile viewport configuration is missing"
-        case "horizontal_overflow": "Page overflows horizontally"
-        case "offscreen_element": "Element extends beyond the viewport"
-        case "clipped_content": "Content may be clipped"
-        case "small_text": "Very small text"
-        case "small_touch_target": "Small touch target"
-        case "large_sticky_element": "Sticky element covers much of the viewport"
-        case "overlapping_controls": "Interactive controls overlap"
-        default: LocalizedStringKey(issue.title)
+        case "missing_viewport_meta": Text("Mobile viewport configuration is missing")
+        case "horizontal_overflow": Text("Page overflows horizontally")
+        case "offscreen_element": Text("Element extends beyond the viewport")
+        case "clipped_content": Text("Content may be clipped")
+        case "small_text": Text("Very small text")
+        case "small_touch_target": Text("Small touch target")
+        case "large_sticky_element": Text("Sticky element covers much of the viewport")
+        case "overlapping_controls": Text("Interactive controls overlap")
+        default: pageText(issue.title, localize: true)
         }
     }
 
-    private var localizedDetail: LocalizedStringKey {
+    private var localizedDetail: Text {
         switch issue.kind {
-        case "missing_viewport_meta": "Without a viewport meta tag, mobile browsers may render the page at a desktop-like width."
-        case "horizontal_overflow": "The page is wider than the selected viewport and may require horizontal scrolling."
-        case "offscreen_element": "Part of this element lies outside the visible page width."
-        case "clipped_content": "The content is larger than its box while overflow is hidden."
-        case "small_text": "This text may be difficult to read at the selected viewport."
-        case "small_touch_target": "This control is smaller than the recommended 44x44 px touch area."
-        case "large_sticky_element": "This fixed or sticky element occupies more than 30% of the viewport height."
-        case "overlapping_controls": "Two interactive elements cover each other and may be difficult to use."
-        default: LocalizedStringKey(issue.detail)
+        case "missing_viewport_meta": Text("Without a viewport meta tag, mobile browsers may render the page at a desktop-like width.")
+        case "horizontal_overflow": Text("The page is wider than the selected viewport and may require horizontal scrolling.")
+        case "offscreen_element": Text("Part of this element lies outside the visible page width.")
+        case "clipped_content": Text("The content is larger than its box while overflow is hidden.")
+        case "small_text": Text("This text may be difficult to read at the selected viewport.")
+        case "small_touch_target": Text("This control is smaller than the recommended 44x44 px touch area.")
+        case "large_sticky_element": Text("This fixed or sticky element occupies more than 30% of the viewport height.")
+        case "overlapping_controls": Text("Two interactive elements cover each other and may be difficult to use.")
+        default: pageText(issue.detail, localize: true)
         }
     }
 
@@ -391,10 +419,10 @@ struct ResponsiveIssueRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Circle().fill(severityColor).frame(width: 7, height: 7)
-                    Text(localizedTitle)
+                    localizedTitle
                         .font(.caption.bold())
                 }
-                Text(localizedDetail)
+                localizedDetail
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

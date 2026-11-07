@@ -58,8 +58,9 @@ def test_bookmark_sort_parameter_cannot_inject_sql(client):
         params={"sort_by": "created_at); DROP TABLE bookmarks; --", "order": "asc"},
     )
 
-    assert response.status_code == 200
-    assert len(response.json()) == 1
+    # Unknown sort fields are rejected outright instead of silently ignored.
+    assert response.status_code == 422
+    assert len(client.get("/api/bookmarks").json()) == 1
 
 def test_search_endpoint_pagination(client, db):
     """The search endpoint should respect limit and offset parameters."""

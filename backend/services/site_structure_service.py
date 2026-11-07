@@ -16,6 +16,7 @@ from database import DATA_DIR
 from services.scraper_service import _BROWSER_UA
 from services.outbound_url_security import explicit_private_hostname, request_guard
 from services.safe_egress_proxy import SafeEgressProxy
+from services.atomic_write import atomic_write_text
 
 logger = logging.getLogger(__name__)
 
@@ -652,9 +653,10 @@ class SiteStructureService:
     def _write_cache(self, bookmark_id: str, url: str, data: dict) -> None:
         try:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
-            self._cache_path(bookmark_id, url).write_text(
+            # Atomic: a concurrent reader or a crash must never see half a file.
+            atomic_write_text(
+                self._cache_path(bookmark_id, url),
                 json.dumps(data, ensure_ascii=False, indent=2),
-                encoding="utf-8",
             )
         except Exception as exc:
             logger.debug("Failed to write site structure cache: %s", exc)

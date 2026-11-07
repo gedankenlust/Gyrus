@@ -106,11 +106,11 @@ struct TechnologyCard: View {
                 .padding(.top, 5)
 
             VStack(alignment: .leading, spacing: 2) {
-                (Text(LocalizedStringKey(technology.name))
+                (pageText(technology.name, localize: true)
                     + Text(technology.version.map { " \($0)" } ?? ""))
                     .font(.caption.weight(.semibold))
                     .lineLimit(2)
-                Text(LocalizedStringKey(technology.category))
+                pageText(technology.category, localize: true)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -537,7 +537,7 @@ struct AssetList: View {
                     .font(.caption2.bold())
                     .foregroundStyle(.secondary)
 
-                ForEach(assets.prefix(60)) { asset in
+                ForEach(Array(assets.prefix(60).enumerated()), id: \.offset) { _, asset in
                     VStack(alignment: .leading, spacing: 4) {
                         CopyRow(value: asset.url ?? asset.selectorHint ?? title, systemImage: icon)
 
@@ -599,7 +599,7 @@ struct MetaList: View {
                     .font(.caption2.bold())
                     .foregroundStyle(.secondary)
 
-                ForEach(items.prefix(80)) { item in
+                ForEach(Array(items.prefix(80).enumerated()), id: \.offset) { _, item in
                     CopyRow(value: "\(item.name ?? "meta"): \(item.content ?? "")", systemImage: "tag")
                 }
             }
@@ -618,7 +618,7 @@ struct A11yItemList: View {
                     .font(.caption2.bold())
                     .foregroundStyle(.secondary)
 
-                ForEach(items.prefix(80)) { item in
+                ForEach(Array(items.prefix(80).enumerated()), id: \.offset) { _, item in
                     let detail = [
                         item.selectorHint,
                         item.type.map { "type: \($0)" },

@@ -38,6 +38,14 @@ _SORT_COLUMNS = {
     "title": Bookmark.title,
     "url": Bookmark.url,
 }
+# SQLite allows at most 32,766 bound parameters per statement. Selections
+# ("select all" in a large library) are chunked well below that.
+ID_CHUNK_SIZE = 500
+
+
+def _chunks(ids: list[str], size: int = ID_CHUNK_SIZE):
+    for start in range(0, len(ids), size):
+        yield ids[start:start + size]
 
 
 def get_bookmarks(
@@ -103,6 +111,11 @@ def get_bookmarks(
             col_expr = col
         q = q.order_by(col_expr.asc() if order == "asc" else col_expr.desc())
 
+    # OFFSET paging needs a total order. Imports create many rows with the
+    # same created_at, and equal titles/hosts/tags are common; without a
+    # unique tiebreaker SQLite may return tied rows in a different order per
+    # page, so bookmarks repeated or silently went missing while scrolling.
+    q = q.order_by(Bookmark.id)
     return q.offset(offset).limit(limit).all()
 
 
@@ -121,15 +134,21 @@ def get_bookmark(db: Session, bookmark_id: str, include_deleted: bool = False) -
 
 
 def create_bookmark(db: Session, data: BookmarkCreate) -> Bookmark:
+    return create_or_restore_bookmark(db, data)[0]
+
+
+def create_or_restore_bookmark(db: Session, data: BookmarkCreate) -> tuple[Bookmark, bool]:
+    """Create a bookmark; returns (bookmark, restored_from_trash)."""
     from services.url_utils import normalize_url
     url = normalize_url(data.url)
 
     # Check for duplicates (against the normalized URL)
     found = db.query(Bookmark).filter(Bookmark.url == url).first()
-    if found:
+    if found and found.deleted_at is None:
         from fastapi import HTTPException
         raise HTTPException(status_code=409, detail="Bookmark already exists")
 
+    _require_references(db, data.collection_id, data.tag_ids)
     collection_id = data.collection_id
 
     # Extension / menu-bar quick-add: automatic Inbox assignment
@@ -146,6 +165,14 @@ def create_bookmark(db: Session, data: BookmarkCreate) -> Bookmark:
                 # If another request created it in the meantime, fetch it
                 inbox = db.query(Collection).filter(Collection.name == "Inbox", Collection.parent_id == None).one()
         collection_id = inbox.id
+
+    if found is not None:
+        # The URL only exists in the Trash. Saving it again is an explicit
+        # "I want this bookmark", so bring the trashed row back instead of
+        # refusing with 409 (the extension showed "already saved" for a
+        # bookmark the user could not see) — and keep its Reader text,
+        # notes and analysis.
+        return _restore_trashed_as_created(db, found, data, collection_id), True
 
     bm = Bookmark(
         title=data.title,
@@ -165,10 +192,65 @@ def create_bookmark(db: Session, data: BookmarkCreate) -> Bookmark:
     _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm))
     _safe_brain_sync(lambda: brain_sync_service.rebuild_index(db))
 
+    return bm, False
+
+
+def _restore_trashed_as_created(
+    db: Session, bm: Bookmark, data: BookmarkCreate, collection_id: str | None
+) -> Bookmark:
+    """Apply a create request to a trashed row with the same URL."""
+    bm.deleted_at = None
+    bm.title = data.title
+    if data.description is not None:
+        bm.description = data.description
+    if data.notes is not None:
+        bm.notes = data.notes
+    # An explicit folder (or the extension's Inbox) wins; otherwise the
+    # bookmark returns to where it was before it was trashed.
+    if collection_id is not None:
+        bm.collection_id = collection_id
+    if data.tag_ids:
+        _set_tags(db, bm, data.tag_ids)
+    db.commit()
+    db.expire(bm, ["bookmark_tags"])
+    db.refresh(bm)
+
+    # Trashing removed the Brain mirror and the vector. The mirror is rebuilt
+    # here like a fresh create; the enrichment scheduled by the caller
+    # re-indexes the kept Reader text.
+    _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm))
+    _safe_brain_sync(lambda: brain_sync_service.rebuild_index(db))
     return bm
 
 
+def _require_references(
+    db: Session, collection_id: str | None, tag_ids: list[str] | None
+) -> None:
+    """Reject unknown folder/tag ids before the write.
+
+    Otherwise SQLite's foreign-key check fails at flush/commit and surfaces as
+    a misleading 409 "already exists" (create) or a 500 (update).
+    """
+    from fastapi import HTTPException
+    if collection_id is not None and db.get(Collection, collection_id) is None:
+        raise HTTPException(status_code=422, detail="Collection not found")
+    if tag_ids:
+        wanted = list(dict.fromkeys(tag_ids))
+        found = set()
+        for chunk in _chunks(wanted):
+            found.update(
+                tag_id for (tag_id,) in db.query(Tag.id).filter(Tag.id.in_(chunk)).all()
+            )
+        if len(found) != len(wanted):
+            raise HTTPException(status_code=422, detail="One or more tags were not found")
+
+
 def update_bookmark(db: Session, bm: Bookmark, data: BookmarkUpdate) -> Bookmark:
+    _require_references(
+        db,
+        data.collection_id if "collection_id" in data.model_fields_set else None,
+        data.tag_ids,
+    )
     if data.url is not None:
         from services.url_utils import normalize_url
         data = data.model_copy(update={"url": normalize_url(data.url)})
@@ -306,16 +388,23 @@ def delete_bookmark(db: Session, bm: Bookmark) -> None:
 
 def delete_bookmarks(db: Session, ids: list[str]) -> None:
     """Soft-delete multiple bookmarks (move them to the Trash)."""
+    unique_ids = list(dict.fromkeys(ids))
     # Best-effort: remove the brain markdown files (only for ones not already trashed).
-    bms = db.query(Bookmark).filter(
-        Bookmark.id.in_(ids), Bookmark.deleted_at.is_(None)
-    ).all()
+    bms = []
+    for chunk in _chunks(unique_ids):
+        bms.extend(db.query(Bookmark).filter(
+            Bookmark.id.in_(chunk), Bookmark.deleted_at.is_(None)
+        ).all())
     _safe_brain_sync(lambda: brain_sync_service.delete_bookmarks_files(db, bms))
     _drop_vectors([bm.id for bm in bms])
 
-    db.query(Bookmark).filter(
-        Bookmark.id.in_(ids), Bookmark.deleted_at.is_(None)
-    ).update({Bookmark.deleted_at: datetime.now(timezone.utc)}, synchronize_session=False)
+    # All chunks share one transaction, so a selection is trashed entirely or
+    # not at all.
+    deleted_at = datetime.now(timezone.utc)
+    for chunk in _chunks([bm.id for bm in bms]):
+        db.query(Bookmark).filter(
+            Bookmark.id.in_(chunk), Bookmark.deleted_at.is_(None)
+        ).update({Bookmark.deleted_at: deleted_at}, synchronize_session=False)
     db.commit()
     _safe_brain_sync(lambda: brain_sync_service.rebuild_index(db))
 
@@ -362,21 +451,26 @@ def count_trashed(db: Session) -> int:
 
 def restore_bookmarks(db: Session, ids: list[str]) -> int:
     """Bring bookmarks back from the Trash and recreate their brain files."""
-    bms = db.query(Bookmark).filter(
-        Bookmark.id.in_(ids), Bookmark.deleted_at.is_not(None)
-    ).all()
+    bms = []
+    for chunk in _chunks(list(dict.fromkeys(ids))):
+        bms.extend(db.query(Bookmark).filter(
+            Bookmark.id.in_(chunk), Bookmark.deleted_at.is_not(None)
+        ).all())
     if not bms:
         return 0
 
-    db.query(Bookmark).filter(
-        Bookmark.id.in_([bm.id for bm in bms]), Bookmark.deleted_at.is_not(None)
-    ).update({"deleted_at": None}, synchronize_session=False)
+    for chunk in _chunks([bm.id for bm in bms]):
+        db.query(Bookmark).filter(
+            Bookmark.id.in_(chunk), Bookmark.deleted_at.is_not(None)
+        ).update({"deleted_at": None}, synchronize_session=False)
     db.commit()
 
     async def _background_restore_sync(bookmark_ids: list[str]):
         from database import SessionLocal
         with SessionLocal() as bg_db:
-            bg_bms = bg_db.query(Bookmark).filter(Bookmark.id.in_(bookmark_ids)).all()
+            bg_bms = []
+            for chunk in _chunks(bookmark_ids):
+                bg_bms.extend(bg_db.query(Bookmark).filter(Bookmark.id.in_(chunk)).all())
             for bm in bg_bms:
                 _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(bg_db, bm))
                 # The vector was dropped when the bookmark was trashed — rebuild it
@@ -395,14 +489,25 @@ def purge_bookmarks(db: Session, ids: list[str] | None = None) -> int:
     """Permanently delete trashed bookmarks. ids=None empties the whole Trash.
     Only ever touches rows that are already in the Trash."""
     q = db.query(Bookmark).filter(Bookmark.deleted_at.is_not(None))
-    if ids is not None:
-        q = q.filter(Bookmark.id.in_(ids))
+    if ids is None:
+        purged_ids = [row.id for row in q.with_entities(Bookmark.id).all()]
+    else:
+        purged_ids = []
+        for chunk in _chunks(list(dict.fromkeys(ids))):
+            purged_ids.extend(
+                row.id for row in q.filter(Bookmark.id.in_(chunk)).with_entities(Bookmark.id).all()
+            )
     # Vectors are normally dropped on trashing, but clean up stragglers so a
     # hard delete never leaves orphan rows in bookmarks_vec.
-    purged_ids = [row.id for row in q.with_entities(Bookmark.id).all()]
     _drop_vectors(purged_ids)
     n = len(purged_ids)
-    q.delete(synchronize_session=False)
+    if ids is None:
+        q.delete(synchronize_session=False)
+    else:
+        for chunk in _chunks(purged_ids):
+            db.query(Bookmark).filter(
+                Bookmark.deleted_at.is_not(None), Bookmark.id.in_(chunk)
+            ).delete(synchronize_session=False)
     db.commit()
     delete_generated_artifacts(purged_ids)
     return n
@@ -469,7 +574,8 @@ async def index_bookmark_embedding(bookmark_id: str, text: str) -> bool:
 
 def _set_tags(db: Session, bm: Bookmark, tag_ids: list[str]) -> None:
     db.query(BookmarkTag).filter(BookmarkTag.bookmark_id == bm.id).delete()
-    for tag_id in tag_ids:
+    # A repeated id would violate the (bookmark_id, tag_id) primary key.
+    for tag_id in dict.fromkeys(tag_ids):
         db.add(BookmarkTag(bookmark_id=bm.id, tag_id=tag_id, source="manual"))
 
 
@@ -728,8 +834,10 @@ async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict
             options={"num_predict": 192, "temperature": 0},
             language=language,
         )
-    except Exception as e:
-        raise HTTPException(500, f"LLM Error: {str(e)}")
+    except Exception:
+        # Provider errors can embed URLs, local paths or response bodies.
+        logger.exception("Auto-tagging LLM request failed for bookmark %s", bookmark_id)
+        raise HTTPException(500, "The language model request failed. Check the AI settings and try again.")
 
     suggested = _validated_tag_names(response, context, primary_text, content[:10_000])
     if existing_tags:
