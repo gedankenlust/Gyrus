@@ -139,7 +139,7 @@ extension APIClient {
             prompt: prompt,
             provider_config: providerConfig,
             history: history.map { HistoryMessage(role: $0.role, content: $0.content) },
-            language: AppSettings.shared.effectiveLanguageCode
+            language: await AppSettings.shared.effectiveLanguageCode
         )
         let res: ChatResponse = try await post(base.appending(path: "/api/brain/chat"), body: body, timeout: APIClient.llmTimeout)
         return res.response

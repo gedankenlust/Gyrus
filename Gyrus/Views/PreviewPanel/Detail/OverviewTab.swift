@@ -113,7 +113,7 @@ struct OverviewTab: View {
                           value: bookmark.updatedAt.formatted(date: .abbreviated, time: .omitted))
                 Divider().padding(.leading, 40)
 
-                detailRow(icon: "arrow.down.circle", label: "Source", value: bookmark.source)
+                detailRow(icon: "arrow.down.circle", label: "Source", value: Self.sourceLabel(bookmark.source))
 
                 if bookmark.isDead {
                     deadLinkRows
@@ -146,6 +146,18 @@ struct OverviewTab: View {
         .padding(.top, 2)
         .padding(.bottom, 8)
         .help("Clear the dead-link flag — use this for false positives")
+    }
+
+    /// The backend stores how a bookmark arrived as a short code; show the
+    /// reader a word, and the raw code only for values this build predates.
+    static func sourceLabel(_ source: String) -> String {
+        switch source {
+        case "manual": String(localized: "Added manually")
+        case "import": String(localized: "Imported")
+        case "extension": String(localized: "Browser extension")
+        case "menubar": String(localized: "Quick Add")
+        default: source
+        }
     }
 
     private func detailRow(icon: String, label: LocalizedStringKey, value: String,

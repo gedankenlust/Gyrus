@@ -42,7 +42,7 @@ struct BackendProcessRecord: Equatable {
             pid: pid,
             startSeconds: info.pbi_start_tvsec,
             startMicroseconds: info.pbi_start_tvusec,
-            executable: String(cString: buffer)
+            executable: String(nulTerminated: buffer)
         )
     }
 

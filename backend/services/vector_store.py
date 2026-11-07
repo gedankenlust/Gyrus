@@ -1,6 +1,6 @@
 """SQLite-vec vector store for semantic search.
 
-Wraps the bookmarks_vec virtual table (created by the v0.7.0 migration) via
+Wraps the bookmarks_vec virtual table (created here on first use) via
 apsw — the only Python SQLite adapter that can load extensions on macOS without
 a special build flag.  All other DB operations continue to use SQLAlchemy.
 
@@ -74,6 +74,12 @@ def _get_conn():
     conn.enableloadextension(True)
     sqlite_vec.load(conn)
     conn.enableloadextension(False)
+    # Created here, not by a migration: sqlite-vec must only ever be loaded
+    # into this one SQLite library (see the c4d5e6f7a8b9 migration).
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS bookmarks_vec "
+        "USING vec0(bookmark_id TEXT PRIMARY KEY, embedding FLOAT[768])"
+    )
     _conn = conn
     return conn
 

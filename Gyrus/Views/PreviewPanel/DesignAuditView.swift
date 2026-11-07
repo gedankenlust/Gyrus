@@ -80,7 +80,7 @@ struct DesignSeverityCounts: View {
                     Text(verbatim: "\(count)")
                         .monospacedDigit()
                         .fontWeight(.semibold)
-                    Text(verbatim: severity.title)
+                    Text(verbatim: severity.title(count: count))
                         .foregroundStyle(.secondary)
                 }
                 .font(.caption)

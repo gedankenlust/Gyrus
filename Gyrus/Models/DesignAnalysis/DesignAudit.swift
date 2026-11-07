@@ -15,6 +15,16 @@ enum AuditSeverity: Int, Comparable, CaseIterable, Sendable {
         }
     }
 
+    /// The label after a count: "1 Warning" but "3 Warnings".
+    func title(count: Int) -> String {
+        guard count != 1 else { return title }
+        switch self {
+        case .info: return String(localized: "Notices")
+        case .warning: return String(localized: "Warnings")
+        case .critical: return title
+        }
+    }
+
     /// Points a finding of this severity takes off the score.
     fileprivate var penalty: Int {
         switch self {
@@ -273,7 +283,7 @@ struct DesignAudit: Sendable {
         }
         return AuditSeverity.allCases.reversed().compactMap { severity in
             guard let members = bySeverity[severity], !members.isEmpty else { return nil }
-            let kinds = Array(Set(members.map(\.title))).sorted().prefix(3).joined(separator: ", ")
+            let kinds = Array(Set(members.map(\.localizedTitle))).sorted().prefix(3).joined(separator: ", ")
             return AuditFinding(
                 id: "responsive.\(severity.rawValue)", category: .responsive, severity: severity,
                 title: String(localized: "Layout issues at this width"),
@@ -349,5 +359,23 @@ struct ViewportSummary: Identifiable, Sendable {
         highSeverityIssues = viewport.responsiveIssues?.filter { $0.severity.lowercased() == "high" }.count ?? 0
         contrastFailures = audit.contrastPairs.filter { $0.rating == .fail }.count
         score = audit.score
+    }
+}
+
+extension APIClient.VisualResponsiveIssueDTO {
+    /// The backend writes issue titles in English; known kinds get the app's
+    /// translation, so the audit summary and the issue list say the same.
+    var localizedTitle: String {
+        switch kind {
+        case "missing_viewport_meta": String(localized: "Mobile viewport configuration is missing")
+        case "horizontal_overflow": String(localized: "Page overflows horizontally")
+        case "offscreen_element": String(localized: "Element extends beyond the viewport")
+        case "clipped_content": String(localized: "Content may be clipped")
+        case "small_text": String(localized: "Very small text")
+        case "small_touch_target": String(localized: "Small touch target")
+        case "large_sticky_element": String(localized: "Sticky element covers much of the viewport")
+        case "overlapping_controls": String(localized: "Interactive controls overlap")
+        default: Bundle.main.localizedString(forKey: title, value: title, table: nil)
+        }
     }
 }

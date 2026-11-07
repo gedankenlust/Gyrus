@@ -130,6 +130,7 @@
 		09EB9F3BE505F88E456E2EF3 = {isa = PBXBuildFile; fileRef = 8DBD1C0CEB34C0331EB87E5D; };
 		6B418993C3F987559AC37448 = {isa = PBXBuildFile; fileRef = 60A22B70EE846A1E34C30F73; };
 		462B47DEC14862FEE78C0E5C = {isa = PBXBuildFile; fileRef = 5040842FBCB26B85951B7A25; };
+		95369B2170E9CC4D38E8A660 = {isa = PBXBuildFile; fileRef = 156E72DA689F507587B2052A; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -259,6 +260,7 @@
 		8DBD1C0CEB34C0331EB87E5D = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StabilizationTests.swift"; sourceTree = "<group>"; };
 		60A22B70EE846A1E34C30F73 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TrashControllerTests.swift"; sourceTree = "<group>"; };
 		5040842FBCB26B85951B7A25 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UIStateStoreTests.swift"; sourceTree = "<group>"; };
+		156E72DA689F507587B2052A = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "WebPreviewDelegateTests.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -293,6 +295,7 @@
 				8DBD1C0CEB34C0331EB87E5D,
 				60A22B70EE846A1E34C30F73,
 				5040842FBCB26B85951B7A25,
+				156E72DA689F507587B2052A,
 			);
 			path = GyrusTests;
 			sourceTree = "<group>";
@@ -813,6 +816,7 @@
 				09EB9F3BE505F88E456E2EF3,
 				6B418993C3F987559AC37448,
 				462B47DEC14862FEE78C0E5C,
+				95369B2170E9CC4D38E8A660,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -856,7 +860,7 @@
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.9;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -879,7 +883,7 @@
 				SDKROOT = macosx;
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.9;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -951,7 +955,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.9;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Gyrus.app/Contents/MacOS/Gyrus";
 			};
 			name = Debug;
@@ -966,7 +970,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.9;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Gyrus.app/Contents/MacOS/Gyrus";
 			};
 			name = Release;

@@ -4,7 +4,7 @@ import AppKit
 /// Collects each card's frame (in the grid coordinate space) so marquee
 /// selection can hit-test which cards a dragged rectangle covers.
 private struct CardFramesKey: PreferenceKey {
-    static var defaultValue: [String: CGRect] = [:]
+    static let defaultValue: [String: CGRect] = [:]
     static func reduce(value: inout [String: CGRect], nextValue: () -> [String: CGRect]) {
         value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
@@ -12,7 +12,7 @@ private struct CardFramesKey: PreferenceKey {
 
 /// Width the grid's columns are laid out in, for arrow-key row navigation.
 private struct GridWidthKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+    static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
     }

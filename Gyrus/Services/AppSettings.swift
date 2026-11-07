@@ -4,7 +4,7 @@ import Observation
 import Carbon
 import os
 
-public struct HotkeyConfig: Codable, Equatable {
+public struct HotkeyConfig: Codable, Equatable, Sendable {
     public var keyCode: UInt32
     public var modifiers: UInt32
     public var keyString: String
@@ -38,6 +38,7 @@ public struct HotkeyConfig: Codable, Equatable {
 /// `@Observable` can track changes — two-way bindings update the UI live and
 /// changes propagate to other views (e.g. a theme switch re-renders the app).
 /// Each `didSet` persists to `UserDefaults`; values are loaded once in `init`.
+@MainActor
 @Observable
 public final class AppSettings {
     public static let shared = AppSettings()
@@ -101,7 +102,7 @@ public final class AppSettings {
         didSet { defaults.set(defaultPreviewTab, forKey: Keys.defaultPreviewTab) }
     }
 
-    static func canonicalPreviewTab(_ value: String?) -> String {
+    nonisolated static func canonicalPreviewTab(_ value: String?) -> String {
         switch value {
         case "Design", "Snapshot": return "Design"
         case "AI Brain": return "AI Brain"
@@ -238,18 +239,17 @@ public final class AppSettings {
     /// Wraps a user-chosen directory in a dedicated "Gyrus Brain" subfolder, so
     /// enabling the brain never scatters _Unsorted/, Inbox/ etc. directly into
     /// the picked folder (e.g. the Desktop). Idempotent if already wrapped.
-    public static func brainRoot(forChosenDirectory url: URL) -> String {
+    public nonisolated static func brainRoot(forChosenDirectory url: URL) -> String {
         if url.lastPathComponent == "Gyrus Brain" { return url.path }
         return url.appendingPathComponent("Gyrus Brain").path
     }
 
     private func syncWithBackend(_ config: AIBrainConfig) {
-        Task { @MainActor in
-            AIConfigSync.shared.submit(self.aiBrainConfig)
-        }
+        // Deferred to the next main-actor turn so several edits in one turn
+        // reach the backend as one submission of the latest value.
+        Task { AIConfigSync.shared.submit(self.aiBrainConfig) }
     }
 
-    @MainActor
     func resetToDefaults() {
         if let id = Bundle.main.bundleIdentifier { defaults.removePersistentDomain(forName: id) }
         appLanguage = "system"

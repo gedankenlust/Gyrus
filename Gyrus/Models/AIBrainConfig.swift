@@ -1,9 +1,9 @@
 import Foundation
 
-public struct AIBrainConfig: Codable, Equatable {
+public struct AIBrainConfig: Codable, Equatable, Sendable {
     /// Gyrus is local-only. The provider type is kept (rather than dropped) so
     /// the backend request shape stays stable, but the only value is Ollama.
-    public enum LLMProvider: String, Codable {
+    public enum LLMProvider: String, Codable, Sendable {
         case ollama = "ollama"
 
         public init(from decoder: Decoder) throws {

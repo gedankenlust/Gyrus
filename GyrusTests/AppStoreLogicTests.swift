@@ -9,8 +9,10 @@ final class AppStoreLogicTests: XCTestCase {
     var collectionStore: CollectionStore!
     var tagStore: TagStore!
 
-    override func setUp() {
-        super.setUp()
+    // The async variant, because XCTest declares the synchronous setUp
+    // nonisolated while the stores live on the main actor.
+    override func setUp() async throws {
+        try await super.setUp()
         appStore = AppStore()
         bookmarkStore = appStore.bookmarksStore
         collectionStore = appStore.collectionsStore

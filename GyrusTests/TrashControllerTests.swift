@@ -140,7 +140,7 @@ final class TrashControllerTests: XCTestCase {
     private func makeTrash(
         confirmsDelete: Bool = false,
         undoWindow: TimeInterval = UIStateStore.undoWindow,
-        _ handler: @escaping (URLRequest) throws -> (Int, Data)
+        _ handler: @escaping StubHandler
     ) -> (TrashController, BookmarkStore, CollectionStore, UIStateStore, LibraryRecorder) {
         let api = stubbedClient(handler)
         let bookmarks = BookmarkStore(api: api, draftStorage: nil)

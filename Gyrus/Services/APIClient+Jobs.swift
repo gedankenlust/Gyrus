@@ -31,7 +31,7 @@ extension APIClient {
             let language: String
         }
         let body = Body(bookmark_ids: ids, provider_config: ProviderPayload(config),
-                        language: AppSettings.shared.effectiveLanguageCode)
+                        language: await AppSettings.shared.effectiveLanguageCode)
         return try await post(base.appending(path: "/api/bookmarks/auto-tag-batch"), body: body)
     }
 

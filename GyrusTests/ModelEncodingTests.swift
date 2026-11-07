@@ -499,6 +499,7 @@ final class ModelEncodingTests: XCTestCase {
 
     // MARK: - Web preview security
 
+    @MainActor
     func testWebPreviewUsesNonPersistentStorage() {
         XCTAssertFalse(WebPreviewSecurityPolicy.configuration().websiteDataStore.isPersistent)
     }
