@@ -45,6 +45,7 @@ class BackgroundJob:
         self.state: dict = dict(self._initial)
         self.lock = asyncio.Lock()
         self._task: asyncio.Task | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._cancelled = False
 
     # -- Introspection ---------------------------------------------------
@@ -66,11 +67,24 @@ class BackgroundJob:
 
         Sets the cooperative flag AND cancels the task — the flag alone would
         only prevent new work from starting while in-flight awaits (HTTP
-        calls, LLM requests) kept running, which made "Stop" feel dead."""
+        calls, LLM requests) kept running, which made "Stop" feel dead.
+
+        Safe to call from a worker thread (plain `def` route handlers run in
+        the threadpool): Task.cancel() is not thread-safe, so the request is
+        handed to the loop that owns the task instead of being made directly."""
         if self.state["running"]:
             self._cancelled = True
-            if self._task and not self._task.done():
-                self._task.cancel()
+            task = self._task
+            if task and not task.done():
+                try:
+                    current = asyncio.get_running_loop()
+                except RuntimeError:
+                    current = None
+                loop = self._loop
+                if loop is None or current is loop:
+                    task.cancel()
+                elif not loop.is_closed():
+                    loop.call_soon_threadsafe(task.cancel)
         return self.get_status()
 
     async def start(
@@ -95,6 +109,7 @@ class BackgroundJob:
             self.state["finished_at"] = None
 
         from services import background
+        self._loop = asyncio.get_running_loop()
         self._task = background.track(asyncio.create_task(self._wrap(runner)))
         return self.get_status()
 

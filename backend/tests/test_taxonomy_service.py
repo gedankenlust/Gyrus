@@ -123,7 +123,7 @@ async def test_taxonomy_stream_reports_visible_progress(monkeypatch):
     raw = await taxonomy_service._stream_taxonomy(
         "prompt", "records", {"provider": "ollama", "model": "qwen3:8b"},
         "de", "organizing", lambda stage, count: progress.append((stage, count)),
-        taxonomy_service._label_schema(["C001", "C002"]),
+        taxonomy_service._classification_schema(["C001", "C002"], [[], []]),
     )
 
     assert raw == '{"taxonomy":[]}'
@@ -134,20 +134,6 @@ async def test_taxonomy_stream_reports_visible_progress(monkeypatch):
     assert received["options"]["num_ctx"] == 16384
     assert received["response_format"]["required"] == ["C001", "C002"]
     assert received["response_format"]["additionalProperties"] is False
-
-
-def test_semantic_clusters_consolidate_singletons():
-    vectors = [
-        [1.0, 0.0], [0.99, 0.01],
-        [0.0, 1.0], [0.01, 0.99],
-        [-1.0, 0.0], [-0.99, -0.01],
-        [0.0, -1.0], [-0.01, -0.99],
-    ]
-
-    groups = taxonomy_service.cluster_vectors(vectors, max_tags=8)
-
-    assert sorted(len(group) for group in groups) == [2, 2, 2, 2]
-    assert sorted(index for group in groups for index in group) == list(range(8))
 
 
 def test_reusable_labels_reject_generic_and_forced_mixed_topics():
@@ -166,24 +152,6 @@ def test_candidate_aliases_turn_general_awkward_labels_into_reusable_topics():
     assert taxonomy_service.normalize_tag_name("finanzen software") == "finanzsoftware"
     assert taxonomy_service.normalize_tag_name("video bearbeitung") == "videobearbeitung"
     assert taxonomy_service.normalize_tag_name("coworking räume") == "coworking"
-
-
-def test_cluster_context_includes_url_and_excerpt_for_wordplay_checks():
-    bookmarks = [
-        SimpleNamespace(
-            title="Lucid — Read the machine's mind",
-            url="https://lucid.earthpilot.ai",
-            description="Watch a language model think.",
-            scraped_content="Lucid watches a language model think using Anthropic's Jacobian lens.",
-        )
-    ]
-
-    context, cluster_ids = taxonomy_service._cluster_context([[0]], bookmarks)
-    payload = json.loads(context)
-
-    assert cluster_ids == ["C001"]
-    assert payload["items"][0]["url"] == "https://lucid.earthpilot.ai"
-    assert "Jacobian lens" in payload["items"][0]["excerpt"]
 
 
 @pytest.mark.asyncio

@@ -20,6 +20,7 @@ from models.bookmark import Bookmark
 from models.collection import Collection
 from services.background_job import BackgroundJob
 from services.bookmark_service import move_bookmarks
+from services.localized_messages import is_german, localized
 from services.tagging_pacer import TaggingPacer
 
 logger = logging.getLogger(__name__)
@@ -83,10 +84,8 @@ is_running = job.is_running
 cancel = job.cancel
 
 
-def _text(language: str | None, english: str, german: str) -> str:
-    if (language or "").lower().startswith("de"):
-        return german
-    return english
+def _message(language: str | None, key: str, **fields) -> str:
+    return localized(key, is_german(language), **fields)
 
 
 def _clean_line(line: str) -> tuple[bool, str]:
@@ -322,6 +321,11 @@ def place_bookmarks(db, assignments: dict[str, list[str]]) -> dict:
     return {"moved": moved, "created": created}
 
 
+def _place_all(assignments: dict[str, list[str]]) -> dict:
+    with SessionLocal() as db:
+        return place_bookmarks(db, assignments)
+
+
 async def _ask(prompt: str, context: str, provider_config: dict, language: str | None, limit: int) -> tuple[str, float]:
     from services.llm_service import LLMService
 
@@ -407,15 +411,11 @@ async def _run(provider_config: dict | None, language: str | None) -> None:
         return
     if not bookmarks:
         job.state["phase"] = "done"
-        job.state["message"] = _text(language, "There are no bookmarks to sort.", "Es gibt keine Lesezeichen zum Sortieren.")
+        job.state["message"] = _message(language, "folders_empty_library")
         return
 
     job.state["phase"] = "planning"
-    job.state["message"] = _text(
-        language,
-        "Waiting for Ollama. The first answer can take a few minutes while the model loads.",
-        "Warte auf Ollama. Die erste Antwort kann ein paar Minuten dauern, während das Modell lädt.",
-    )
+    job.state["message"] = _message(language, "folders_waiting_for_model")
     by_link = link_folders(bookmarks)
     try:
         structure, elapsed = await _propose(library_digest(bookmarks, collections), config, language)
@@ -423,18 +423,14 @@ async def _run(provider_config: dict | None, language: str | None) -> None:
         if not by_link:
             logger.exception("Folder organization could not get a folder structure")
             job.state["phase"] = "error"
-            job.state["message"] = _text(
-                language,
-                "The local model did not answer in time. Nothing was moved. Start sorting again; the model stays loaded now.",
-                "Ollama hat zu lange gebraucht. Es wurde nichts verschoben. Starte die Sortierung noch einmal, das Modell bleibt jetzt geladen.",
-            )
+            job.state["message"] = _message(language, "folders_model_timeout")
             return
         structure = []
         elapsed = 0
     await pacer.rest(max(elapsed, REST_SECONDS), "planning")
     if job.cancelled:
         job.state["phase"] = "cancelled"
-        job.state["message"] = _text(language, "Stopped before anything was moved.", "Gestoppt, bevor etwas verschoben wurde.")
+        job.state["message"] = _message(language, "folders_stopped")
         return
     known = {folder["name"].casefold() for folder in structure}
     known.update(child.casefold() for folder in structure for child in folder["children"])
@@ -445,11 +441,7 @@ async def _run(provider_config: dict | None, language: str | None) -> None:
     paths = folder_paths(structure)
     if len(paths) < 4:
         job.state["phase"] = "error"
-        job.state["message"] = _text(
-            language,
-            "The local model did not return a folder structure. Nothing was moved.",
-            "Die lokale KI hat keine Ordnerstruktur geliefert. Es wurde nichts verschoben.",
-        )
+        job.state["message"] = _message(language, "folders_no_structure")
         return
 
     def resolve(name: str) -> str:
@@ -473,7 +465,7 @@ async def _run(provider_config: dict | None, language: str | None) -> None:
     for start in range(0, len(remaining), BATCH_SIZE):
         if job.cancelled:
             job.state["phase"] = "cancelled"
-            job.state["message"] = _text(language, "Stopped before anything was moved.", "Gestoppt, bevor etwas verschoben wurde.")
+            job.state["message"] = _message(language, "folders_stopped")
             return
         batch = remaining[start:start + BATCH_SIZE]
         try:
@@ -490,41 +482,46 @@ async def _run(provider_config: dict | None, language: str | None) -> None:
     moving = sum(len(ids) for ids in assigned.values())
     if moving == 0:
         job.state["phase"] = "error"
-        job.state["message"] = _text(
-            language,
-            "The local model did not assign any bookmarks. Nothing was moved.",
-            "Die lokale KI hat keine Lesezeichen zugeordnet. Es wurde nichts verschoben.",
-        )
+        job.state["message"] = _message(language, "folders_nothing_assigned")
         return
 
     job.state["phase"] = "moving"
-    job.state["message"] = _text(language, "Moving bookmarks into the new folders.", "Lesezeichen werden in die neuen Ordner verschoben.")
+    job.state["message"] = _message(language, "folders_moving")
+    stopped_while_moving = False
     try:
         await asyncio.to_thread(_backup)
-        with SessionLocal() as db:
-            result = place_bookmarks(db, assigned)
+        # Thousands of moves plus Brain mirror updates, each commit possibly
+        # waiting on the SQLite busy timeout: never on the event loop.
+        placing = asyncio.ensure_future(asyncio.to_thread(_place_all, assigned))
+        try:
+            result = await asyncio.shield(placing)
+        except asyncio.CancelledError:
+            # A thread cannot be cancelled, and its moves are committed. Wait
+            # for it and report what was moved (as when this ran inline and a
+            # Stop could not interrupt it), then let the cancellation finish.
+            result = await placing
+            stopped_while_moving = True
     except Exception:
         # Backup/move errors can include ~/.gyrus paths or SQL text; the
         # status message is shown in the app, so keep it fixed.
         logger.exception("Folder organization could not move bookmarks")
         job.state["phase"] = "error"
-        job.state["message"] = _text(
-            language,
-            # Moves commit in chunks, so do not promise that nothing changed.
-            "Moving the bookmarks into the new folders failed.",
-            "Das Verschieben der Lesezeichen in die neuen Ordner ist fehlgeschlagen.",
-        )
+        job.state["message"] = _message(language, "folders_move_failed")
         return
     job.state["moving"] = result["moved"]
     job.state["created"] = result["created"]
     job.state["unchanged"] = len(bookmarks) - result["moved"]
     job.state["processed"] = len(bookmarks)
     job.state["phase"] = "done"
-    job.state["message"] = _text(
+    job.state["message"] = _message(
         language,
-        f"Moved {result['moved']} bookmarks into {result['created']} folders. {len(bookmarks) - result['moved']} stayed. Empty old folders are left in place.",
-        f"{result['moved']} Lesezeichen wurden in {result['created']} Ordner verschoben. {len(bookmarks) - result['moved']} bleiben liegen. Leere alte Ordner bleiben stehen.",
+        "folders_done",
+        moved=result["moved"],
+        created=result["created"],
+        stayed=len(bookmarks) - result["moved"],
     )
+    if stopped_while_moving:
+        raise asyncio.CancelledError
 
 
 async def start(provider_config: dict | None = None, language: str | None = None) -> dict:

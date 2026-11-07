@@ -2,6 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from database import get_db
 from schemas.bookmark import BookmarkSummaryOut
 from services import ai_policy
@@ -41,7 +42,8 @@ async def search_semantic(
     if not q.strip():
         return []
     results = await search_bookmarks_semantic(db, q, limit=limit, offset=offset)
-    return [enrich_bookmark_summary(bm) for bm in results]
+    # Serializing loads tags and reads design snapshot summaries from disk.
+    return await run_in_threadpool(lambda: [enrich_bookmark_summary(bm) for bm in results])
 
 
 @router.get("/related/{bookmark_id}", response_model=list[BookmarkSummaryOut])
@@ -66,11 +68,12 @@ async def semantic_search_status():
     from services import vector_store
     from services.embedding_service import current_model, current_base_url
 
+    # The vector table shares the SQLite file and its busy timeout.
+    indexed = await run_in_threadpool(vector_store.count)
     if not ai_policy.enabled():
-        return {"available": False, "indexed": vector_store.count(), "message": "AI is disabled.", **_progress()}
+        return {"available": False, "indexed": indexed, "message": "AI is disabled.", **_progress()}
     model, base_url = current_model(), current_base_url()
 
-    indexed = vector_store.count()
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get(f"{base_url}/api/tags")
@@ -78,7 +81,9 @@ async def semantic_search_status():
             models = [m.get("name", "") for m in resp.json().get("models", [])]
         if any((name if ":" in name else name + ":latest") == (model if ":" in model else model + ":latest") for name in models):
             from services.embedding_service import configuration_key
-            available = indexed > 0 and vector_store.matches_configuration(configuration_key())
+            available = indexed > 0 and await run_in_threadpool(
+                vector_store.matches_configuration, configuration_key()
+            )
             message = f"Ready — {indexed} bookmarks indexed." if available else "Rebuild the search index for the selected embedding model."
         else:
             available = False
@@ -110,7 +115,12 @@ def _progress():
 
 @router.post("/reindex", dependencies=[Depends(ai_policy.require_ai)])
 async def reindex_embeddings(db: Session = Depends(get_db)):
-    """Stage every embedding before atomically replacing the existing index."""
+    """Stage every embedding before atomically replacing the existing index.
+
+    Stays on the event loop on purpose (see ASYNC_WITHOUT_AWAIT_ALLOWLIST in
+    tests/test_event_loop_guard.py): it does no blocking work itself, and the
+    check-and-set of _reindex_running is only race-free because nothing else
+    runs on the loop between the check and the assignment."""
     global _reindex_running, _reindex_completed, _reindex_total, _reindex_error, _reindex_error_code
     if _reindex_running:
         return {"status": "already_running"}
@@ -136,7 +146,9 @@ async def reindex_embeddings(db: Session = Depends(get_db)):
                             .order_by(Bookmark.id).all())
 
         try:
-            rows = snapshot()
+            # Library snapshots and the final vector swap are SQLite work that
+            # may wait on the busy timeout; only the embedding calls stay here.
+            rows = await asyncio.to_thread(snapshot)
             _reindex_total = len(rows)
             if not rows:
                 return
@@ -157,10 +169,12 @@ async def reindex_embeddings(db: Session = Depends(get_db)):
                     await asyncio.sleep(0)
                 if generation != ai_policy.generation() or key != configuration_key():
                     raise ValueError("AI settings changed. Please restart indexing.")
-                if rows != snapshot():
+                if rows != await asyncio.to_thread(snapshot):
                     raise ValueError("The library changed during indexing. Please retry.")
                 staging.seek(0)
-                vector_store.replace_all((json.loads(line) for line in staging), dimension, key)
+                await asyncio.to_thread(
+                    vector_store.replace_all, (json.loads(line) for line in staging), dimension, key
+                )
         except Exception as error:
             _reindex_error = str(error)
             _reindex_error_code = getattr(error, "code", None)

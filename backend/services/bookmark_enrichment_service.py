@@ -140,6 +140,24 @@ def _prepare_attempt(bookmark_id: str) -> tuple[str, str, str, str, str] | None:
         db.close()
 
 
+def _save_metadata(bookmark_id: str, meta: dict) -> None:
+    db = SessionLocal()
+    try:
+        bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+        if bookmark is not None:
+            bookmark_service.update_bookmark_metadata(db, bookmark, meta)
+    finally:
+        db.close()
+
+
+def _store_reader_text(bookmark_id: str, content: str) -> bool:
+    db = SessionLocal()
+    try:
+        return bookmark_service.store_scraped_content(db, bookmark_id, content)
+    finally:
+        db.close()
+
+
 def schedule_enrichment(bookmark_id: str, *, include_design_snapshot: bool = False) -> None:
     """Queue enrichment from request workers without blocking the response."""
     from services import background
@@ -167,9 +185,11 @@ async def index_bookmark(bookmark_id: str, content: str) -> None:
         async with _index_semaphore:
             if not ai_policy.enabled():
                 return
-            _set_stage(bookmark_id, "index", "running")
+            await asyncio.to_thread(_set_stage, bookmark_id, "index", "running")
             indexed = await bookmark_service.index_bookmark_embedding(bookmark_id, content)
-            _set_stage(bookmark_id, "index", "ready" if indexed else "unavailable")
+            await asyncio.to_thread(
+                _set_stage, bookmark_id, "index", "ready" if indexed else "unavailable"
+            )
     finally:
         async with _index_active_lock:
             _index_active_ids.discard(bookmark_id)
@@ -184,29 +204,28 @@ async def enrich_bookmark(bookmark_id: str, *, include_design_snapshot: bool = F
 
     try:
         async with _pipeline_semaphore:
-            prepared = _prepare_attempt(bookmark_id)
+            # Stage bookkeeping is SQLite work that may wait on the busy
+            # timeout; it runs in worker threads so the loop only awaits the
+            # network (metadata, extraction, embeddings).
+            prepared = await asyncio.to_thread(_prepare_attempt, bookmark_id)
             if prepared is None:
                 return
             url, title, content, metadata_status, reader_status = prepared
 
             if metadata_status != "ready":
-                _set_stage(bookmark_id, "metadata", "running")
+                await asyncio.to_thread(_set_stage, bookmark_id, "metadata", "running")
                 try:
                     meta = await metadata_service.fetch_metadata(url)
-                    db = SessionLocal()
-                    try:
-                        bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
-                        if bookmark is not None:
-                            bookmark_service.update_bookmark_metadata(db, bookmark, meta)
-                    finally:
-                        db.close()
-                    _set_stage(bookmark_id, "metadata", "ready")
+                    await asyncio.to_thread(_save_metadata, bookmark_id, meta)
+                    await asyncio.to_thread(_set_stage, bookmark_id, "metadata", "ready")
                 except Exception as exc:
                     logger.warning("Metadata enrichment failed for %s: %s", bookmark_id, exc)
-                    _set_stage(bookmark_id, "metadata", "failed", f"Metadata: {exc}")
+                    await asyncio.to_thread(
+                        _set_stage, bookmark_id, "metadata", "failed", f"Metadata: {exc}"
+                    )
 
             if content:
-                _set_stage(bookmark_id, "reader", "ready")
+                await asyncio.to_thread(_set_stage, bookmark_id, "reader", "ready")
             elif reader_status not in ("pending", "running"):
                 # Reader extraction was never queued (legacy/restored rows are
                 # "not_requested") or already failed and awaits an explicit
@@ -214,7 +233,7 @@ async def enrich_bookmark(bookmark_id: str, *, include_design_snapshot: bool = F
                 # must not turn into a crawl of every page in the library.
                 pass
             else:
-                _set_stage(bookmark_id, "reader", "running")
+                await asyncio.to_thread(_set_stage, bookmark_id, "reader", "running")
                 try:
                     from services.scraper_service import scraper_service
 
@@ -224,16 +243,14 @@ async def enrich_bookmark(bookmark_id: str, *, include_design_snapshot: bool = F
                         raise ValueError(
                             scrape_result.get("error") or "No readable page text found"
                         )
-                    db = SessionLocal()
-                    try:
-                        if not bookmark_service.store_scraped_content(db, bookmark_id, content):
-                            raise RuntimeError("Reader text could not be stored")
-                    finally:
-                        db.close()
-                    _set_stage(bookmark_id, "reader", "ready")
+                    if not await asyncio.to_thread(_store_reader_text, bookmark_id, content):
+                        raise RuntimeError("Reader text could not be stored")
+                    await asyncio.to_thread(_set_stage, bookmark_id, "reader", "ready")
                 except Exception as exc:
                     logger.warning("Reader enrichment failed for %s: %s", bookmark_id, exc)
-                    _set_stage(bookmark_id, "reader", "failed", f"Reader: {exc}")
+                    await asyncio.to_thread(
+                        _set_stage, bookmark_id, "reader", "failed", f"Reader: {exc}"
+                    )
                     content = ""
 
         if content:
@@ -242,7 +259,9 @@ async def enrich_bookmark(bookmark_id: str, *, include_design_snapshot: bool = F
         if include_design_snapshot:
             async with _snapshot_semaphore:
                 try:
-                    _, complete = visual_snapshot_service.snapshot_summary(bookmark_id)
+                    _, complete = await asyncio.to_thread(
+                        visual_snapshot_service.snapshot_summary, bookmark_id
+                    )
                     if not complete:
                         await visual_snapshot_service.capture_snapshot(bookmark_id, url, title=title)
                 except Exception as exc:

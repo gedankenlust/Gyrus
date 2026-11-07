@@ -131,10 +131,12 @@ class SiteStructureService:
         *,
         force_refresh: bool = False,
     ) -> dict:
-        cached = None if force_refresh else self._read_cache(bookmark_id, url)
+        # The cache holds up to max_sitemap_pages URLs; reading, encoding and
+        # the fsync of the atomic write stay off the event loop.
+        cached = None if force_refresh else await asyncio.to_thread(self._read_cache, bookmark_id, url)
         data = cached or await self.crawl(url)
         if not cached:
-            self._write_cache(bookmark_id, url, data)
+            await asyncio.to_thread(self._write_cache, bookmark_id, url, data)
         return data
 
     async def page_count_answer_for_url(
@@ -269,7 +271,9 @@ class SiteStructureService:
                         continue
                     if "text/html" not in result.content_type and "application/xhtml" not in result.content_type:
                         continue
-                    page = self._parse_page(result.text, result.url)
+                    # BeautifulSoup parsing is CPU-bound; a large page would
+                    # otherwise stall every other request for its duration.
+                    page = await asyncio.to_thread(self._parse_page, result.text, result.url)
                     normalized_result_url = self._normalize_internal_url(result.url, origin, result.url) or current_url
                     pages[normalized_result_url] = page
                     for link in page.get("links", []):
@@ -380,7 +384,9 @@ class SiteStructureService:
             if not result or not result.text:
                 continue
             sources.append(result.url)
-            for raw in self._extract_sitemap_locations(result.text):
+            # A sitemap file can be several megabytes of XML.
+            locations = await asyncio.to_thread(self._extract_sitemap_locations, result.text)
+            for raw in locations:
                 loc = html_lib.unescape(raw.strip())
                 if self._looks_like_sitemap(loc, origin):
                     child = self._normalize_sitemap_url(loc, origin, result.url)

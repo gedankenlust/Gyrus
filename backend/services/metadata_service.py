@@ -221,7 +221,9 @@ async def _fetch_favicon(page_url: str, soup, client: httpx.AsyncClient) -> str 
             if ext is None:
                 continue  # not a renderable image (e.g. an HTML 404 page)
             filename = f"{file_hash}{ext}"
-            (FAVICONS_DIR / filename).write_bytes(resp.content)
+            # Disk writes run in a worker thread like the OG image's, so a
+            # slow or busy disk never stalls the event loop.
+            await asyncio.to_thread((FAVICONS_DIR / filename).write_bytes, resp.content)
             return filename
         except Exception as e:
             logger.debug("favicon candidate failed (%s): %s", candidate, e)
