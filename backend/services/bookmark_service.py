@@ -1,136 +1,44 @@
-import json
+"""Bookmark lifecycle: create (or restore from Trash), update, move, mark
+read, trash, restore, purge, notes and cached page text.
+
+This module is also the stable facade for the bookmark services: the read-only
+queries (bookmark_query_service), the derived-data upkeep
+(bookmark_derived_data) and AI tagging (bookmark_auto_tag_service) are
+re-exported here, so `bookmark_service.<name>` keeps working for every caller.
+Lifecycle functions call the derived-data helpers through this module's
+namespace, which is what lets tests patch e.g. `bookmark_service._drop_vectors`.
+"""
+import asyncio
 import logging
-import re
-import shutil
 from datetime import datetime, timezone, timedelta
-from sqlalchemy.orm import Session, selectinload, defer
+from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from models.bookmark import Bookmark
 from models.collection import Collection
 from models.tag import Tag, BookmarkTag
 from schemas.bookmark import BookmarkCreate, BookmarkUpdate
 from services.brain_sync_service import brain_sync_service
-from services.tag_colors import next_color as _next_tag_color
-from database import DATA_DIR
+from services.bookmark_query_service import (  # noqa: F401 — re-exported
+    ID_CHUNK_SIZE,
+    _SORT_COLUMNS,
+    _chunks,
+    count_trashed,
+    get_bookmark,
+    get_bookmarks,
+    get_trashed,
+)
+from services.bookmark_derived_data import (  # noqa: F401 — re-exported
+    _drop_vectors,
+    _safe_brain_sync,
+    delete_generated_artifacts,
+    index_bookmark_embedding,
+)
+from services.bookmark_auto_tag_service import auto_tag_bookmark  # noqa: F401 — re-exported
 
 logger = logging.getLogger(__name__)
 
 # How long a bookmark stays recoverable in the Trash before it is purged.
 TRASH_RETENTION_DAYS = 30
-
-
-def _safe_brain_sync(action) -> None:
-    """Run a brain-sync action without ever breaking the core DB operation.
-
-    The Markdown brain is a secondary, optional feature. A filesystem hiccup
-    (long filename, missing permissions, full disk) must not turn a normal
-    save or delete into a 500 — the database is the source of truth.
-    """
-    try:
-        action()
-    except Exception as e:
-        logger.warning("Brain sync skipped (non-fatal): %s", e)
-
-
-_SORT_COLUMNS = {
-    "created_at": Bookmark.created_at,
-    "updated_at": Bookmark.updated_at,
-    "title": Bookmark.title,
-    "url": Bookmark.url,
-}
-# SQLite allows at most 32,766 bound parameters per statement. Selections
-# ("select all" in a large library) are chunked well below that.
-ID_CHUNK_SIZE = 500
-
-
-def _chunks(ids: list[str], size: int = ID_CHUNK_SIZE):
-    for start in range(0, len(ids), size):
-        yield ids[start:start + size]
-
-
-def get_bookmarks(
-    db: Session,
-    collection_id: str | None = None,
-    tag: str | None = None,
-    dead_only: bool = False,
-    unread_only: bool = False,
-    limit: int = 100,
-    offset: int = 0,
-    sort_by: str = "created_at",
-    order: str = "desc",
-) -> list[Bookmark]:
-    q = (
-        db.query(Bookmark)
-        .options(selectinload(Bookmark.bookmark_tags).selectinload(BookmarkTag.tag),
-                 defer(Bookmark.scraped_content, raiseload=True), defer(Bookmark.notes, raiseload=True))
-        .filter(Bookmark.deleted_at.is_(None))
-    )
-    if collection_id is not None:
-        q = q.filter(Bookmark.collection_id == collection_id)
-    if tag:
-        q = q.join(BookmarkTag).join(Tag).filter(Tag.name == tag)
-    if dead_only:
-        q = q.filter(Bookmark.is_dead == True)
-    if unread_only:
-        q = q.filter(Bookmark.is_read == False)
-
-    if sort_by == "tag":
-        # Sort by the bookmark's first tag (alphabetically); untagged go last.
-        from sqlalchemy import select, func as _func
-        min_tag = (
-            select(_func.min(Tag.name))
-            .select_from(Tag)
-            .join(BookmarkTag, BookmarkTag.tag_id == Tag.id)
-            .where(BookmarkTag.bookmark_id == Bookmark.id)
-            .correlate(Bookmark)
-            .scalar_subquery()
-        )
-        name_expr = _func.lower(min_tag)
-        direction = name_expr.asc() if order == "asc" else name_expr.desc()
-        q = q.order_by(min_tag.is_(None), direction)
-    elif sort_by == "favicon":
-        # Group bookmarks from the same site together. We sort by the URL's host
-        # (not favicon_path) because favicons are fetched lazily — a favicon-based
-        # sort would scramble as icons load in. The host is always known, so this
-        # groups deterministically and immediately. www. is stripped.
-        from sqlalchemy import func as _func
-        after = _func.substr(Bookmark.url, _func.instr(Bookmark.url, '://') + 3)
-        first_slash = _func.instr(after, '/')
-        host = _func.lower(_func.substr(
-            after, 1, _func.iif(first_slash > 0, first_slash - 1, _func.length(after))))
-        host = _func.iif(host.like('www.%'), _func.substr(host, 5), host)
-        hdir = host.asc() if order == "asc" else host.desc()
-        q = q.order_by(hdir, _func.lower(Bookmark.title))
-    else:
-        col = _SORT_COLUMNS.get(sort_by, Bookmark.created_at)
-        # Case-insensitive sort for text columns
-        if sort_by in ("title", "url"):
-            from sqlalchemy import func as _func
-            col_expr = _func.lower(col)
-        else:
-            col_expr = col
-        q = q.order_by(col_expr.asc() if order == "asc" else col_expr.desc())
-
-    # OFFSET paging needs a total order. Imports create many rows with the
-    # same created_at, and equal titles/hosts/tags are common; without a
-    # unique tiebreaker SQLite may return tied rows in a different order per
-    # page, so bookmarks repeated or silently went missing while scrolling.
-    q = q.order_by(Bookmark.id)
-    return q.offset(offset).limit(limit).all()
-
-
-def get_bookmark(db: Session, bookmark_id: str, include_deleted: bool = False) -> Bookmark | None:
-    q = (
-        db.query(Bookmark)
-        .options(
-            selectinload(Bookmark.bookmark_tags).selectinload(BookmarkTag.tag),
-            selectinload(Bookmark.bookmark_notes),
-        )
-        .filter(Bookmark.id == bookmark_id)
-    )
-    if not include_deleted:
-        q = q.filter(Bookmark.deleted_at.is_(None))
-    return q.first()
 
 
 def create_bookmark(db: Session, data: BookmarkCreate) -> Bookmark:
@@ -409,46 +317,6 @@ def delete_bookmarks(db: Session, ids: list[str]) -> None:
     _safe_brain_sync(lambda: brain_sync_service.rebuild_index(db))
 
 
-def _drop_vectors(ids: list[str]) -> None:
-    """Best-effort removal of semantic-search vectors for the given bookmarks.
-    Trashed/purged bookmarks must not occupy KNN slots or leave orphan rows."""
-    if not ids:
-        return
-    try:
-        from services import vector_store
-        vector_store.delete_many(ids)
-    except Exception as exc:
-        logger.warning("Bulk vector removal failed: %s", exc)
-
-
-def delete_generated_artifacts(ids: list[str]) -> None:
-    """Remove cached design and site-structure files for hard-deleted rows."""
-    snapshot_root = DATA_DIR / "visual_snapshots"
-    structure_root = DATA_DIR / "site_structure"
-    for bookmark_id in ids:
-        shutil.rmtree(snapshot_root / bookmark_id, ignore_errors=True)
-        if structure_root.exists():
-            for path in structure_root.glob(f"{bookmark_id}-*.json"):
-                path.unlink(missing_ok=True)
-
-
-def get_trashed(db: Session, limit: int = 200, offset: int = 0) -> list[Bookmark]:
-    """List bookmarks currently in the Trash, most recently deleted first."""
-    return (
-        db.query(Bookmark)
-        .options(selectinload(Bookmark.bookmark_tags).selectinload(BookmarkTag.tag))
-        .filter(Bookmark.deleted_at.is_not(None))
-        .order_by(Bookmark.deleted_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
-
-
-def count_trashed(db: Session) -> int:
-    return db.query(Bookmark).filter(Bookmark.deleted_at.is_not(None)).count()
-
-
 def restore_bookmarks(db: Session, ids: list[str]) -> int:
     """Bring bookmarks back from the Trash and recreate their brain files."""
     bms = []
@@ -466,23 +334,35 @@ def restore_bookmarks(db: Session, ids: list[str]) -> int:
     db.commit()
 
     async def _background_restore_sync(bookmark_ids: list[str]):
-        from database import SessionLocal
-        with SessionLocal() as bg_db:
-            bg_bms = []
-            for chunk in _chunks(bookmark_ids):
-                bg_bms.extend(bg_db.query(Bookmark).filter(Bookmark.id.in_(chunk)).all())
-            for bm in bg_bms:
-                _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(bg_db, bm))
-                # The vector was dropped when the bookmark was trashed — rebuild it
-                # so the restored bookmark is findable by semantic search again.
-                if bm.scraped_content:
-                    await index_bookmark_embedding(bm.id, bm.scraped_content)
-            _safe_brain_sync(lambda: brain_sync_service.rebuild_index(bg_db))
+        # Mirror files and their index are written in a worker thread; only
+        # the embedding requests (network I/O) run on the event loop.
+        pending_vectors = await asyncio.to_thread(_rebuild_restored_mirrors, bookmark_ids)
+        for bookmark_id, content in pending_vectors:
+            # The vector was dropped when the bookmark was trashed — rebuild it
+            # so the restored bookmark is findable by semantic search again.
+            await index_bookmark_embedding(bookmark_id, content)
 
     from services import background
     background.schedule(_background_restore_sync([bm.id for bm in bms]))
 
     return len(bms)
+
+
+def _rebuild_restored_mirrors(bookmark_ids: list[str]) -> list[tuple[str, str]]:
+    """Recreate the Brain files of restored bookmarks with a fresh session.
+    Returns (id, Reader text) for the ones whose vector must be rebuilt."""
+    from database import SessionLocal
+    with SessionLocal() as bg_db:
+        bg_bms = []
+        for chunk in _chunks(bookmark_ids):
+            bg_bms.extend(bg_db.query(Bookmark).filter(Bookmark.id.in_(chunk)).all())
+        pending_vectors = []
+        for bm in bg_bms:
+            _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(bg_db, bm))
+            if bm.scraped_content:
+                pending_vectors.append((bm.id, bm.scraped_content))
+        _safe_brain_sync(lambda: brain_sync_service.rebuild_index(bg_db))
+    return pending_vectors
 
 
 def purge_bookmarks(db: Session, ids: list[str] | None = None) -> int:
@@ -550,37 +430,11 @@ def store_scraped_content(db: Session, bookmark_id: str, content: str) -> bool:
         return False
 
 
-async def index_bookmark_embedding(bookmark_id: str, text: str) -> bool:
-    """Compute and store an embedding for a bookmark (best-effort, never blocks
-    the caller).  Called after page content is scraped so semantic search can
-    find this bookmark by meaning, not just keywords."""
-    from services import ai_policy
-    if not ai_policy.enabled() or not text or not text.strip():
-        return False
-    try:
-        from services.embedding_service import get_embedding, configuration_key
-        from services import vector_store
-        policy_generation = ai_policy.generation()
-        vec = await get_embedding(text)
-        if not ai_policy.enabled() or policy_generation != ai_policy.generation():
-            return False
-        return vector_store.upsert(bookmark_id, vec, model_key=configuration_key())
-    except Exception as e:
-        # Ollama down, model missing, DB write error — none of these should
-        # affect the caller; semantic search simply won't find this bookmark.
-        logger.debug("embedding indexing skipped for %s: %s", bookmark_id, e)
-        return False
-
-
 def _set_tags(db: Session, bm: Bookmark, tag_ids: list[str]) -> None:
     db.query(BookmarkTag).filter(BookmarkTag.bookmark_id == bm.id).delete()
     # A repeated id would violate the (bookmark_id, tag_id) primary key.
     for tag_id in dict.fromkeys(tag_ids):
         db.add(BookmarkTag(bookmark_id=bm.id, tag_id=tag_id, source="manual"))
-
-
-def get_bookmark_tags(bm: Bookmark) -> list[Tag]:
-    return [bt.tag for bt in bm.bookmark_tags]
 
 
 def update_bookmark_metadata(db: Session, bm: Bookmark, meta: dict) -> Bookmark:
@@ -633,249 +487,3 @@ def delete_note(db: Session, bookmark_id: str, note_id: str):
             _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm))
         return True
     return False
-
-
-_TAG_NAME_RE = re.compile(r"^[\wäöüÄÖÜß+#.-][\wäöüÄÖÜß +#./-]{0,39}$", re.UNICODE)
-_GENERIC_TAG_PATTERNS = {
-    "ai": re.compile(
-        r"\b(ai|ki|llms?|artificial intelligence|künstliche intelligenz|"
-        r"machine learning|deep learning|chatgpt|claude|anthropic|ollama|"
-        r"generative ai|agentic|code agents?)\b",
-        re.IGNORECASE,
-    ),
-    "software": re.compile(
-        r"\b(software|apps?|applications?|programme?|desktop app|web app)\b",
-        re.IGNORECASE,
-    ),
-    "webdevelopment": re.compile(
-        r"\b(webentwicklung|web development|frontend|backend|full[ -]stack|"
-        r"html|css|javascript|typescript|react|vue|svelte|wordpress|webdesign|"
-        r"website builder|web app)\b",
-        re.IGNORECASE,
-    ),
-}
-_GENERIC_TAG_ALIASES = {
-    "ki": "ai",
-    "ai": "ai",
-    "software": "software",
-    "web": "webdevelopment",
-    "webdev": "webdevelopment",
-    "webentwicklung": "webdevelopment",
-    "web development": "webdevelopment",
-}
-
-def _normalized_text(value: str) -> str:
-    return re.sub(r"\s+", " ", value.casefold()).strip()
-
-
-def _clean_tag_name(value: str) -> str | None:
-    name = value.strip().strip("`'\"#*[]{}()").casefold()
-    name = re.sub(r"\s+", " ", name)
-    if not name or not _TAG_NAME_RE.fullmatch(name):
-        return None
-    return name
-
-
-def _parse_tag_suggestions(response: str) -> list[tuple[str, str]]:
-    """Parse evidence-backed JSON, with a conservative legacy fallback."""
-    cleaned = response.strip()
-    if cleaned.startswith("```"):
-        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
-        cleaned = re.sub(r"\s*```$", "", cleaned)
-
-    items: list[tuple[str, str]] = []
-    start, end = cleaned.find("{"), cleaned.rfind("}")
-    if start != -1 and end > start:
-        try:
-            payload = json.loads(cleaned[start:end + 1])
-            raw_tags = payload.get("tags", []) if isinstance(payload, dict) else []
-            for item in raw_tags:
-                if not isinstance(item, dict):
-                    continue
-                name = _clean_tag_name(str(item.get("name", "")))
-                evidence = str(item.get("evidence", "")).strip()
-                if name:
-                    items.append((name, evidence))
-        except (json.JSONDecodeError, TypeError, ValueError):
-            pass
-
-    if items:
-        return items
-
-    # Older/smaller models occasionally ignore the JSON instruction. Do not
-    # turn prose into tags; only accept short comma-separated names.
-    if "\n" in cleaned or len(cleaned) > 160:
-        return []
-    for raw in cleaned.split(","):
-        name = _clean_tag_name(raw)
-        if name:
-            items.append((name, ""))
-    return items
-
-
-def _generic_tag_supported(name: str, primary_text: str, page_content: str) -> bool:
-    category = _GENERIC_TAG_ALIASES.get(name)
-    if not category:
-        return True
-    pattern = _GENERIC_TAG_PATTERNS[category]
-    if pattern.search(primary_text):
-        return True
-    # Extracted pages often contain unrelated navigation, ads, and footer text.
-    # One incidental keyword there is not enough to justify a broad category.
-    return len(pattern.findall(page_content)) >= 2
-
-
-def _validated_tag_names(
-    response: str,
-    context: str,
-    primary_text: str,
-    page_content: str,
-) -> list[str]:
-    context_normalized = _normalized_text(context)
-    accepted: list[str] = []
-    for name, evidence in _parse_tag_suggestions(response):
-        evidence_normalized = _normalized_text(evidence)
-        has_valid_evidence = (
-            len(evidence_normalized) >= 2 and evidence_normalized in context_normalized
-        )
-        explicitly_named = re.search(
-            rf"(?<!\w){re.escape(name)}(?!\w)", context, re.IGNORECASE
-        ) is not None
-        if not has_valid_evidence and not explicitly_named:
-            continue
-        if not _generic_tag_supported(name, primary_text, page_content):
-            continue
-        if name not in accepted:
-            accepted.append(name)
-
-    # "software" adds little when the model found a more informative subject.
-    if "software" in accepted and any(name != "software" for name in accepted):
-        accepted.remove("software")
-    return accepted[:3]
-
-
-async def auto_tag_bookmark(db: Session, bookmark_id: str, provider_config: dict | None = None,
-                            scrape: bool = True, language: str | None = None) -> Bookmark:
-    from services.scraper_service import scraper_service
-    from services.llm_service import LLMService
-    from fastapi import HTTPException
-
-    bm = get_bookmark(db, bookmark_id)
-    if not bm:
-        raise HTTPException(status_code=404, detail="Bookmark not found")
-
-    # Reuse Reader/Brain content when it already exists. A batch run only fetches
-    # pages that have never been read, so accuracy no longer comes at the cost of
-    # downloading every page again.
-    content = (bm.scraped_content or "").strip()
-    if scrape and not content:
-        scrape_result = await scraper_service.extract_content(bm.url)
-        content = (scrape_result.get("content", "") or "").strip()
-        if content:
-            store_scraped_content(db, bookmark_id, content)
-            from services import background
-            background.schedule(index_bookmark_embedding(bookmark_id, content))
-
-    metadata = (
-        f"Title: {bm.title}\n"
-        f"URL: {bm.url}\n"
-        f"Description: {bm.description or ''}"
-    )
-    context = metadata + (f"\n\nPage content:\n{content[:10_000]}" if content else "")
-    primary_text = f"{bm.title}\n{bm.description or ''}"
-    existing_tags = db.query(Tag).order_by(Tag.name).all()
-    approved_names = [tag.name for tag in existing_tags]
-    approved_instruction_de = (
-        " Verwende ausschließlich passende Namen aus diesem bestehenden Tag-System: "
-        + ", ".join(approved_names[:60]) + ". Erfinde keine neuen Tags."
-        if approved_names else ""
-    )
-    approved_instruction_en = (
-        " Use only matching names from this existing tag system: "
-        + ", ".join(approved_names[:60]) + ". Do not invent new tags."
-        if approved_names else ""
-    )
-
-    # The quote requirement makes suggestions auditable and lets us reject a
-    # model's unsupported guesses before they ever reach the database.
-    if language == "de":
-        prompt = (
-            "Bestimme das tatsächliche Hauptthema des Inhalts. Vergib 1-3 kurze, "
-            "wiederverwendbare Themen-Tags auf Deutsch. Tags beschreiben den Inhalt, "
-            "nicht sein Medium: Eine Webseite ist nicht automatisch Webentwicklung, "
-            "ein digitales Produkt nicht automatisch Software und moderne Technik nicht automatisch KI. "
-            "Verwende solche allgemeinen Tags nur, wenn sie ausdrücklich das Hauptthema sind. "
-            "Gib für jedes Tag unter 'evidence' ein kurzes, exakt aus der Quelle kopiertes Zitat an. "
-            "Ohne eindeutigen Beleg vergib kein Tag. Antworte ausschließlich als gültiges JSON: "
-            "{\"tags\":[{\"name\":\"tag\",\"evidence\":\"exaktes Zitat\"}]}"
-            + approved_instruction_de
-        )
-    else:
-        prompt = (
-            "Identify the actual subject of the content. Assign 1-3 short, reusable topic tags. "
-            "Tags describe the content, not its medium: a website is not automatically web development, "
-            "a digital product is not automatically software, and modern technology is not automatically AI. "
-            "Use those broad tags only when they are explicitly the main subject. "
-            "For every tag, put a short exact quote copied from the source in 'evidence'. "
-            "If there is no clear evidence, assign no tag. Reply only as valid JSON: "
-            "{\"tags\":[{\"name\":\"tag\",\"evidence\":\"exact quote\"}]}"
-            + approved_instruction_en
-        )
-    
-    try:
-        response = await LLMService.ask_llm(
-            prompt=prompt,
-            context=context,
-            provider_config=provider_config or {"provider": "ollama", "model": "llama3"},
-            # Tagging is a short, mechanical task. Disable the reasoning phase
-            # (qwen3/deepseek-r1 otherwise spend ~25s "thinking" per bookmark for
-            # the same tags) and cap output to a compact evidence payload.
-            think=False,
-            options={"num_predict": 192, "temperature": 0},
-            language=language,
-        )
-    except Exception:
-        # Provider errors can embed URLs, local paths or response bodies.
-        logger.exception("Auto-tagging LLM request failed for bookmark %s", bookmark_id)
-        raise HTTPException(500, "The language model request failed. Check the AI settings and try again.")
-
-    suggested = _validated_tag_names(response, context, primary_text, content[:10_000])
-    if existing_tags:
-        from services.taxonomy_service import canonical_tag_key
-        existing_by_key = {canonical_tag_key(tag.name): tag.name for tag in existing_tags}
-        suggested = [
-            existing_by_key[key]
-            for name in suggested
-            if (key := canonical_tag_key(name)) in existing_by_key
-        ]
-
-    # Replace only previous AI assignments. Manual tags are user-owned and must
-    # survive every automatic run.
-    db.query(BookmarkTag).filter(
-        BookmarkTag.bookmark_id == bm.id,
-        BookmarkTag.source == "ai",
-    ).delete(synchronize_session=False)
-    preserved_tag_ids = {
-        row.tag_id
-        for row in db.query(BookmarkTag).filter(
-            BookmarkTag.bookmark_id == bm.id,
-            BookmarkTag.source != "ai",
-        ).all()
-    }
-    existing_tags_query = db.query(Tag).filter(Tag.name.in_(suggested)).all()
-    tag_by_name = {t.name: t for t in existing_tags_query}
-    for tag_name in suggested:
-        tag = tag_by_name.get(tag_name)
-        if not tag:
-            tag = Tag(name=tag_name, color=_next_tag_color(db), source="ai")
-            db.add(tag)
-            db.flush()
-            tag_by_name[tag_name] = tag
-        if tag.id not in preserved_tag_ids:
-            db.add(BookmarkTag(bookmark_id=bm.id, tag_id=tag.id, source="ai"))
-
-    db.commit()
-    db.expire(bm, ["bookmark_tags"])
-    db.refresh(bm)
-    _safe_brain_sync(lambda: brain_sync_service.sync_bookmark(db, bm))
-    return bm

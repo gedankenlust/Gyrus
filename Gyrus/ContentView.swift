@@ -40,7 +40,7 @@ struct ContentView: View {
     }
 
     private var purgeConfirmTitle: String {
-        switch uiStateStore.pendingPurge {
+        switch appStore.trash.pendingPurge {
         case .all:
             return String(localized: "Empty the Trash?")
         case .ids(let ids):
@@ -51,7 +51,7 @@ struct ContentView: View {
     }
 
     private var deleteConfirmTitle: String {
-        let n = uiStateStore.pendingBatchDelete?.count ?? 0
+        let n = appStore.trash.pendingBatchDelete?.count ?? 0
         return String(localized: "Delete \(n) bookmarks?")
     }
 
@@ -175,14 +175,14 @@ struct ContentView: View {
             }
         }
         .sheet(item: Binding(
-            get: { uiStateStore.batchTagReview },
-            set: { uiStateStore.batchTagReview = $0 }
+            get: { appStore.jobs.batchTagReview },
+            set: { appStore.jobs.batchTagReview = $0 }
         )) { payload in
             TagReviewSheet(payload: payload) {
-                uiStateStore.batchTagReview = nil
+                appStore.jobs.batchTagReview = nil
                 Task { await appStore.discardTaxonomyDraft(payload.draft) }
             } onApply: { edits in
-                uiStateStore.batchTagReview = nil
+                appStore.jobs.batchTagReview = nil
                 Task { await appStore.applyTaxonomyDraft(payload.draft, edits: edits) }
             }
         }
@@ -216,33 +216,33 @@ struct ContentView: View {
         .confirmationDialog(
             deleteConfirmTitle,
             isPresented: Binding(
-                get: { uiStateStore.pendingBatchDelete != nil },
-                set: { if !$0 { appStore.cancelPendingDelete() } }
+                get: { appStore.trash.pendingBatchDelete != nil },
+                set: { if !$0 { appStore.trash.cancelPendingDelete() } }
             ),
             titleVisibility: .visible
         ) {
             Button("Delete All", role: .destructive) {
-                appStore.confirmPendingDelete()
+                appStore.trash.confirmPendingDelete()
             }
             Button("Cancel", role: .cancel) {
-                appStore.cancelPendingDelete()
+                appStore.trash.cancelPendingDelete()
             }
         } message: {
-            Text("This moves \(uiStateStore.pendingBatchDelete?.count ?? 0) bookmarks to Trash for 30 days. You can undo for 5 seconds.")
+            Text("This moves \(appStore.trash.pendingBatchDelete?.count ?? 0) bookmarks to Trash for 30 days. You can undo for 5 seconds.")
         }
         .confirmationDialog(
             purgeConfirmTitle,
             isPresented: Binding(
-                get: { uiStateStore.pendingPurge != nil },
-                set: { if !$0 { appStore.cancelPendingPurge() } }
+                get: { appStore.trash.pendingPurge != nil },
+                set: { if !$0 { appStore.trash.cancelPendingPurge() } }
             ),
             titleVisibility: .visible
         ) {
-            Button(uiStateStore.pendingPurge == .all ? "Empty Trash" : "Delete Permanently", role: .destructive) {
-                appStore.confirmPendingPurge()
+            Button(appStore.trash.pendingPurge == .all ? "Empty Trash" : "Delete Permanently", role: .destructive) {
+                appStore.trash.confirmPendingPurge()
             }
             Button("Cancel", role: .cancel) {
-                appStore.cancelPendingPurge()
+                appStore.trash.cancelPendingPurge()
             }
         } message: {
             Text("You can't undo this action.")
@@ -250,15 +250,15 @@ struct ContentView: View {
         .alert(
             "Automatic Organization Failed",
             isPresented: Binding(
-                get: { uiStateStore.batchTagFailure != nil },
-                set: { if !$0 { uiStateStore.batchTagFailure = nil } }
+                get: { appStore.jobs.batchTagFailure != nil },
+                set: { if !$0 { appStore.jobs.batchTagFailure = nil } }
             )
         ) {
             Button("OK", role: .cancel) {
-                uiStateStore.batchTagFailure = nil
+                appStore.jobs.batchTagFailure = nil
             }
         } message: {
-            Text(uiStateStore.batchTagFailure ?? "No tag system could be created.")
+            Text(appStore.jobs.batchTagFailure ?? "No tag system could be created.")
         }
     }
 
@@ -290,7 +290,7 @@ struct ContentView: View {
         }
         .overlay(alignment: .bottom) {
             if let msg = uiStateStore.undoMessage {
-                UndoToast(message: msg, duration: AppStore.undoWindow) {
+                UndoToast(message: msg, duration: UIStateStore.undoWindow) {
                     uiStateStore.undoAction?()
                 } onDismiss: {
                     uiStateStore.undoMessage = nil

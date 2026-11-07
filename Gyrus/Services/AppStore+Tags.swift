@@ -8,15 +8,15 @@ extension AppStore {
             guard let count = try await bookmarksStore.deselectTaggedBookmarks() else { return }
             let message: String
             if count == 0 {
-                message = AppSettings.shared.localized("The selected bookmarks have no tags yet.")
+                message = String(localized: "The selected bookmarks have no tags yet.")
             } else if count == 1 {
-                message = AppSettings.shared.localized("Deselected 1 tagged bookmark.")
+                message = String(localized: "Deselected 1 tagged bookmark.")
             } else {
-                message = AppSettings.shared.localized("Deselected \(count) tagged bookmarks.")
+                message = String(localized: "Deselected \(count) tagged bookmarks.")
             }
             uiStateStore.showInfo(message)
         } catch {
-            surfaceError(error)
+            uiStateStore.showError(for: error)
         }
     }
 
@@ -34,12 +34,12 @@ extension AppStore {
             )
             bookmarksStore.applyUpdated(updated)
             try? await tagsStore.fetchTags()
-            uiStateStore.showInfo(AppSettings.shared.localized(
+            uiStateStore.showInfo(String(localized:
                 "Updated tags for \(updated.count) bookmarks."
             ))
             return true
         } catch {
-            surfaceError(error)
+            uiStateStore.showError(for: error)
             return false
         }
     }
@@ -60,7 +60,7 @@ extension AppStore {
                 let ids = try await api.bookmarkIds(tag: t.name)
                 snapshots.append((t.name, t.color, ids))
             } catch {
-                surfaceError(error)
+                uiStateStore.showError(for: error)
                 return
             }
         }
@@ -81,22 +81,18 @@ extension AppStore {
         if let deleteFailure {
             // Don't offer Undo for a partial delete — restoring on top of a
             // half-applied state would be confusing. Show what went wrong.
-            surfaceError(deleteFailure)
+            uiStateStore.showError(for: deleteFailure)
             return
         }
 
         // Replace a pending undo only now that there is a new one to offer;
         // a failed delete must not leave an earlier toast without its timer.
-        uiStateStore.cancelUndoTimer()
-        uiStateStore.undoGeneration += 1
-        uiStateStore.undoMessage = tags.count == 1
-            ? AppSettings.shared.localized("Deleted tag “\(tags[0].name)”")
-            : AppSettings.shared.localized("Deleted \(tags.count) tags")
-        uiStateStore.undoAction = { [weak self] in
+        let message = tags.count == 1
+            ? String(localized: "Deleted tag “\(tags[0].name)”")
+            : String(localized: "Deleted \(tags.count) tags")
+        uiStateStore.offerUndo(message) { [weak self] in
             guard let self else { return }
-            self.uiStateStore.cancelUndoTimer()
-            self.uiStateStore.undoMessage = nil
-            self.uiStateStore.undoAction = nil
+            self.uiStateStore.dismissUndo()
             Task {
                 do {
                     for s in snapshots {
@@ -105,13 +101,12 @@ extension AppStore {
                 } catch {
                     // A silently failed undo is worse than no undo — the user
                     // believes the tags are back when they aren't.
-                    self.surfaceError(error)
+                    self.uiStateStore.showError(for: error)
                 }
                 try? await self.tagsStore.fetchTags()
                 await self.loadBookmarks()
             }
         }
-        uiStateStore.startUndoTimer(window: Self.undoWindow)
     }
 
     /// Merge tags: bookmarks with any source tag get `target` instead; the
@@ -131,9 +126,9 @@ extension AppStore {
             try? await tagsStore.fetchTags()
             await loadBookmarks()
             let merged = sources.filter { $0.id != target.id }.map(\.name).joined(separator: "”, “")
-            uiStateStore.showInfo(AppSettings.shared.localized("Merged “\(merged)” into “\(target.name)”."))
+            uiStateStore.showInfo(String(localized: "Merged “\(merged)” into “\(target.name)”."))
         } catch {
-            surfaceError(error)
+            uiStateStore.showError(for: error)
         }
     }
 
@@ -161,11 +156,11 @@ extension AppStore {
             try? await tagsStore.fetchTags() // refresh sidebar counts
             if tagged > 0 {
                 uiStateStore.showInfo(tagged == 1
-                    ? AppSettings.shared.localized("Tagged 1 bookmark with “\(tag.name)”.")
-                    : AppSettings.shared.localized("Tagged \(tagged) bookmarks with “\(tag.name)”."))
+                    ? String(localized: "Tagged 1 bookmark with “\(tag.name)”.")
+                    : String(localized: "Tagged \(tagged) bookmarks with “\(tag.name)”."))
             }
         } catch {
-            surfaceError(error)
+            uiStateStore.showError(for: error)
         }
     }
 
@@ -174,11 +169,11 @@ extension AppStore {
             let result = try await api.applyTaxonomyDraft(id: draft.id, tags: edits)
             await loadBookmarks()
             try? await tagsStore.fetchTags()
-            uiStateStore.showInfo(AppSettings.shared.localized(
+            uiStateStore.showInfo(String(localized:
                 "Applied \(result.tags) tags to \(result.assigned) of \(result.total) bookmarks."
             ))
         } catch {
-            surfaceError(error)
+            uiStateStore.showError(for: error)
         }
     }
 
@@ -186,7 +181,7 @@ extension AppStore {
         do {
             try await api.discardTaxonomyDraft(id: draft.id)
         } catch {
-            surfaceError(error)
+            uiStateStore.showError(for: error)
         }
     }
 }

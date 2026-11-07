@@ -65,6 +65,10 @@ async def start(bookmark_id: str, url: str, title: str = "") -> dict:
                 active_job.state["stage"] = "finished"
         finally:
             if active_job.cancelled:
+                # Deliberately synchronous: this runs while the task unwinds
+                # from a cancellation, and an awaited thread here could itself
+                # be cancelled by a second Stop and leave the run behind. It
+                # removes one run directory, a few files.
                 visual_snapshot_service.discard_snapshot_run(bookmark_id, run_id)
                 active_job.state["stage"] = "cancelled"
 

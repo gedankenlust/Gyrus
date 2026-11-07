@@ -113,8 +113,8 @@ struct SidebarView: View {
     /// so the folder list keeps its space the rest of the time.
     @ViewBuilder
     private var bottomActionsArea: some View {
-        let linkCheck = uiStateStore.linkCheckStatus.flatMap { $0.running ? $0 : nil }
-        let metadata = uiStateStore.metadataRefreshStatus.flatMap { $0.running ? $0 : nil }
+        let linkCheck = appStore.jobs.linkCheckStatus.flatMap { $0.running ? $0 : nil }
+        let metadata = appStore.jobs.metadataRefreshStatus.flatMap { $0.running ? $0 : nil }
         if linkCheck != nil || metadata != nil {
             VStack(spacing: 0) {
                 Divider()
@@ -123,7 +123,7 @@ struct SidebarView: View {
                 }
                 if let metadata {
                     MetadataRefreshProgressBar(status: metadata) {
-                        Task { await appStore.cancelMetadataRefresh() }
+                        Task { await appStore.jobs.cancelMetadataRefresh() }
                     }
                 }
             }

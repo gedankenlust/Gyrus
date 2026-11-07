@@ -1,10 +1,9 @@
 import asyncio
 import httpx
-import aiofiles
-from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 from typing import Dict, Any, Optional, List
 from pydantic import BaseModel
 
@@ -12,53 +11,27 @@ from database import get_db, SessionLocal
 from models.bookmark import Bookmark
 from schemas.bookmark import BrainMessageOut
 from services.llm_service import LLMService, LLMUnavailableError
-from services.scraper_service import scraper_service, _is_youtube as is_youtube
 from services.brain_sync_service import brain_sync_service
 from services import ai_policy
 from services import brain_chat_service
 from services import visual_snapshot_service
 from services import visual_snapshot_job_service
 from services.site_structure_service import site_structure_service
+# Context building lives in services/brain_context_service.py; these names are
+# re-exported because callers and tests import them from this router.
+from services.brain_context_service import (  # noqa: F401
+    SCRAPE_MARKER,
+    SCRAPED_HEADER,
+    _persist_scraped_content,
+    _scrape_source_marker,
+    prepare_context as _prepare_context,
+)
 
 import logging
 logger = logging.getLogger(__name__)
 LLM_FAILURE_MESSAGE = "LLM Error: the language model request failed. Check the AI settings and try again."
 
 router = APIRouter(prefix="/api/brain", tags=["brain"])
-
-SCRAPED_HEADER = "## Content (Scraped)"
-# Bump this when the scraper improves, so cached content from older versions is
-# re-scraped once instead of being served stale forever.
-SCRAPE_MARKER = "<!-- gyrus-scrape v4 -->"
-
-
-def _scrape_source_marker(url: str) -> str:
-    return f"<!-- gyrus-source-url: {quote(url, safe='')} -->"
-
-
-def _persist_scraped_content(file_path, content: str, source_url: str) -> None:
-    """Write freshly scraped content into the bookmark's markdown file,
-    replacing any previous scraped section while preserving the chat history
-    that follows it."""
-    if file_path is None or not brain_sync_service.is_enabled or not brain_sync_service._owns(file_path):
-        return
-    try:
-        text = file_path.read_text(encoding="utf-8")
-    except Exception:
-        return
-    section = f"{SCRAPED_HEADER}\n{SCRAPE_MARKER}\n{_scrape_source_marker(source_url)}\n{content}\n"
-    if SCRAPED_HEADER in text:
-        before, rest = text.split(SCRAPED_HEADER, 1)
-        # Keep any following sections (e.g. "## Chat Interaction ...").
-        idx = rest.find("\n## ")
-        after = rest[idx:] if idx != -1 else ""
-        new_text = before.rstrip() + "\n\n" + section + after
-    else:
-        new_text = text.rstrip() + "\n\n" + section
-    try:
-        file_path.write_text(new_text, encoding="utf-8")
-    except Exception as e:
-        logger.warning(f"Failed to persist scraped content: {e}")
 
 class ChatMessage(BaseModel):
     role: str
@@ -91,117 +64,6 @@ def _provider_model(provider_config: Optional[Dict[str, Any]]) -> str | None:
     return model if isinstance(model, str) and model else None
 
 
-def _should_include_visual_context(prompt: str | None) -> bool:
-    text = (prompt or "").lower()
-    terms = (
-        "design", "layout", "farbe", "farben", "color", "colour", "font",
-        "typografie", "typography", "ui", "ux", "viewport", "responsive",
-        "desktop", "tablet", "mobile", "komponent", "component", "button",
-        "navigation", "spacing", "abstand", "css", "style", "visuell",
-        "visual", "accessibility", "barriere", "a11y", "seo", "asset",
-    )
-    return any(term in text for term in terms)
-
-
-def _visual_snapshot_context(bookmark_id: str) -> str:
-    snapshot = visual_snapshot_service.read_snapshot(bookmark_id)
-    if not snapshot:
-        return ""
-
-    lines: list[str] = [
-        "## Visual Snapshot (Rendered page / computed styles)",
-        "This section is captured from a headless browser and may be used as direct evidence for visual design questions.",
-    ]
-    if snapshot.get("captured_at"):
-        lines.append(f"Captured at: {snapshot.get('captured_at')}")
-
-    for viewport in snapshot.get("viewports", [])[:3]:
-        name = viewport.get("name", "viewport")
-        width = viewport.get("width", "")
-        height = viewport.get("height", "")
-        lines.append(f"\n### Viewport: {name} ({width}x{height})")
-
-        page_title = viewport.get("page_title")
-        if page_title:
-            lines.append(f"Page title: {page_title}")
-        meta_description = viewport.get("meta_description")
-        if meta_description:
-            lines.append(f"Meta description: {meta_description[:500]}")
-
-        colors = []
-        for color in (viewport.get("dominant_colors") or []) + (viewport.get("observed_colors") or []):
-            if color and color not in colors:
-                colors.append(color)
-        if colors:
-            lines.append("Colors: " + ", ".join(colors[:24]))
-
-        fonts = viewport.get("observed_fonts") or []
-        if fonts:
-            lines.append("Fonts: " + " | ".join(fonts[:8]))
-
-        structure = viewport.get("structure") or {}
-        if structure:
-            lines.append(
-                "Structure: "
-                f"links={structure.get('links', 0)}, "
-                f"buttons={structure.get('buttons', 0)}, "
-                f"images={structure.get('images', 0)}, "
-                f"svgs={structure.get('svgs', 0)}, "
-                f"forms={structure.get('forms', 0)}"
-            )
-            for heading in (structure.get("h1") or [])[:2]:
-                lines.append(f"H1: {heading}")
-            for heading in (structure.get("h2") or [])[:3]:
-                lines.append(f"H2: {heading}")
-
-        issues = viewport.get("responsive_issues") or []
-        if issues:
-            counts = {
-                severity: sum(1 for issue in issues if issue.get("severity") == severity)
-                for severity in ("high", "medium", "low")
-            }
-            lines.append(
-                "Responsive findings: "
-                f"high={counts['high']}, medium={counts['medium']}, low={counts['low']}"
-            )
-            for issue in issues[:6]:
-                lines.append(
-                    "- "
-                    f"[{issue.get('severity', 'unknown')}] {issue.get('title', '')}: "
-                    f"{issue.get('detail', '')} "
-                    f"at {issue.get('selector_hint', '')} ({issue.get('metric', '')})"
-                )
-
-        lines.append("Computed element samples:")
-        for sample in (viewport.get("element_samples") or [])[:4]:
-            selector = sample.get("selector_hint") or sample.get("tag") or "element"
-            text = (sample.get("text") or "").replace("\n", " ")[:120]
-            lines.append(
-                "- "
-                f"{selector} ({sample.get('tag', '')}) "
-                f"{sample.get('width', 0)}x{sample.get('height', 0)} at "
-                f"{sample.get('x', 0)},{sample.get('y', 0)}; "
-                f"display={sample.get('display', '')}; "
-                f"position={sample.get('position', '')}; "
-                f"font={sample.get('font_family', '')}; "
-                f"size={sample.get('font_size', '')}; "
-                f"weight={sample.get('font_weight', '')}; "
-                f"color={sample.get('color', '')}; "
-                f"background={sample.get('background_color', '')}; "
-                f"padding={sample.get('padding', '')}; "
-                f"margin={sample.get('margin', '')}; "
-                f"radius={sample.get('border_radius', '')}; "
-                f"shadow={sample.get('box_shadow', '')}; "
-                f"text={text}"
-            )
-
-    text = "\n".join(lines)
-    MAX_SNAPSHOT_CONTEXT_CHARS = 5200
-    if len(text) > MAX_SNAPSHOT_CONTEXT_CHARS:
-        text = text[:MAX_SNAPSHOT_CONTEXT_CHARS] + "... [Visual Snapshot Truncated]"
-    return text
-
-
 def _save_assistant_reply(db: Session, bookmark, prompt: str, response_text: str, model: str | None) -> None:
     brain_chat_service.add_message(
         db, bookmark.id, "assistant", response_text, model=model, status="complete"
@@ -210,6 +72,41 @@ def _save_assistant_reply(db: Session, bookmark, prompt: str, response_text: str
         brain_sync_service.append_interaction(db, bookmark, prompt, response_text)
     except Exception as e:
         logger.warning(f"Failed to append interaction: {e}")
+
+
+def _save_stopped_reply(db: Session, bookmark, prompt: str, response_text: str, model: str | None) -> None:
+    brain_chat_service.add_message(
+        db, bookmark.id, "assistant", response_text, model=model, status="stopped"
+    )
+    try:
+        brain_sync_service.append_interaction(db, bookmark, prompt, response_text)
+    except Exception as e:
+        logger.warning(f"Failed to append stopped interaction: {e}")
+
+
+def _save_error_reply(db: Session, bookmark_id: str, message: str, model: str | None) -> None:
+    brain_chat_service.add_message(
+        db, bookmark_id, "assistant", message, model=model, status="error"
+    )
+
+
+def _bookmark_or_404(db: Session, bookmark_id: str) -> Bookmark:
+    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
+    if not bookmark:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    return bookmark
+
+
+def _start_chat(db: Session, bookmark_id: str, prompt: str, model: str | None):
+    """Record the user's question. Returns the bookmark and plain copies of
+    the fields the LLM call needs: after the commit its attributes are
+    expired, and reading them on the event loop would query the database."""
+    bookmark = _bookmark_or_404(db, bookmark_id)
+    brain_chat_service.add_message(
+        db, bookmark.id, "user", prompt, model=model, status="complete"
+    )
+    return bookmark, bookmark.id, bookmark.title or "", bookmark.url or ""
+
 
 def _reconcile_brain_blocking():
     """Reconcile folder structure + rebuild the index, with its own session.
@@ -223,25 +120,37 @@ def _reconcile_brain_blocking():
         db.close()
 
 
+# The settings are applied in two steps around a threadpool call; without this
+# two quick pushes could interleave and leave AI and Brain flags from different
+# requests.
+_config_lock = asyncio.Lock()
+
+
 @router.post("/config")
 async def update_brain_config(config: BrainConfigUpdate):
-    ai_policy.configure(config.ai_enabled)
-    brain_sync_service.update_config(config.root_dir, config.is_enabled and config.ai_enabled)
-    # Embeddings run server-side with no per-request model, so remember the
-    # chosen embedding model / Ollama URL here. A model change takes effect for
-    # new bookmarks immediately; existing ones need a reindex (different vector
-    # size), which the app prompts for.
-    from services import embedding_service
-    embedding_service.set_active_model(config.embedding_model)
-    embedding_service.set_active_base_url(config.ollama_url)
-    # The app pushes the config on every launch. Reconciling + rebuilding the
-    # index can be heavy with many bookmarks, so run it on a worker thread —
-    # otherwise it blocks the event loop and the app shows an empty list at
-    # startup until it finishes.
-    if brain_sync_service.is_enabled:
-        from services import background
-        background.schedule(asyncio.to_thread(_reconcile_brain_blocking))
-    return {"status": "ok", "root_dir": str(brain_sync_service.root_dir), "is_enabled": brain_sync_service.is_enabled}
+    async with _config_lock:
+        ai_policy.configure(config.ai_enabled)
+        # Enabling the Brain creates its folder: filesystem work, off the loop.
+        await run_in_threadpool(
+            brain_sync_service.update_config,
+            config.root_dir,
+            config.is_enabled and config.ai_enabled,
+        )
+        # Embeddings run server-side with no per-request model, so remember the
+        # chosen embedding model / Ollama URL here. A model change takes effect for
+        # new bookmarks immediately; existing ones need a reindex (different vector
+        # size), which the app prompts for.
+        from services import embedding_service
+        embedding_service.set_active_model(config.embedding_model)
+        embedding_service.set_active_base_url(config.ollama_url)
+        # The app pushes the config on every launch. Reconciling + rebuilding the
+        # index can be heavy with many bookmarks, so run it on a worker thread —
+        # otherwise it blocks the event loop and the app shows an empty list at
+        # startup until it finishes.
+        if brain_sync_service.is_enabled:
+            from services import background
+            background.schedule(asyncio.to_thread(_reconcile_brain_blocking))
+        return {"status": "ok", "root_dir": str(brain_sync_service.root_dir), "is_enabled": brain_sync_service.is_enabled}
 
 
 @router.get("/index-path")
@@ -280,9 +189,7 @@ def get_visual_snapshot(bookmark_id: str, db: Session = Depends(get_db)):
 
 @router.post("/bookmarks/{bookmark_id}/visual-snapshot")
 async def create_visual_snapshot(bookmark_id: str, db: Session = Depends(get_db)):
-    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
-    if not bookmark:
-        raise HTTPException(status_code=404, detail="Bookmark not found")
+    bookmark = await run_in_threadpool(_bookmark_or_404, db, bookmark_id)
     try:
         return await visual_snapshot_service.capture_snapshot(
             bookmark.id, bookmark.url, title=bookmark.title or ""
@@ -293,9 +200,7 @@ async def create_visual_snapshot(bookmark_id: str, db: Session = Depends(get_db)
 
 @router.post("/bookmarks/{bookmark_id}/visual-snapshot/job")
 async def start_visual_snapshot_job(bookmark_id: str, db: Session = Depends(get_db)):
-    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
-    if not bookmark:
-        raise HTTPException(status_code=404, detail="Bookmark not found")
+    bookmark = await run_in_threadpool(_bookmark_or_404, db, bookmark_id)
     status = visual_snapshot_job_service.get_status()
     if status.get("running") and status.get("bookmark_id") != bookmark_id:
         raise HTTPException(status_code=409, detail="Another design inspection is already running")
@@ -352,73 +257,21 @@ def get_visual_snapshot_run(bookmark_id: str, run_id: str, db: Session = Depends
         raise HTTPException(status_code=404, detail="Visual snapshot run not found")
     return snapshot
 
-async def _prepare_context(db: Session, bookmark, prompt: str | None = None) -> str:
-    """Use durable Reader text, or a mirror cache tied to this exact URL."""
-    file_path = None
-    full_text = ""
-    if brain_sync_service.is_enabled:
-        try:
-            file_path = brain_sync_service._get_bookmark_file_path(db, bookmark)
-            brain_sync_service.sync_bookmark(db, bookmark)
-            if brain_sync_service._owns(file_path, bookmark.id):
-                async with aiofiles.open(file_path, "r", encoding="utf-8") as f:
-                    full_text = await f.read()
-        except (OSError, ValueError) as exc:
-            logger.warning("Brain mirror unavailable: %s", exc)
-            file_path = None
-
-    context = (bookmark.scraped_content or "").strip()
-    if not context and SCRAPED_HEADER in full_text:
-        cached = full_text.split(SCRAPED_HEADER, 1)[1].split("\n## ")[0].strip()
-        if SCRAPE_MARKER in cached and _scrape_source_marker(bookmark.url) in cached:
-            context = cached.replace(SCRAPE_MARKER, "").replace(_scrape_source_marker(bookmark.url), "").strip()
-    needs_scrape = not context
-    if needs_scrape:
-        scrape_result = await scraper_service.extract_content(bookmark.url)
-        content = scrape_result.get("content", "")
-        if content:
-            context = content
-            _persist_scraped_content(file_path, content, bookmark.url)
-            from services import bookmark_service, background
-            bookmark_service.store_scraped_content(db, bookmark.id, content)
-            background.schedule(
-                bookmark_service.index_bookmark_embedding(bookmark.id, content)
-            )
-        elif not context:
-            context = f"Title: {bookmark.title}\nDescription: {bookmark.description}\nURL: {bookmark.url}"
-
-    context = context.replace(SCRAPE_MARKER, "").strip()
-    MAX_CONTEXT_CHARS = 12000
-    if len(context) > MAX_CONTEXT_CHARS:
-        context = context[:MAX_CONTEXT_CHARS] + "... [Content Truncated]"
-    if site_structure_service.should_include_for_prompt(prompt):
-        site_context = await site_structure_service.context_for_url(bookmark.id, bookmark.url)
-        if site_context:
-            context = f"{context}\n\n{site_context}" if context else site_context
-    if _should_include_visual_context(prompt):
-        visual_context = _visual_snapshot_context(bookmark.id)
-        if visual_context:
-            context = f"{context}\n\n{visual_context}" if context else visual_context
-    return context
-
-
 @router.post("/chat", response_model=ChatResponse, dependencies=[Depends(ai_policy.require_ai)])
 async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)):
-    # 1. Fetch bookmark
-    bookmark = db.query(Bookmark).filter(Bookmark.id == request.bookmark_id).first()
-    if not bookmark:
-        raise HTTPException(status_code=404, detail="Bookmark not found")
-
+    # Every database / Brain mirror step runs in the threadpool, one at a time
+    # on this request's session; the loop only awaits the crawl and the LLM.
+    # 1. Fetch bookmark and record the question.
     model = _provider_model(request.provider_config)
-    brain_chat_service.add_message(
-        db, bookmark.id, "user", request.prompt, model=model, status="complete"
+    bookmark, bookmark_id, title, url = await run_in_threadpool(
+        _start_chat, db, request.bookmark_id, request.prompt, model
     )
 
     if site_structure_service.is_page_count_prompt(request.prompt):
         response_text = await site_structure_service.page_count_answer_for_url(
-            bookmark.id, bookmark.url, language=request.language
+            bookmark_id, url, language=request.language
         )
-        _save_assistant_reply(db, bookmark, request.prompt, response_text, model)
+        await run_in_threadpool(_save_assistant_reply, db, bookmark, request.prompt, response_text, model)
         return ChatResponse(response=response_text)
 
     # 2. Build the page context (cached scrape, re-scraping when stale).
@@ -432,27 +285,23 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
             prompt=request.prompt,
             context=context,
             provider_config=request.provider_config,
-            title=bookmark.title or "",
-            url=bookmark.url or "",
+            title=title,
+            url=url,
             history=history,
             language=request.language,
         )
     except LLMUnavailableError as e:
-        brain_chat_service.add_message(
-            db, bookmark.id, "assistant", str(e), model=model, status="error"
-        )
+        await run_in_threadpool(_save_error_reply, db, bookmark_id, str(e), model)
         # Clear, user-facing reason (Ollama down, model missing, cloud n/a).
         raise HTTPException(status_code=503, detail=str(e))
     except Exception:
         # Provider exceptions can carry URLs, local file paths or raw response
         # bodies; log them, but show and persist only a fixed message.
-        logger.exception("Brain chat LLM request failed for bookmark %s", bookmark.id)
-        brain_chat_service.add_message(
-            db, bookmark.id, "assistant", LLM_FAILURE_MESSAGE, model=model, status="error"
-        )
+        logger.exception("Brain chat LLM request failed for bookmark %s", bookmark_id)
+        await run_in_threadpool(_save_error_reply, db, bookmark_id, LLM_FAILURE_MESSAGE, model)
         raise HTTPException(status_code=500, detail=LLM_FAILURE_MESSAGE)
 
-    _save_assistant_reply(db, bookmark, request.prompt, response_text, model)
+    await run_in_threadpool(_save_assistant_reply, db, bookmark, request.prompt, response_text, model)
 
     return ChatResponse(response=response_text)
 
@@ -465,25 +314,25 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
     sentinel below so the client can show them clearly."""
     from fastapi.responses import StreamingResponse
 
-    bookmark = db.query(Bookmark).filter(Bookmark.id == request.bookmark_id).first()
-    if not bookmark:
-        raise HTTPException(status_code=404, detail="Bookmark not found")
-
     model = _provider_model(request.provider_config)
-    brain_chat_service.add_message(
-        db, bookmark.id, "user", request.prompt, model=model, status="complete"
+    bookmark, bookmark_id, title, url = await run_in_threadpool(
+        _start_chat, db, request.bookmark_id, request.prompt, model
     )
 
     if site_structure_service.is_page_count_prompt(request.prompt):
         response_text = await site_structure_service.page_count_answer_for_url(
-            bookmark.id, bookmark.url, language=request.language
+            bookmark_id, url, language=request.language
         )
-        _save_assistant_reply(db, bookmark, request.prompt, response_text, model)
+        await run_in_threadpool(_save_assistant_reply, db, bookmark, request.prompt, response_text, model)
         return StreamingResponse(iter([response_text]), media_type="text/plain; charset=utf-8")
 
     context = await _prepare_context(db, bookmark, request.prompt)
     history = [{"role": m.role, "content": m.content} for m in (request.history or [])]
 
+    # The generator runs on the event loop while the response streams; the
+    # request's session stays open until then (FastAPI closes yield
+    # dependencies after the response). Saves go through the threadpool,
+    # which anyio lets finish even while the stream is being cancelled.
     async def generate():
         collected: list[str] = []
         saved = False
@@ -492,37 +341,27 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
                 prompt=request.prompt,
                 context=context,
                 provider_config=request.provider_config,
-                title=bookmark.title or "",
-                url=bookmark.url or "",
+                title=title,
+                url=url,
                 history=history,
                 language=request.language,
             ):
                 collected.append(piece)
                 yield piece
         except LLMUnavailableError as e:
-            brain_chat_service.add_message(
-                db, bookmark.id, "assistant", str(e), model=model, status="error"
-            )
+            await run_in_threadpool(_save_error_reply, db, bookmark_id, str(e), model)
             saved = True
             yield f"\n\n[GYRUS-ERROR] {e}"
             return
         except asyncio.CancelledError:
             if collected:
                 full = "".join(collected)
-                brain_chat_service.add_message(
-                    db, bookmark.id, "assistant", full, model=model, status="stopped"
-                )
+                await run_in_threadpool(_save_stopped_reply, db, bookmark, request.prompt, full, model)
                 saved = True
-                try:
-                    brain_sync_service.append_interaction(db, bookmark, request.prompt, full)
-                except Exception as e:
-                    logger.warning(f"Failed to append stopped interaction: {e}")
             raise
         except Exception:
-            logger.exception("Brain chat stream failed for bookmark %s", bookmark.id)
-            brain_chat_service.add_message(
-                db, bookmark.id, "assistant", LLM_FAILURE_MESSAGE, model=model, status="error"
-            )
+            logger.exception("Brain chat stream failed for bookmark %s", bookmark_id)
+            await run_in_threadpool(_save_error_reply, db, bookmark_id, LLM_FAILURE_MESSAGE, model)
             saved = True
             yield f"\n\n[GYRUS-ERROR] {LLM_FAILURE_MESSAGE}"
             return
@@ -530,13 +369,7 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
         # Persist the completed answer (best-effort) once streaming finishes.
         full = "".join(collected)
         if full and not saved:
-            brain_chat_service.add_message(
-                db, bookmark.id, "assistant", full, model=model, status="complete"
-            )
-            try:
-                brain_sync_service.append_interaction(db, bookmark, request.prompt, full)
-            except Exception as e:
-                logger.warning(f"Failed to append interaction: {e}")
+            await run_in_threadpool(_save_assistant_reply, db, bookmark, request.prompt, full, model)
 
     return StreamingResponse(generate(), media_type="text/plain; charset=utf-8")
 
@@ -550,15 +383,18 @@ class SummarizeResponse(BaseModel):
     summary: str
 
 
+def _bookmark_identity(db: Session, bookmark_id: str):
+    bookmark = _bookmark_or_404(db, bookmark_id)
+    return bookmark, bookmark.title or "", bookmark.url or ""
+
+
 @router.post("/summarize/{bookmark_id}", response_model=SummarizeResponse, dependencies=[Depends(ai_policy.require_ai)])
 async def summarize_bookmark(bookmark_id: str, request: SummarizeRequest = SummarizeRequest(),
                              db: Session = Depends(get_db)):
     """Generate a 2-3 sentence summary of a bookmark's page content using the
     local LLM, then save it as an AI note. Idempotent: safe to call again to
     refresh the summary. Requires Ollama and the AI Brain to be enabled."""
-    bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
-    if not bookmark:
-        raise HTTPException(status_code=404, detail="Bookmark not found")
+    bookmark, title, url = await run_in_threadpool(_bookmark_identity, db, bookmark_id)
 
     context = await _prepare_context(db, bookmark)
 
@@ -580,8 +416,8 @@ async def summarize_bookmark(bookmark_id: str, request: SummarizeRequest = Summa
             prompt=summarize_prompt,
             context=context,
             provider_config=request.provider_config,
-            title=bookmark.title or "",
-            url=bookmark.url or "",
+            title=title,
+            url=url,
             language=request.language,
         )
     except LLMUnavailableError as e:
@@ -592,7 +428,7 @@ async def summarize_bookmark(bookmark_id: str, request: SummarizeRequest = Summa
 
     if summary and summary.strip():
         from services import bookmark_service
-        bookmark_service.add_note(db, bookmark_id, summary.strip(), source="ai")
+        await run_in_threadpool(bookmark_service.add_note, db, bookmark_id, summary.strip(), source="ai")
 
     return SummarizeResponse(summary=summary or "")
 

@@ -192,12 +192,15 @@ app.include_router(brain.router)
 app.include_router(data.router)
 
 
+# The app polls these to decide whether the backend is alive. They do no I/O,
+# so they run directly on the event loop: a plain `def` would need a free
+# threadpool worker, and those can all be waiting on SQLite's busy timeout.
 @app.get("/health")
-def health():
+async def health():
     return {"status": "ok", "version": APP_VERSION}
 
 
 @app.get("/api/ready")
-def ready():
+async def ready():
     # Unlike /health, this passes the native token guard.
     return {"status": "ok", "service": "gyrus", "version": APP_VERSION}

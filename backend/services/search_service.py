@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from sqlalchemy import text
@@ -44,7 +45,6 @@ async def search_bookmarks_semantic(
     Trashed bookmarks are excluded.
     """
     from services.embedding_service import get_embedding, EmbeddingUnavailableError
-    from services import vector_store
 
     try:
         query_vec = await get_embedding(query)
@@ -52,7 +52,19 @@ async def search_bookmarks_semantic(
         logger.info("semantic search unavailable: %s", e)
         return []
 
+    # Vector lookup and row loading are SQLite work that may wait on the busy
+    # timeout, so they run in a worker thread; only the embedding call (HTTP)
+    # stays on the event loop. The caller's session is used by that one
+    # thread only while this coroutine waits for it.
+    return await asyncio.to_thread(_rank_semantic_matches, db, query_vec, limit, offset)
+
+
+def _rank_semantic_matches(
+    db: Session, query_vec: list[float], limit: int, offset: int
+) -> list[Bookmark]:
     from services.embedding_service import configuration_key
+    from services import vector_store
+
     if not vector_store.matches_configuration(configuration_key()):
         return []
     window = offset + limit

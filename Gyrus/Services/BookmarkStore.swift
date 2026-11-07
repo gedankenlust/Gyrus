@@ -1,7 +1,13 @@
 import Foundation
 import Observation
-import AppKit
 
+/// The loaded bookmark rows of the current view, their selection and counts.
+///
+/// Split by responsibility across files:
+///   BookmarkStore.swift           state, view loading, pagination, search, selection
+///   BookmarkStore+Edits.swift     counts, local edits, CRUD, metadata, browser
+///   BookmarkStore+Notes.swift     notes and their persisted drafts
+/// Deleting, restoring and purging bookmarks lives in TrashController.
 @MainActor
 @Observable
 final class BookmarkStore {
@@ -33,28 +39,32 @@ final class BookmarkStore {
     var noteErrors: [String: String] = [:]
     var savingNoteIds: Set<String> = []
 
-    /// IDs that are scheduled for deletion (within the Undo window) 
+    /// IDs that are scheduled for deletion (within the Undo window)
     /// and should be hidden from the UI.
     var pendingDeletionIds: Set<String> = []
 
+    let api: APIClient
+    let draftStorage: NoteDraftStorage?
+    /// Bumped when the library is replaced or reset, so a late result of the
+    /// old library (a note save, a metadata fetch) is dropped.
+    private(set) var libraryGeneration = 0
+    /// The folder/tag/filter/search the loaded rows belong to.
+    private(set) var loadContext = LoadContext.allBookmarks
+    /// Bookmark IDs we've already tried to fetch metadata for this session, so
+    /// scrolling a card in and out of view doesn't re-hit the network for a
+    /// site whose favicon/metadata simply can't be fetched. Internal only for
+    /// fetchMeta in BookmarkStore+Edits.swift.
+    var metaAttempted: Set<String> = []
+
     private let pageSize = 100
-    private let api: APIClient
-    private let draftStorage: NoteDraftStorage?
+    private var searchTask: Task<Void, Never>?
+    private var loadGeneration = 0
 
     init(api: APIClient = .shared, draftStorage: NoteDraftStorage? = .applicationStorage) {
         self.api = api
         self.draftStorage = draftStorage
         do { self.noteDrafts = try draftStorage?.read() ?? [:] }
         catch { self.draftStorageError = String(localized: "Note drafts could not be loaded.") }
-    }
-
-    private func persistDrafts() {
-        do {
-            try draftStorage?.write(noteDrafts)
-            draftStorageError = nil
-        } catch {
-            draftStorageError = String(localized: "Note drafts could not be saved on this Mac. Keep Gyrus open until they are saved.")
-        }
     }
 
     func resetLocalState() {
@@ -82,10 +92,8 @@ final class BookmarkStore {
         isLoadingMore = false
         loadMoreError = nil
     }
-    private var searchTask: Task<Void, Never>?
-    private var loadGeneration = 0
-    private var libraryGeneration = 0
-    private struct LoadContext {
+
+    struct LoadContext {
         let collectionId: String?
         let tagName: String?
         let showDeadOnly: Bool
@@ -93,6 +101,11 @@ final class BookmarkStore {
         let showTrash: Bool
         let query: String
         var semantic: Bool
+
+        static let allBookmarks = LoadContext(
+            collectionId: nil, tagName: nil, showDeadOnly: false,
+            unreadOnly: false, showTrash: false, query: "", semantic: false
+        )
 
         /// Same folder/tag/filter/search, ignoring the semantic fallback flag
         /// the fetch itself may flip.
@@ -102,19 +115,6 @@ final class BookmarkStore {
                 && showTrash == other.showTrash && query == other.query
         }
     }
-    private var loadContext = LoadContext(
-        collectionId: nil,
-        tagName: nil,
-        showDeadOnly: false,
-        unreadOnly: false,
-        showTrash: false,
-        query: "", semantic: false
-    )
-
-    /// Bookmark IDs we've already tried to fetch metadata for this session, so
-    /// scrolling a card in and out of view doesn't re-hit the network for a
-    /// site whose favicon/metadata simply can't be fetched.
-    private var metaAttempted: Set<String> = []
 
     // MARK: - Fetching
 
@@ -160,7 +160,7 @@ final class BookmarkStore {
         } catch {
             // Rows of the previous view under the new sidebar selection would
             // let actions run on the wrong bookmarks. Show an empty list instead.
-            if generation == loadGeneration, changesView, !Self.isCancellation(error) {
+            if generation == loadGeneration, changesView, !error.isCancellation {
                 bookmarks = []
             }
             throw error
@@ -236,21 +236,6 @@ final class BookmarkStore {
         }
     }
 
-    static func isCancellation(_ error: Error) -> Bool {
-        if error is CancellationError { return true }
-        if case APIError.networkError(let inner) = error { return isCancellation(inner) }
-        let nsError = error as NSError
-        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
-    }
-
-    func loadDetails(id: String) async throws {
-        let trashed = loadContext.showTrash
-        let generation = libraryGeneration
-        let details = try await api.bookmark(id: id, trashed: trashed)
-        guard generation == libraryGeneration, selectedBookmark?.id == id else { return }
-        applyUpdated([details])
-    }
-
     /// Any visible item in the final window can trigger prefetch. Fast scrolling
     /// may skip the one exact row that previously owned this responsibility.
     func shouldPrefetch(near id: String) -> Bool {
@@ -297,7 +282,7 @@ final class BookmarkStore {
         }
     }
 
-    func fetchPage(offset: Int, collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "", semantic: Bool? = nil, generation: Int? = nil) async throws -> [Bookmark] {
+    private func fetchPage(offset: Int, collectionId: String? = nil, tagName: String? = nil, showDeadOnly: Bool = false, unreadOnly: Bool = false, showTrash: Bool = false, query: String = "", semantic: Bool? = nil, generation: Int? = nil) async throws -> [Bookmark] {
         if showTrash {
             return try await api.trashedBookmarks(limit: pageSize, offset: offset)
         } else if !query.isEmpty && (semantic ?? loadContext.semantic) {
@@ -381,284 +366,17 @@ final class BookmarkStore {
         selectedIds = Set(ids).subtracting(pendingDeletionIds)
     }
 
-    // MARK: - Read / Unread
-
-    /// Toggle (or set) the read state and update local copies immediately.
-    func setRead(_ bookmark: Bookmark, isRead: Bool) async throws {
-        var update = BookmarkUpdate()
-        update.isRead = isRead
-        let updated = try await api.updateBookmark(id: bookmark.id, body: update)
-        if let idx = bookmarks.firstIndex(where: { $0.id == bookmark.id }) { bookmarks[idx] = updated }
-        if selectedBookmark?.id == bookmark.id { selectedBookmark = updated }
-    }
-
-    func setRead(ids: Set<String>, isRead: Bool) async throws {
-        _ = try await api.setBookmarksRead(ids: ids, isRead: isRead)
-        for index in bookmarks.indices where ids.contains(bookmarks[index].id) {
-            bookmarks[index].isRead = isRead
-        }
-        if let selected = selectedBookmark, ids.contains(selected.id) {
-            selectedBookmark?.isRead = isRead
-        }
-    }
-
-    // MARK: - Trash
-
-    /// Restore bookmarks from the Trash; drop them from the current (trash) list.
-    func restoreFromTrash(ids: Set<String>) async throws {
-        _ = try await api.restoreFromTrash(ids: Array(ids))
-        bookmarks.removeAll { ids.contains($0.id) }
-        selectedIds.subtract(ids)
-        if let sel = selectedBookmark, ids.contains(sel.id) { selectedBookmark = nil }
-        trashCount = max(0, trashCount - ids.count)
-    }
-
-    /// Permanently delete trashed bookmarks (nil = empty the whole Trash).
-    func purgeTrash(ids: Set<String>?) async throws {
-        _ = try await api.purgeTrash(ids: ids.map(Array.init))
-        if let ids {
-            bookmarks.removeAll { ids.contains($0.id) }
-            selectedIds.subtract(ids)
-            if let sel = selectedBookmark, ids.contains(sel.id) { selectedBookmark = nil }
-            trashCount = max(0, trashCount - ids.count)
-        } else {
-            bookmarks.removeAll()
-            selectedIds.removeAll()
-            selectedBookmark = nil
-            trashCount = 0
-        }
-    }
-
-    // MARK: - CRUD
-
-    func deleteBookmark(_ bookmark: Bookmark) -> (removed: [(bookmark: Bookmark, index: Int)], deleteIds: Set<String>) {
-        pendingDeletionIds.insert(bookmark.id)
-        totalBookmarkCount = max(0, totalBookmarkCount - 1)
-        
-        guard let idx = bookmarks.firstIndex(where: { $0.id == bookmark.id }) else {
-            return (removed: [], deleteIds: [bookmark.id])
-        }
-        bookmarks.remove(at: idx)
-        selectedIds.remove(bookmark.id)
-        if selectedBookmark?.id == bookmark.id { selectedBookmark = nil }
-        return (removed: [(bookmark: bookmark, index: idx)], deleteIds: [bookmark.id])
-    }
-
-    func deleteSelected() -> (removed: [(bookmark: Bookmark, index: Int)], deleteIds: Set<String>) {
-        let ids = selectedIds
-        pendingDeletionIds.formUnion(ids)
-        totalBookmarkCount = max(0, totalBookmarkCount - ids.count)
-        
-        var removed: [(bookmark: Bookmark, index: Int)] = []
-        for (idx, bm) in bookmarks.enumerated() where ids.contains(bm.id) {
-            removed.append((bookmark: bm, index: idx))
-        }
-        bookmarks.removeAll { ids.contains($0.id) }
-        if let sel = selectedBookmark, ids.contains(sel.id) { selectedBookmark = nil }
-        selectedIds.removeAll()
-        return (removed: removed, deleteIds: ids)
-    }
-
-    /// Replace local copies of the given bookmarks (e.g. after a tag change),
-    /// so the list and preview reflect the change immediately without a reload.
-    func applyUpdated(_ updated: [Bookmark]) {
-        let replacements = Dictionary(uniqueKeysWithValues: updated.map { ($0.id, $0) })
-        bookmarks = bookmarks.map { replacements[$0.id] ?? $0 }
-        if let selected = selectedBookmark,
-           let replacement = replacements[selected.id] {
-            selectedBookmark = replacement
-        }
-    }
-
-    func updateDesignSnapshotStatus(bookmarkId: String, complete: Bool) {
-        if let idx = bookmarks.firstIndex(where: { $0.id == bookmarkId }) {
-            bookmarks[idx].designSnapshotCapturedAt = Date()
-            bookmarks[idx].designSnapshotComplete = complete
-        }
-        if selectedBookmark?.id == bookmarkId {
-            selectedBookmark?.designSnapshotCapturedAt = Date()
-            selectedBookmark?.designSnapshotComplete = complete
-        }
-    }
-
-    /// Remove a deleted tag from every local bookmark so its chip disappears
-    /// immediately, without waiting for a reload.
-    func removeTagLocally(_ tagId: String) {
-        var changed = bookmarks
-        for index in changed.indices {
-            changed[index].tags.removeAll { $0.id == tagId }
-        }
-        bookmarks = changed
-        selectedBookmark?.tags.removeAll { $0.id == tagId }
-    }
-
-    /// Reflect a renamed/recolored tag across every local bookmark immediately.
-    func updateTagLocally(_ tag: Tag) {
-        var changed = bookmarks
-        for bookmarkIndex in changed.indices {
-            for tagIndex in changed[bookmarkIndex].tags.indices
-            where changed[bookmarkIndex].tags[tagIndex].id == tag.id {
-                changed[bookmarkIndex].tags[tagIndex] = tag
-            }
-        }
-        bookmarks = changed
-        if var sel = selectedBookmark {
-            for j in sel.tags.indices where sel.tags[j].id == tag.id { sel.tags[j] = tag }
-            selectedBookmark = sel
-        }
-    }
-
-    func updateBookmark(_ bookmark: Bookmark, update: BookmarkUpdate) async throws {
-        let updated = try await api.updateBookmark(id: bookmark.id, body: update)
-        if let idx = bookmarks.firstIndex(where: { $0.id == bookmark.id }) { bookmarks[idx] = updated }
-        if selectedBookmark?.id == bookmark.id { selectedBookmark = updated }
-    }
-
-    func updateNotes(_ bookmark: Bookmark, notes: String) async throws {
-        var update = BookmarkUpdate()
-        update.notes = notes
-        try await updateBookmark(bookmark, update: update)
-    }
-
-    func saveNoteDraft(for bookmark: Bookmark) async {
-        let id = bookmark.id
-        let generation = libraryGeneration
-        guard !savingNoteIds.contains(id), let content = noteDrafts[id],
-              !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        savingNoteIds.insert(id)
-        noteErrors[id] = nil
-        defer { if generation == libraryGeneration { savingNoteIds.remove(id) } }
-        do {
-            try await addNote(to: bookmark, content: content, source: "user")
-            guard generation == libraryGeneration else { return }
-            if noteDrafts[id] == content { noteDrafts[id] = nil }
-        } catch {
-            guard generation == libraryGeneration else { return }
-            noteErrors[id] = String(localized: "Note could not be saved. Your draft is preserved.") + " " + error.localizedDescription
-        }
-    }
-
-    func addNote(to bookmark: Bookmark, content: String, source: String = "user") async throws {
-        let generation = libraryGeneration
-        let note = try await api.addNote(bookmarkId: bookmark.id, content: content, source: source)
-        guard generation == libraryGeneration else { return }
-        if let idx = bookmarks.firstIndex(where: { $0.id == bookmark.id }) {
-            bookmarks[idx].bookmarkNotes.insert(note, at: 0)
-        }
-        if selectedBookmark?.id == bookmark.id {
-            selectedBookmark?.bookmarkNotes.insert(note, at: 0)
-        }
-    }
-
-    func deleteNote(_ noteId: String, from bookmark: Bookmark) async throws {
-        try await api.deleteNote(bookmarkId: bookmark.id, noteId: noteId)
-        if let idx = bookmarks.firstIndex(where: { $0.id == bookmark.id }) {
-            bookmarks[idx].bookmarkNotes.removeAll { $0.id == noteId }
-        }
-        if selectedBookmark?.id == bookmark.id {
-            selectedBookmark?.bookmarkNotes.removeAll { $0.id == noteId }
-        }
-    }
-
-    func moveToCollection(ids: Set<String>, collectionId: String?) async throws {
-        _ = try await api.moveBookmarks(ids: ids, collectionId: collectionId)
-        for index in bookmarks.indices where ids.contains(bookmarks[index].id) {
-            bookmarks[index].collectionId = collectionId
-        }
-        if let selected = selectedBookmark, ids.contains(selected.id) {
-            selectedBookmark?.collectionId = collectionId
-        }
-        // Notify that folder counts need refresh
-        NotificationCenter.default.post(name: .bookmarksMoved, object: nil)
-    }
-
-    func addBookmarkFromURL(_ urlString: String, collectionId: String? = nil) async throws -> Bookmark {
-        let bm = try await api.createBookmark(.init(
-            title: URL(string: urlString)?.host ?? urlString, url: urlString, description: nil, notes: nil,
-            collectionId: collectionId, tagIds: [], source: "manual"
-        ))
-        bookmarks.insert(bm, at: 0)
-        selectedBookmark = bm
-        selectedIds = [bm.id]
-        totalBookmarkCount += 1
-        return bm
-    }
-
-    // MARK: - Metadata
-
-    func fetchMeta(_ bookmark: Bookmark) async throws {
-        if let status = bookmark.analysis?.metadata,
-           status == "pending" || status == "running" { return }
-        let needsMeta = bookmark.ogImageUrl == nil && bookmark.description == nil
-        let needsOgCache = bookmark.ogImageUrl != nil && bookmark.ogImagePath == nil
-        let needsFavicon = bookmark.faviconPath == nil
-        guard needsMeta || needsOgCache || needsFavicon else { return }
-        guard !metaAttempted.contains(bookmark.id) else { return }
-        metaAttempted.insert(bookmark.id)
-        let generation = libraryGeneration
-        let updated: Bookmark
-        do { updated = try await api.fetchMeta(id: bookmark.id) }
-        catch {
-            if error is CancellationError && generation == libraryGeneration {
-                metaAttempted.remove(bookmark.id)
-            }
-            throw error
-        }
-        guard generation == libraryGeneration, !Task.isCancelled else { return }
-        if let idx = bookmarks.firstIndex(where: { $0.id == bookmark.id }) { bookmarks[idx] = updated }
-        if selectedBookmark?.id == bookmark.id { selectedBookmark = updated }
-    }
-
-    func retryAnalysis(ids: Set<String>) async throws {
-        for id in ids {
-            let updated = try await api.retryBookmarkAnalysis(id: id)
-            if let index = bookmarks.firstIndex(where: { $0.id == id }) {
-                bookmarks[index] = updated
-            }
-            if selectedBookmark?.id == id { selectedBookmark = updated }
-        }
-    }
-
     // MARK: - Search
 
-    func scheduleSearch(_ query: String, onSearch: (() async -> Void)? = nil) {
+    /// Debounce typing; `onSearch` reloads the current view with the new query.
+    func scheduleSearch(_ query: String, onSearch: @escaping () async -> Void) {
         searchTask?.cancel()
         searchQuery = query
         usingKeywordFallback = false
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 250_000_000)
             guard !Task.isCancelled else { return }
-            if let onSearch = onSearch {
-                await onSearch()
-            } else {
-                try? await loadBookmarks(query: query)
-            }
+            await onSearch()
         }
     }
-
-    func setSort(by field: String, order: String) async throws {
-        sortBy = field
-        sortOrder = order
-        try await loadBookmarks(query: searchQuery)
-    }
-
-    // MARK: - Browser
-
-    func openInBrowser(ids: Set<String>) {
-        var targets = bookmarks.filter { ids.contains($0.id) }
-        // A Quick Search result can be selected while it is outside the loaded
-        // rows; it is still the previewed bookmark, so ⌘O must open it.
-        if let selected = selectedBookmark, ids.contains(selected.id),
-           !targets.contains(where: { $0.id == selected.id }) {
-            targets.append(selected)
-        }
-        targets.forEach { safeBrowserOpen($0.url) }
-    }
-
-    func safeBrowserOpen(_ urlString: String) {
-        guard let url = URL(string: urlString),
-              url.scheme == "https" || url.scheme == "http" else { return }
-        NSWorkspace.shared.open(url)
-    }
-
 }

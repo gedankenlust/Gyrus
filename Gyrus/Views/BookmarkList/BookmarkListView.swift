@@ -106,7 +106,7 @@ struct BookmarkListView: View {
 
             if collectionStore.showTrash {
                 Button(role: .destructive) {
-                    appStore.requestEmptyTrash()
+                    appStore.trash.requestEmptyTrash()
                 } label: {
                     Label("Empty Trash", systemImage: "trash.slash")
                 }
@@ -233,13 +233,13 @@ struct SelectionStatusBar: View {
             Spacer()
 
             // Keep one clear entry point: organize automatically or choose tags manually.
-            if let status = uiStateStore.batchAutoTagStatus, status.running {
+            if let status = appStore.jobs.batchAutoTagStatus, status.running {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)
                     Text(progressLabel(status))
                         .font(.caption).foregroundStyle(.secondary)
                     Button {
-                        Task { await appStore.cancelBatchAutoTag() }
+                        Task { await appStore.jobs.cancelBatchAutoTag() }
                     } label: {
                         Label("Stop", systemImage: "stop.fill")
                     }
@@ -264,16 +264,16 @@ struct SelectionStatusBar: View {
 
                     Button {
                         let ids = Array(bookmarkStore.selectedIds)
-                        Task { await appStore.startTaxonomyReview(ids: ids) }
+                        Task { await appStore.jobs.startTaxonomyReview(ids: ids) }
                     } label: {
                         Label("Organize with AI", systemImage: "wand.and.stars")
                     }
                     .disabled(!AppSettings.shared.aiBrainConfig.aiEnabled
-                              || bookmarkStore.selectedIds.count < AppStore.minTaxonomyBookmarks)
+                              || bookmarkStore.selectedIds.count < BackgroundJobs.minTaxonomyBookmarks)
 
                     if !AppSettings.shared.aiBrainConfig.aiEnabled {
                         Text("Enable AI in Settings to organize automatically")
-                    } else if bookmarkStore.selectedIds.count < AppStore.minTaxonomyBookmarks {
+                    } else if bookmarkStore.selectedIds.count < BackgroundJobs.minTaxonomyBookmarks {
                         Text("Select at least 10 bookmarks for AI organization")
                     }
 
@@ -296,7 +296,7 @@ struct SelectionStatusBar: View {
             if collectionStore.showTrash {
                 Button {
                     let ids = bookmarkStore.selectedIds
-                    Task { await appStore.restoreFromTrash(ids: ids) }
+                    Task { await appStore.trash.restoreFromTrash(ids: ids) }
                 } label: {
                     Label("Restore", systemImage: "arrow.uturn.backward")
                 }
@@ -304,7 +304,7 @@ struct SelectionStatusBar: View {
                 .controlSize(.small)
 
                 Button(role: .destructive) {
-                    appStore.requestPurge(ids: bookmarkStore.selectedIds)
+                    appStore.trash.requestPurge(ids: bookmarkStore.selectedIds)
                 } label: {
                     Label("Delete Permanently", systemImage: "trash.slash")
                 }
@@ -321,7 +321,7 @@ struct SelectionStatusBar: View {
                 .controlSize(.small)
 
                 Button(role: .destructive) {
-                    appStore.requestDeleteSelected()
+                    appStore.trash.requestDeleteSelected()
                 } label: {
                     Label("Delete", systemImage: "trash")
                 }

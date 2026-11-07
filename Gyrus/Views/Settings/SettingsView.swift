@@ -226,10 +226,10 @@ private struct DataPane: View {
             }
             
             Section("Maintenance") {
-                let status = store.uiStateStore.metadataRefreshStatus
+                let status = store.jobs.metadataRefreshStatus
                 let running = status?.running == true
                 Button {
-                    Task { await store.startMetadataRefresh() }
+                    Task { await store.jobs.startMetadataRefresh() }
                 } label: {
                     Label(running ? "Refreshing…" : "Refresh All Metadata",
                           systemImage: "arrow.triangle.2.circlepath")
@@ -242,7 +242,7 @@ private struct DataPane: View {
                             .font(.caption)
                     }
                     Button(role: .cancel) {
-                        Task { await store.cancelMetadataRefresh() }
+                        Task { await store.jobs.cancelMetadataRefresh() }
                     } label: {
                         Label("Stop", systemImage: "stop.circle")
                     }

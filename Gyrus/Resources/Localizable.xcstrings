@@ -15252,6 +15252,196 @@
           }
         }
       }
+    },
+    "Backend did not respond.\nPath: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backend hat nicht geantwortet.\nPfad: %@"
+          }
+        }
+      }
+    },
+    "Backend not found at:\n%@\n\nPython environment missing.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backend nicht gefunden unter:\n%@\n\nDie Python-Umgebung fehlt."
+          }
+        }
+      }
+    },
+    "Backend setup failed with status %d. Details: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Einrichtung des Backends ist mit Status %1$d fehlgeschlagen. Details: %2$@"
+          }
+        }
+      }
+    },
+    "Backend setup timed out. Details: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Einrichtung des Backends hat zu lange gedauert. Details: %@"
+          }
+        }
+      }
+    },
+    "Could not open the backend setup log.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Einrichtungsprotokoll des Backends konnte nicht geöffnet werden."
+          }
+        }
+      }
+    },
+    "Creating virtual environment...": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Virtuelle Umgebung wird erstellt …"
+          }
+        }
+      }
+    },
+    "Failed to start: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start fehlgeschlagen: %@"
+          }
+        }
+      }
+    },
+    "Gyrus could not build the request to its backend.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gyrus konnte die Anfrage an sein Backend nicht erstellen."
+          }
+        }
+      }
+    },
+    "Installing dependencies...": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abhängigkeiten werden installiert …"
+          }
+        }
+      }
+    },
+    "Running migrations...": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datenbank wird aktualisiert …"
+          }
+        }
+      }
+    },
+    "Setup failed:\n%@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einrichtung fehlgeschlagen:\n%@"
+          }
+        }
+      }
+    },
+    "The backend could not complete the request (error %lld).": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backend konnte die Anfrage nicht ausführen (Fehler %lld)."
+          }
+        }
+      }
+    },
+    "The backend did not accept this copy of Gyrus. Quit Gyrus and open it again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backend hat diese Gyrus-Instanz nicht akzeptiert. Beende Gyrus und öffne es erneut."
+          }
+        }
+      }
+    },
+    "The backend ran into a problem (error %lld). Please try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Backend ist ein Problem aufgetreten (Fehler %lld). Bitte versuche es erneut."
+          }
+        }
+      }
+    },
+    "The backend sent a response Gyrus could not read. Please try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backend hat eine Antwort gesendet, die Gyrus nicht lesen konnte. Bitte versuche es erneut."
+          }
+        }
+      }
+    },
+    "The backend took too long to respond. Please try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Backend hat zu lange gebraucht. Bitte versuche es erneut."
+          }
+        }
+      }
+    },
+    "The connection to the Gyrus backend failed. Please try again.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Verbindung zum Gyrus-Backend ist fehlgeschlagen. Bitte versuche es erneut."
+          }
+        }
+      }
+    },
+    "The data is too large for the backend to accept.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Daten sind zu groß für das Backend."
+          }
+        }
+      }
+    },
+    "The requested item no longer exists.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das angeforderte Element existiert nicht mehr."
+          }
+        }
+      }
     }
   },
   "version": "1.1"

@@ -1,29 +1,65 @@
 import Foundation
 import Combine
-import AppKit
 
+/// Composes the library's state and the controllers that act on it, and
+/// owns what spans them: loading the current view, navigation, search, sort
+/// and move.
+///
+///   jobs        BackgroundJobs       link check, metadata refresh, folder sort, taxonomy review
+///   trash       TrashController      delete with undo, trash, purge, their confirmations
+///   connection  ConnectionMonitor    auto-refresh poll, recovery after sleep
+/// Resets are in AppStore+Library.swift, tag operations in AppStore+Tags.swift.
 @MainActor
 @Observable
-final class AppStore {
+final class AppStore: LibraryReloading {
     static let shared = AppStore()
 
-    let bookmarksStore = BookmarkStore()
-    let collectionsStore = CollectionStore()
-    let tagsStore = TagStore()
-    let uiStateStore = UIStateStore()
+    let bookmarksStore: BookmarkStore
+    let collectionsStore: CollectionStore
+    let tagsStore: TagStore
+    let uiStateStore: UIStateStore
+    let jobs: BackgroundJobs
+    let trash: TrashController
+    let connection: ConnectionMonitor
 
-    let api = APIClient.shared  // internal: AppStore+Tags.swift uses it
-    private var pendingDeleteTasks: [UUID: Task<Void, Never>] = [:]
+    let api: APIClient  // internal: the AppStore+*.swift extensions use it
+    /// Set while a restore or reset swaps the library underneath the window.
     private(set) var isReplacingLibrary = false
+    /// Bumped by a library replacement so a load of the old library is dropped.
     private var libraryGeneration = 0
     var loadError: String?
-    private var autoRefreshTask: Task<Void, Never>?
-    private let linkCheckPoller = JobPoller<LinkCheckStatus>()
-    private let metadataPoller = JobPoller<MetadataRefreshStatus>()
-    private let batchTagPoller = JobPoller<BatchAutoTagStatus>()
-    private let folderOrganizePoller = JobPoller<FolderOrganizeStatus>()
     @ObservationIgnored private var bookmarksMovedObserver: AnyCancellable?
-    static let undoWindow: TimeInterval = 5
+
+    /// Opening more than this many tabs at once asks first.
+    private let batchThreshold = 10
+
+    init(api: APIClient = .shared, draftStorage: NoteDraftStorage? = .applicationStorage) {
+        let bookmarks = BookmarkStore(api: api, draftStorage: draftStorage)
+        let collections = CollectionStore(api: api)
+        let ui = UIStateStore()
+        let jobs = BackgroundJobs(api: api, ui: ui, bookmarks: bookmarks)
+        self.api = api
+        self.bookmarksStore = bookmarks
+        self.collectionsStore = collections
+        self.tagsStore = TagStore(api: api)
+        self.uiStateStore = ui
+        self.jobs = jobs
+        self.trash = TrashController(api: api, bookmarks: bookmarks, collections: collections, ui: ui)
+        self.connection = ConnectionMonitor(api: api, ui: ui, bookmarks: bookmarks, jobs: jobs)
+        // The controllers reload through their owner; they can only be handed
+        // it once every stored property is set.
+        jobs.library = self
+        trash.library = self
+        connection.library = self
+    }
+
+    /// Route an error from a user-triggered action to the error toast.
+    /// Kept here because views across the app report through it.
+    func surfaceError(_ error: Error) {
+        uiStateStore.showError(for: error)
+    }
+
+    // MARK: - Loading
 
     private func installBookmarksMovedObserver() {
         guard bookmarksMovedObserver == nil else { return }
@@ -46,182 +82,46 @@ final class AppStore {
         installBookmarksMovedObserver()
 
         do {
-        async let bmsResult: Void = await bookmarksStore.loadBookmarks(
-            collectionId: collectionsStore.selectedCollectionId,
-            tagName: tagsStore.selectedTagName,
-            showDeadOnly: collectionsStore.showDeadOnly,
-            unreadOnly: collectionsStore.showUnreadOnly,
-            showTrash: collectionsStore.showTrash,
-            query: bookmarksStore.searchQuery,
-            refreshCount: false
-        )
-        async let colsResult: Void = await collectionsStore.fetchCollections()
-        async let tagsResult: Void = await tagsStore.fetchTags()
-        async let countsResult: BookmarkCounts = await api.bookmarkCounts()
+            async let bmsResult: Void = await bookmarksStore.loadBookmarks(
+                collectionId: collectionsStore.selectedCollectionId,
+                tagName: tagsStore.selectedTagName,
+                showDeadOnly: collectionsStore.showDeadOnly,
+                unreadOnly: collectionsStore.showUnreadOnly,
+                showTrash: collectionsStore.showTrash,
+                query: bookmarksStore.searchQuery,
+                refreshCount: false
+            )
+            async let colsResult: Void = await collectionsStore.fetchCollections()
+            async let tagsResult: Void = await tagsStore.fetchTags()
+            async let countsResult: BookmarkCounts = await api.bookmarkCounts()
 
-        let (_, _, _, counts) = try await (bmsResult, colsResult, tagsResult, countsResult)
-        guard generation == libraryGeneration else { return }
-        applyCounts(counts)
-        loadError = nil
+            let (_, _, _, counts) = try await (bmsResult, colsResult, tagsResult, countsResult)
+            guard generation == libraryGeneration else { return }
+            bookmarksStore.applyCounts(counts)
+            loadError = nil
         } catch {
             // A superseded or cancelled load (e.g. the startup view swapping to
             // the library) is not a failure the user needs to see.
-            guard generation == libraryGeneration, !Self.isCancellation(error) else { return }
+            guard generation == libraryGeneration, !error.isCancellation else { return }
             loadError = String(localized: "The library could not be fully loaded.") + " " + error.localizedDescription
         }
 
         startAutoRefreshPolling()
 
         // Check semantic search availability (non-blocking).
-        Task {
-            if let status = try? await api.semanticSearchStatus() {
-                bookmarksStore.semanticSearchAvailable = status.available
-            }
-        }
+        Task { await bookmarksStore.refreshSemanticSearchStatus() }
     }
 
-    /// Prevent a deferred delete/undo from being applied to the replacement library.
-    func prepareForLibraryReplacement() async {
-        isReplacingLibrary = true
-        libraryGeneration += 1
-        stopAutoRefreshPolling()
-        let tasks = Array(pendingDeleteTasks.values)
-        for task in tasks { task.cancel() }
-        for task in tasks { await task.value }
-        pendingDeleteTasks.removeAll()
-        linkCheckPoller.stop()
-        metadataPoller.stop()
-        batchTagPoller.stop()
-        bookmarksStore.pendingDeletionIds.removeAll()
-        uiStateStore.cancelUndoTimer()
-        uiStateStore.undoGeneration += 1
-        uiStateStore.undoAction = nil
-        uiStateStore.undoMessage = nil
-    }
-
-    func finishLibraryReplacement() {
-        isReplacingLibrary = false
-        startAutoRefreshPolling()
-    }
-
-    func resetLocalLibraryState() {
-        BrainChatStore.shared.resetLocalState()
-        bookmarksStore.resetLocalState()
-        collectionsStore.resetLocalState()
-        collectionsStore.selectedCollectionId = nil
-        collectionsStore.showTrash = false
-        collectionsStore.showDeadOnly = false
-        collectionsStore.showUnreadOnly = false
-        tagsStore.resetLocalState()
-        tagsStore.selectedTagName = nil
-        uiStateStore.pendingBatchDelete = nil
-        uiStateStore.pendingBatchOpen = nil
-        uiStateStore.newTagForIds = nil
-        uiStateStore.tagAssignmentForIds = nil
-        uiStateStore.batchTagReview = nil
-        uiStateStore.linkCheckStatus = nil
-        uiStateStore.metadataRefreshStatus = nil
-        uiStateStore.batchAutoTagStatus = nil
-        uiStateStore.errorMessage = nil
-        uiStateStore.infoMessage = nil
-        loadError = nil
-    }
-
-    func stopAutoRefreshPolling() {
-        autoRefreshTask?.cancel()
-        autoRefreshTask = nil
-    }
-
+    /// No polling while a restore or reset is replacing the library.
     private func startAutoRefreshPolling() {
-        guard autoRefreshTask == nil, !isReplacingLibrary else { return }
-        autoRefreshTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 5_000_000_000) // poll every 5 seconds
-                guard !Task.isCancelled else { return }
-
-                // Skip while we're actively loading, recovering the backend
-                // (wake-from-sleep), or running a link check — otherwise the
-                // poll can race the reconnect and surface a transient 404.
-                guard !uiStateStore.isLoading,
-                      !isRecovering,
-                      uiStateStore.linkCheckStatus?.running != true else { continue }
-                
-                do {
-                    // Active enrichment changes no bookmark count, so refresh
-                    // the visible rows while work is pending to keep their
-                    // durable status indicators current.
-                    if bookmarksStore.bookmarks.contains(where: { $0.analysis?.isActive == true }) {
-                        try? await bookmarksStore.refreshLoadedRows()
-                    }
-                    let serverCount = try await api.bookmarkCount()
-                    let localTotal = bookmarksStore.totalBookmarkCount + bookmarksStore.pendingDeletionIds.count
-
-                    if serverCount != localTotal {
-                        await loadAll()
-                    }
-                } catch {
-                    // Ignore background-polling errors.
-                }
-
-                if AIConfigSync.shared.error != nil {
-                    AIConfigSync.shared.submit(AppSettings.shared.aiBrainConfig)
-                }
-                // Re-check semantic availability if Ollama wasn't ready at startup.
-                if !bookmarksStore.semanticSearchAvailable {
-                    if let status = try? await api.semanticSearchStatus() {
-                        bookmarksStore.semanticSearchAvailable = status.available
-                    }
-                }
-            }
-        }
+        guard !isReplacingLibrary else { return }
+        connection.startAutoRefreshPolling()
     }
 
     func importHTML(data: Data, filename: String, rootFolderName: String? = nil) async throws -> ImportResult {
         let result = try await api.importHTML(data: data, filename: filename, rootFolderName: rootFolderName)
         await loadAll()
         return result
-    }
-
-    // MARK: - Search
-
-    /// Route an error from a user-triggered action to the error toast, with the
-    /// same noise filtering as handleUIError. Internal (not private) so view
-    /// callbacks (e.g. sidebar context-menu actions) can surface failures
-    /// instead of swallowing them with `try?`.
-    func surfaceError(_ error: Error) {
-        handleUIError(error, background: false)
-    }
-
-    private func handleUIError(_ error: Error, background: Bool = false) {
-        // Debounced search cancels in-flight tasks — never show that to the user.
-        if Self.isCancellation(error) { return }
-        if background {
-            if case APIError.networkError(let inner) = error,
-               let urlError = inner as? URLError,
-               urlError.code == .cannotConnectToHost ||
-               urlError.code == .notConnectedToInternet ||
-               urlError.code == .networkConnectionLost {
-                return
-            }
-            if case APIError.serverError(let code) = error,
-               code == 404 || code == 501 || code >= 500 {
-                return
-            }
-        }
-        uiStateStore.showError(
-            error.localizedDescription,
-            respectingResumeGrace: background
-        )
-    }
-
-    private static func isCancellation(_ error: Error) -> Bool {
-        BookmarkStore.isCancellation(error)
-    }
-
-    func scheduleSearch(_ query: String) {
-        bookmarksStore.scheduleSearch(query) { [weak self] in
-            await self?.loadBookmarks()
-        }
     }
 
     func loadBookmarks(showsLoadingIndicator: Bool = true) async {
@@ -243,349 +143,24 @@ final class AppStore {
                 query: bookmarksStore.searchQuery
             )
         } catch {
-            handleUIError(error, background: !showsLoadingIndicator)
+            uiStateStore.showError(for: error, background: !showsLoadingIndicator)
         }
     }
 
-    func retryAnalysis(ids: Set<String>) async {
-        do {
-            try await bookmarksStore.retryAnalysis(ids: ids)
-        } catch {
-            handleUIError(error)
+    // MARK: - Search, sort, navigation
+
+    func scheduleSearch(_ query: String) {
+        bookmarksStore.scheduleSearch(query) { [weak self] in
+            await self?.loadBookmarks()
         }
     }
 
     /// Change the sort and reload **within the current view** (folder/tag/search).
-    /// Going through here keeps the active filter — sorting via the store directly
-    /// would reload all bookmarks and ignore the open folder.
+    /// Going through here keeps the active filter.
     func setSort(by field: String, order: String) async {
         bookmarksStore.sortBy = field
         bookmarksStore.sortOrder = order
         await loadBookmarks()
-    }
-
-    /// Move bookmarks to another folder, then reload the current view so the
-    /// moved bookmarks immediately leave the folder you're looking at (instead
-    /// of lingering until the next click).
-    func moveBookmarks(ids: Set<String>, to collectionId: String?) async {
-        do {
-            try await bookmarksStore.moveToCollection(ids: ids, collectionId: collectionId)
-            bookmarksStore.selectedIds.subtract(ids)
-            if let sel = bookmarksStore.selectedBookmark, ids.contains(sel.id) {
-                bookmarksStore.selectedBookmark = nil
-            }
-            // If we're viewing a specific folder and the bookmarks moved OUT of
-            // it, drop them from the list right away — in place, so the scroll
-            // position is kept (a full reload would jump back to the top, and on
-            // a long paginated list the removal wouldn't even be visible).
-            let inSpecificFolder = collectionsStore.selectedCollectionId != nil
-                && tagsStore.selectedTagName == nil
-                && bookmarksStore.searchQuery.isEmpty
-            if inSpecificFolder && collectionId != collectionsStore.selectedCollectionId {
-                bookmarksStore.bookmarks.removeAll { ids.contains($0.id) }
-                bookmarksStore.totalBookmarkCount = max(0, bookmarksStore.totalBookmarkCount - ids.count)
-            }
-        } catch {
-            handleUIError(error)
-        }
-    }
-
-    /// Ask the backend to stop the metadata refresh. Already-fetched data is kept.
-    func cancelMetadataRefresh() async {
-        do {
-            uiStateStore.metadataRefreshStatus = try await api.cancelMetadataRefresh()
-        } catch {
-            handleUIError(error)
-        }
-    }
-
-    // MARK: - Connection Recovery
-
-    private var isRecovering = false
-
-    /// Called when the app returns to the foreground or the Mac wakes from
-    /// sleep. The backend (a child process) can become unreachable across sleep,
-    /// which also makes favicons fall back to the globe. Re-check the backend,
-    /// restart it if needed, and refresh the UI so icons come back.
-    func recoverConnection() async {
-        guard !isRecovering else { return }
-        isRecovering = true
-        defer { isRecovering = false }
-
-        // Right after wake-from-sleep the backend can be momentarily slow to
-        // answer (its process was suspended). Retry the lightweight health
-        // check a few times before concluding it must be restarted — otherwise
-        // we needlessly kill a perfectly alive backend, and that restart window
-        // is exactly what produced the transient "Server error 404".
-        var healthy = false
-        for attempt in 0..<4 {
-            if (try? await api.health()) == true { healthy = true; break }
-            // Only mute background error toasts once the backend actually
-            // fails to answer. A healthy resume must not hide the result of a
-            // user's action (a failed delete would just silently reappear).
-            if attempt == 0 { uiStateStore.beginResumeGrace(8) }
-            if attempt < 3 { try? await Task.sleep(nanoseconds: 500_000_000) }
-        }
-
-        if !healthy {
-            await BackendLauncher.shared.start()
-            guard BackendLauncher.shared.isRunning else { return }
-            await AIConfigSync.shared.synchronize(AppSettings.shared.aiBrainConfig, force: true)
-            await loadAll()
-            // A real restart briefly failed in-flight requests; keep them muted
-            // a moment longer now that the backend is back up.
-            uiStateStore.beginResumeGrace(3)
-        }
-        await AIConfigSync.shared.synchronize(AppSettings.shared.aiBrainConfig)
-        FaviconCache.shared.refresh()
-    }
-
-    // MARK: - Link Check
-
-    func startLinkCheck() async {
-        do {
-            let status = try await api.startLinkCheck()
-            uiStateStore.linkCheckStatus = status
-            linkCheckPoller.start(
-                interval: 1.5,
-                fetch: { [api] in try await api.linkCheckStatus() },
-                onTick: { [weak self] status in
-                    self?.uiStateStore.linkCheckStatus = status
-                },
-                onFinished: { [weak self] _ in
-                    guard let self else { return }
-                    if let d = try? await self.api.deadBookmarkCount() {
-                        self.bookmarksStore.deadBookmarkCount = d
-                    }
-                    await self.loadBookmarks()
-                },
-                onError: { [weak self] error in
-                    guard let self else { return }
-                    self.uiStateStore.linkCheckStatus = nil
-                    self.handleUIError(error)
-                }
-            )
-        } catch {
-            handleUIError(error)
-        }
-    }
-
-    // MARK: - Metadata Refresh
-
-    /// Force a re-fetch of favicons, descriptions and preview images for every
-    /// bookmark (heals broken/stale metadata). Runs in the background and polls
-    /// for progress, then reloads the list so the new favicons appear.
-    func startMetadataRefresh() async {
-        guard uiStateStore.metadataRefreshStatus?.running != true else { return }
-        do {
-            uiStateStore.metadataRefreshStatus = try await api.startMetadataRefresh()
-            metadataPoller.start(
-                interval: 1.0,
-                fetch: { [api] in try await api.metadataRefreshStatus() },
-                onTick: { [weak self] status in
-                    self?.uiStateStore.metadataRefreshStatus = status
-                },
-                onFinished: { [weak self] status in
-                    guard let self else { return }
-                    // Bust cached favicon images (same filename → same URL)
-                    // so the freshly fetched icons actually show, then reload.
-                    URLCache.shared.removeAllCachedResponses()
-                    FaviconCache.shared.clear()
-                    await self.loadBookmarks()
-                    if let error = status.error, !error.isEmpty {
-                        self.uiStateStore.showError(error)
-                    } else if let failed = status.failed, failed > 0 {
-                        self.uiStateStore.showInfo(AppSettings.shared.localized(
-                            "Updated \(status.updated) bookmarks; \(failed) pages returned no metadata."
-                        ))
-                    } else if status.updated > 0 {
-                        self.uiStateStore.showInfo(AppSettings.shared.localized("Updated \(status.updated) bookmarks."))
-                    }
-                },
-                onError: { [weak self] error in
-                    guard let self else { return }
-                    self.uiStateStore.metadataRefreshStatus = nil
-                    self.handleUIError(error)
-                }
-            )
-        } catch {
-            handleUIError(error)
-        }
-    }
-
-    /// The folder sort keeps running after Settings closes. This poller lives
-    /// with the app, and the sidebar reloads when the move finishes.
-    func startFolderOrganize() async {
-        guard uiStateStore.folderOrganizeStatus?.running != true else { return }
-        do {
-            uiStateStore.folderOrganizeStatus = try await api.startFolderOrganize(config: AppSettings.shared.aiBrainConfig)
-            watchFolderOrganize()
-        } catch {
-            handleUIError(error)
-        }
-    }
-
-    func cancelFolderOrganize() async {
-        uiStateStore.folderOrganizeStatus = try? await api.cancelFolderOrganize()
-    }
-
-    private func watchFolderOrganize() {
-        folderOrganizePoller.start(
-            interval: 2.0,
-            fetch: { [api] in try await api.folderOrganizeStatus() },
-            onTick: { [weak self] status in
-                self?.uiStateStore.folderOrganizeStatus = status
-            },
-            onFinished: { [weak self] status in
-                guard let self else { return }
-                self.uiStateStore.folderOrganizeStatus = status
-                if status.phase == "done" || status.phase == "error" || status.phase == "moving" {
-                    await self.loadAll()
-                }
-            }
-        )
-    }
-
-    /// A taxonomy needs shared categories (each backed by ≥2 bookmarks);
-    /// below this the run is guaranteed to fail. Mirrors the backend's
-    /// MIN_TAXONOMY_BOOKMARKS in auto_tag_batch_service.py.
-    static let minTaxonomyBookmarks = 10
-
-    /// Build one shared, reviewable tag system for a selection. This is the
-    /// slower AI path and never writes tags until the user approves the draft.
-    func startTaxonomyReview(ids: [String]) async {
-        guard uiStateStore.batchAutoTagStatus?.running != true else { return }
-        guard ids.count >= Self.minTaxonomyBookmarks else {
-            uiStateStore.showError(AppSettings.shared.localized(
-                "Select at least \(Self.minTaxonomyBookmarks) bookmarks to build a tag system."
-            ))
-            return
-        }
-        let config = AppSettings.shared.aiBrainConfig
-        guard config.aiEnabled else {
-            uiStateStore.showError(AppSettings.shared.localized("Enable AI to review a tag system."))
-            return
-        }
-        do {
-            uiStateStore.batchTagFailure = nil
-            uiStateStore.batchAutoTagStatus = try await api.startBatchAutoTag(ids: ids, config: config)
-            uiStateStore.showInfo(AppSettings.shared.localized("Analyzing \(ids.count) bookmarks…"))
-            batchTagPoller.start(
-                interval: 1.5,
-                fetch: { [api] in try await api.batchAutoTagStatus() },
-                onTick: { [weak self] status in
-                    self?.uiStateStore.batchAutoTagStatus = status
-                },
-                onFinished: { [weak self] status in
-                    guard let self else { return }
-                    self.uiStateStore.batchAutoTagStatus = nil
-                    if let draft = status.draft {
-                        self.uiStateStore.batchTagReview = TagReviewPayload(draft: draft)
-                    } else if let error = status.error?.trimmingCharacters(in: .whitespacesAndNewlines),
-                              !error.isEmpty {
-                        self.uiStateStore.batchTagFailure = error
-                    } else if status.phase != "cancelled" {
-                        self.uiStateStore.batchTagFailure = AppSettings.shared.localized(
-                            "No tag system could be created."
-                        )
-                    }
-                },
-                onError: { [weak self] error in
-                    guard let self else { return }
-                    self.uiStateStore.batchAutoTagStatus = nil
-                    self.uiStateStore.batchTagFailure = error.localizedDescription
-                    self.handleUIError(error)
-                }
-            )
-        } catch {
-            uiStateStore.batchAutoTagStatus = nil
-            handleUIError(error)
-        }
-    }
-
-    func cancelBatchAutoTag() async {
-        batchTagPoller.stop()
-        _ = try? await api.cancelBatchAutoTag()
-        uiStateStore.batchAutoTagStatus = nil
-        uiStateStore.showInfo(AppSettings.shared.localized("Analysis stopped. No tags were changed."))
-    }
-
-
-
-
-    // MARK: - Batch Actions & Undo
-
-    private let batchThreshold = 10
-
-    func requestDeleteSelected() {
-        let ids = bookmarksStore.selectedIds
-        guard !ids.isEmpty else { return }
-        // In the Trash a delete is permanent; it always asks first.
-        if collectionsStore.showTrash {
-            requestPurge(ids: ids)
-            return
-        }
-        let confirmEnabled = AppSettings.shared.confirmDelete
-        if confirmEnabled && !ids.isEmpty {
-            uiStateStore.pendingBatchDelete = ids
-        } else {
-            Task { await deleteSelected() }
-        }
-    }
-
-    func confirmPendingDelete() {
-        guard let ids = uiStateStore.pendingBatchDelete else { return }
-        uiStateStore.pendingBatchDelete = nil
-        bookmarksStore.selectedIds = ids
-        Task { await deleteSelected() }
-    }
-
-    func cancelPendingDelete() {
-        uiStateStore.pendingBatchDelete = nil
-    }
-
-    func deleteSelected() async {
-        let result = bookmarksStore.deleteSelected()
-        scheduleUndoDelete(removed: result.removed, deleteIds: result.deleteIds)
-    }
-
-    func deleteBookmark(_ bookmark: Bookmark) async {
-        let result = bookmarksStore.deleteBookmark(bookmark)
-        scheduleUndoDelete(removed: result.removed, deleteIds: result.deleteIds)
-    }
-
-
-    func requestOpenInBrowser(ids: Set<String>) {
-        if ids.count > batchThreshold {
-            uiStateStore.pendingBatchOpen = ids
-        } else {
-            bookmarksStore.openInBrowser(ids: ids)
-        }
-    }
-
-    func confirmPendingOpen() {
-        guard let ids = uiStateStore.pendingBatchOpen else { return }
-        uiStateStore.pendingBatchOpen = nil
-        bookmarksStore.openInBrowser(ids: ids)
-    }
-
-    func cancelPendingOpen() {
-        uiStateStore.pendingBatchOpen = nil
-    }
-
-    func selectAllInCurrentView() async {
-        do {
-            try await bookmarksStore.selectAllInCurrentView(
-                collectionId: collectionsStore.selectedCollectionId,
-                tagName: tagsStore.selectedTagName,
-                showDeadOnly: collectionsStore.showDeadOnly,
-                unreadOnly: collectionsStore.showUnreadOnly,
-                showTrash: collectionsStore.showTrash,
-                query: bookmarksStore.searchQuery
-            )
-        } catch {
-            handleUIError(error)
-        }
     }
 
     func selectNavigation(id: String?) async {
@@ -613,202 +188,109 @@ final class AppStore {
         await loadBookmarks()
     }
 
-    // MARK: - Read / Unread & Trash actions
+    func selectAllInCurrentView() async {
+        do {
+            try await bookmarksStore.selectAllInCurrentView(
+                collectionId: collectionsStore.selectedCollectionId,
+                tagName: tagsStore.selectedTagName,
+                showDeadOnly: collectionsStore.showDeadOnly,
+                unreadOnly: collectionsStore.showUnreadOnly,
+                showTrash: collectionsStore.showTrash,
+                query: bookmarksStore.searchQuery
+            )
+        } catch {
+            uiStateStore.showError(for: error)
+        }
+    }
+
+    // MARK: - Bookmark actions
+
+    func retryAnalysis(ids: Set<String>) async {
+        do {
+            try await bookmarksStore.retryAnalysis(ids: ids)
+        } catch {
+            uiStateStore.showError(for: error)
+        }
+    }
+
+    /// Move bookmarks to another folder, then reload the current view so the
+    /// moved bookmarks immediately leave the folder you're looking at (instead
+    /// of lingering until the next click).
+    func moveBookmarks(ids: Set<String>, to collectionId: String?) async {
+        do {
+            try await bookmarksStore.moveToCollection(ids: ids, collectionId: collectionId)
+            bookmarksStore.selectedIds.subtract(ids)
+            if let sel = bookmarksStore.selectedBookmark, ids.contains(sel.id) {
+                bookmarksStore.selectedBookmark = nil
+            }
+            // If we're viewing a specific folder and the bookmarks moved OUT of
+            // it, drop them from the list right away — in place, so the scroll
+            // position is kept (a full reload would jump back to the top, and on
+            // a long paginated list the removal wouldn't even be visible).
+            let inSpecificFolder = collectionsStore.selectedCollectionId != nil
+                && tagsStore.selectedTagName == nil
+                && bookmarksStore.searchQuery.isEmpty
+            if inSpecificFolder && collectionId != collectionsStore.selectedCollectionId {
+                bookmarksStore.bookmarks.removeAll { ids.contains($0.id) }
+                bookmarksStore.totalBookmarkCount = max(0, bookmarksStore.totalBookmarkCount - ids.count)
+            }
+        } catch {
+            uiStateStore.showError(for: error)
+        }
+    }
 
     func setRead(ids: Set<String>, isRead: Bool) async {
         do {
             try await bookmarksStore.setRead(ids: ids, isRead: isRead)
-            if let n = try? await api.unreadBookmarkCount() { bookmarksStore.unreadBookmarkCount = n }
-        } catch { handleUIError(error) }
+            await refreshUnreadCount()
+        } catch { uiStateStore.showError(for: error) }
     }
 
     func toggleRead(_ bookmark: Bookmark) async {
         do {
             try await bookmarksStore.setRead(bookmark, isRead: !bookmark.isRead)
-            if let n = try? await api.unreadBookmarkCount() { bookmarksStore.unreadBookmarkCount = n }
-        } catch { handleUIError(error) }
+            await refreshUnreadCount()
+        } catch { uiStateStore.showError(for: error) }
     }
 
-    /// Move bookmarks to the Trash directly (used by drag-to-trash in the
-    /// sidebar). Removes them from the current view and refreshes counts.
-    func trashBookmarks(ids: Set<String>) async {
-        guard !ids.isEmpty else { return }
-        do {
-            try await api.deleteBookmarks(ids: ids)
-            bookmarksStore.bookmarks.removeAll { ids.contains($0.id) }
-            bookmarksStore.selectedIds.subtract(ids)
-            if let sel = bookmarksStore.selectedBookmark, ids.contains(sel.id) {
-                bookmarksStore.selectedBookmark = nil
-            }
-            await refreshCounts()
-        } catch { handleUIError(error) }
+    private func refreshUnreadCount() async {
+        if let n = try? await api.unreadBookmarkCount() { bookmarksStore.unreadBookmarkCount = n }
     }
 
-    func restoreFromTrash(ids: Set<String>) async {
-        do {
-            try await bookmarksStore.restoreFromTrash(ids: ids)
-            await refreshCounts()
-        } catch { handleUIError(error) }
-    }
+    // MARK: - Open in browser
 
-    /// Permanent deletes cannot be undone, so every entry point asks first.
-    func requestEmptyTrash() {
-        guard bookmarksStore.trashCount > 0 || !bookmarksStore.bookmarks.isEmpty else { return }
-        uiStateStore.pendingPurge = .all
-    }
-
-    func requestPurge(ids: Set<String>) {
-        guard !ids.isEmpty else { return }
-        uiStateStore.pendingPurge = .ids(ids)
-    }
-
-    func confirmPendingPurge() {
-        guard let pending = uiStateStore.pendingPurge else { return }
-        uiStateStore.pendingPurge = nil
-        Task {
-            switch pending {
-            case .all: await emptyTrash()
-            case .ids(let ids): await purgeFromTrash(ids: ids)
-            }
+    func requestOpenInBrowser(ids: Set<String>) {
+        if ids.count > batchThreshold {
+            uiStateStore.pendingBatchOpen = ids
+        } else {
+            bookmarksStore.openInBrowser(ids: ids)
         }
     }
 
-    func cancelPendingPurge() {
-        uiStateStore.pendingPurge = nil
+    func confirmPendingOpen() {
+        guard let ids = uiStateStore.pendingBatchOpen else { return }
+        uiStateStore.pendingBatchOpen = nil
+        bookmarksStore.openInBrowser(ids: ids)
     }
 
-    private func emptyTrash() async {
-        do {
-            try await bookmarksStore.purgeTrash(ids: nil)
-            await refreshCounts()
-        } catch { handleUIError(error) }
+    func cancelPendingOpen() {
+        uiStateStore.pendingBatchOpen = nil
     }
 
-    private func purgeFromTrash(ids: Set<String>) async {
-        do {
-            try await bookmarksStore.purgeTrash(ids: ids)
-            await refreshCounts()
-        } catch { handleUIError(error) }
+    // MARK: - Library replacement
+
+    /// Prevent a deferred delete/undo or a job result from being applied to
+    /// the replacement library.
+    func prepareForLibraryReplacement() async {
+        isReplacingLibrary = true
+        libraryGeneration += 1
+        connection.stopAutoRefreshPolling()
+        await trash.cancelPendingDeletes()
+        jobs.stopForLibraryReplacement()
     }
 
-    private func refreshCounts() async {
-        guard let counts = try? await api.bookmarkCounts() else { return }
-        applyCounts(counts)
-    }
-
-    /// Server counts still include bookmarks whose delete is waiting out the
-    /// undo window. Subtract them here so the sidebar matches the list and the
-    /// auto-refresh comparison (server == local + pending) settles.
-    private func applyCounts(_ counts: BookmarkCounts) {
-        bookmarksStore.totalBookmarkCount = max(0, counts.total - bookmarksStore.pendingDeletionIds.count)
-        bookmarksStore.deadBookmarkCount = counts.dead
-        bookmarksStore.unreadBookmarkCount = counts.unread
-        bookmarksStore.trashCount = counts.trash
-    }
-
-    func requestDeleteAll(deadOnly: Bool) async {
-        do {
-            let ids = try await api.bookmarkIds(deadOnly: deadOnly)
-            guard !ids.isEmpty else { return }
-            bookmarksStore.selectedIds = Set(ids)
-            requestDeleteSelected()
-        } catch {
-            handleUIError(error)
-        }
-    }
-
-    // MARK: - Data Management
-
-    enum ResetType: String {
-        case cache, brain, bookmarks, factory
-    }
-
-    func handleReset(type: ResetType) async throws {
-        if type == .bookmarks || type == .factory { await prepareForLibraryReplacement() }
-        defer { finishLibraryReplacement() }
-        do {
-            switch type {
-            case .cache:
-                try await api.clearCache()
-                FaviconCache.shared.refresh()
-            case .brain:
-                try await api.clearBrain()
-            case .bookmarks:
-                try await api.clearBookmarks()
-                resetLocalLibraryState()
-            case .factory:
-                try await api.factoryReset()
-                BackendLauncher.shared.clearLog()
-                resetLocalLibraryState()
-                AppSettings.shared.resetToDefaults()
-                await AIConfigSync.shared.synchronize(AppSettings.shared.aiBrainConfig, force: true)
-            }
-            await loadAll()
-        } catch {
-            await loadAll()
-            throw error
-        }
-    }
-
-    private func scheduleUndoDelete(removed: [(bookmark: Bookmark, index: Int)],
-                                    deleteIds: Set<String>) {
-        uiStateStore.cancelUndoTimer()
-        uiStateStore.undoGeneration += 1
-
-        let count = deleteIds.count
-        
-        let operationID = UUID()
-        uiStateStore.undoMessage = AppSettings.shared.localized("Deleted \(count) bookmarks")
-
-        uiStateStore.undoAction = { [weak self] in
-            guard let self else { return }
-            self.pendingDeleteTasks[operationID]?.cancel()
-            self.uiStateStore.cancelUndoTimer()
-            
-            // Clear pending IDs immediately on undo
-            self.bookmarksStore.pendingDeletionIds.subtract(deleteIds)
-            
-            let sorted = removed.sorted { $0.index < $1.index }
-            for item in sorted {
-                let insertAt = min(item.index, self.bookmarksStore.bookmarks.count)
-                self.bookmarksStore.bookmarks.insert(item.bookmark, at: insertAt)
-            }
-            if let first = sorted.first {
-                self.bookmarksStore.selectedBookmark = first.bookmark
-                self.bookmarksStore.selectedIds = Set(sorted.map { $0.bookmark.id })
-            }
-            self.uiStateStore.undoMessage = nil
-            self.uiStateStore.undoAction = nil
-            Task { await self.loadBookmarks() }
-        }
-
-        uiStateStore.startUndoTimer(window: Self.undoWindow)
-
-        pendingDeleteTasks[operationID] = Task { [weak self] in
-            guard let self else { return }
-            defer { self.pendingDeleteTasks[operationID] = nil }
-            try? await Task.sleep(nanoseconds: UInt64(Self.undoWindow * 1_000_000_000))
-            guard !Task.isCancelled else { return }
-            
-            // Delete in chunks of 500 to keep request size and DB variables safe.
-            let chunkSize = 500
-            let allIds = Array(deleteIds)
-            for i in stride(from: 0, to: allIds.count, by: chunkSize) {
-                guard !Task.isCancelled else { return }
-                let chunk = Set(allIds[i..<min(i + chunkSize, allIds.count)])
-                do {
-                    try await self.api.deleteBookmarks(ids: chunk)
-                } catch {
-                    await MainActor.run { self.uiStateStore.showError(String(localized: "Delete failed: \(error.localizedDescription)")) }
-                }
-            }
-            
-            // Cleanup pending list after actual server delete
-            await MainActor.run {
-                self.bookmarksStore.pendingDeletionIds.subtract(deleteIds)
-            }
-            
-            await self.loadAll() // Full refresh to sync counts and lists
-        }
+    func finishLibraryReplacement() {
+        isReplacingLibrary = false
+        startAutoRefreshPolling()
     }
 }

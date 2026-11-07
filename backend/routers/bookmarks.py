@@ -3,9 +3,9 @@ import logging
 from typing import Literal
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
-from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
+from starlette.concurrency import run_in_threadpool
 from database import get_db
 from schemas.bookmark import (
     BookmarkCreate,
@@ -15,20 +15,21 @@ from schemas.bookmark import (
     BookmarkNoteCreate,
     BookmarkNoteOut,
 )
-from models.bookmark import Bookmark
 from services import ai_policy
 from services import bookmark_service
+from services import bookmark_query_service
 from services import metadata_service
-from services import link_check_service
-from services import metadata_refresh_service
 from services import bookmark_enrichment_service
 from services import bookmark_response_service
-from services.scraper_service import scraper_service
+from routers import bookmark_jobs, reader
+# Not used here since the Reader routes moved to routers/reader.py; kept so
+# `routers.bookmarks.scraper_service` still names the shared scraper object.
+from services.scraper_service import scraper_service  # noqa: F401
 
 router = APIRouter(prefix="/api/bookmarks", tags=["bookmarks"])
 logger = logging.getLogger(__name__)
 
-# The sorts bookmark_service.get_bookmarks implements (_SORT_COLUMNS plus
+# The sorts bookmark_query_service.get_bookmarks implements (_SORT_COLUMNS plus
 # "tag" and "favicon"). Unknown values used to fall back silently to
 # created_at, hiding client bugs; now they are a 422.
 SortField = Literal["created_at", "updated_at", "title", "url", "tag", "favicon"]
@@ -64,54 +65,27 @@ class BookmarkSelectionRequest(BaseModel):
 @router.post("/tagged-ids", response_model=list[str])
 def tagged_bookmark_ids(request: BookmarkSelectionRequest, db: Session = Depends(get_db)):
     """Read tag membership for a selection without loading bookmark content."""
-    ids = list(dict.fromkeys(request.bookmark_ids))
-    tagged = []
-    # Stay below SQLite parameter limits even for selections spanning many pages.
-    for offset in range(0, len(ids), 500):
-        rows = db.query(Bookmark.id).filter(
-            Bookmark.id.in_(ids[offset:offset + 500]),
-            Bookmark.deleted_at.is_(None),
-            Bookmark.bookmark_tags.any(),
-        ).all()
-        tagged.extend(row.id for row in rows)
-    return tagged
-
+    return bookmark_query_service.tagged_bookmark_ids(db, request.bookmark_ids)
 
 
 @router.get("/count", response_model=int)
 def bookmark_count(db: Session = Depends(get_db)):
-    return db.query(Bookmark).filter(Bookmark.deleted_at.is_(None)).count()
+    return bookmark_query_service.count_active(db)
 
 
 @router.get("/count-dead", response_model=int)
 def dead_count(db: Session = Depends(get_db)):
-    return db.query(Bookmark).filter(
-        Bookmark.deleted_at.is_(None), Bookmark.is_dead == True
-    ).count()
+    return bookmark_query_service.count_dead(db)
 
 
 @router.get("/count-unread", response_model=int)
 def unread_count(db: Session = Depends(get_db)):
-    return db.query(Bookmark).filter(
-        Bookmark.deleted_at.is_(None), Bookmark.is_read == False
-    ).count()
+    return bookmark_query_service.count_unread(db)
 
 
 @router.get("/counts", response_model=BookmarkCountsOut)
 def bookmark_counts(db: Session = Depends(get_db)):
-    active = Bookmark.deleted_at.is_(None)
-    total, dead, unread, trash = db.query(
-        func.sum(case((active, 1), else_=0)),
-        func.sum(case((active & Bookmark.is_dead.is_(True), 1), else_=0)),
-        func.sum(case((active & Bookmark.is_read.is_(False), 1), else_=0)),
-        func.sum(case((Bookmark.deleted_at.is_not(None), 1), else_=0)),
-    ).one()
-    return BookmarkCountsOut(
-        total=total or 0,
-        dead=dead or 0,
-        unread=unread or 0,
-        trash=trash or 0,
-    )
+    return BookmarkCountsOut(**bookmark_query_service.library_counts(db))
 
 
 # NOTE: these literal /trash routes MUST be declared before GET /{bookmark_id},
@@ -141,140 +115,10 @@ def get_trashed_bookmark(bookmark_id: str, db: Session = Depends(get_db)):
     return _enrich(bm)
 
 
-@router.post("/check-links")
-async def start_link_check():
-    return await link_check_service.start()
-
-
-@router.get("/check-links/status")
-async def link_check_status():
-    return link_check_service.get_status()
-
-
-@router.post("/refresh-metadata")
-async def start_metadata_refresh():
-    return await metadata_refresh_service.start()
-
-
-@router.get("/refresh-metadata/status")
-async def metadata_refresh_status():
-    return metadata_refresh_service.get_status()
-
-
-@router.post("/refresh-metadata/cancel")
-async def cancel_metadata_refresh():
-    return metadata_refresh_service.cancel()
-
-
-class AutoTagBatchRequest(BaseModel):
-    bookmark_ids: list[str]
-    provider_config: dict | None = {"provider": "ollama", "model": "llama3"}
-    language: str | None = None
-
-
-class TaxonomyTagEdit(BaseModel):
-    id: str
-    name: str
-    enabled: bool = True
-
-
-class ApplyTaxonomyRequest(BaseModel):
-    draft_id: str
-    tags: list[TaxonomyTagEdit]
-
-
-@router.post("/auto-tag-batch", dependencies=[Depends(ai_policy.require_ai)])
-async def start_auto_tag_batch(request: AutoTagBatchRequest):
-    """Auto-tag a list of bookmarks in the background (one run at a time).
-    Returns immediately with the initial status; poll /auto-tag-batch/status."""
-    from services import auto_tag_batch_service
-    unique_count = len(set(request.bookmark_ids))
-    if unique_count < auto_tag_batch_service.MIN_TAXONOMY_BOOKMARKS:
-        # A taxonomy needs shared categories (each backed by >= 2 bookmarks);
-        # below this the clustering degenerates into singletons and the run is
-        # guaranteed to fail after minutes of LLM work. Reject up front.
-        minimum = auto_tag_batch_service.MIN_TAXONOMY_BOOKMARKS
-        detail = (
-            f"Wähle mindestens {minimum} Lesezeichen, um ein Tag-System zu erstellen."
-            if request.language == "de"
-            else f"Select at least {minimum} bookmarks to build a tag system."
-        )
-        raise HTTPException(status_code=422, detail=detail)
-    return await auto_tag_batch_service.start(request.bookmark_ids, request.provider_config, request.language)
-
-
-@router.get("/auto-tag-batch/status")
-async def auto_tag_batch_status():
-    from services import auto_tag_batch_service
-    return auto_tag_batch_service.get_status()
-
-
-@router.post("/auto-tag-batch/cancel")
-async def cancel_auto_tag_batch():
-    from services import auto_tag_batch_service
-    return auto_tag_batch_service.cancel()
-
-
-@router.post("/auto-tag-batch/apply")
-def apply_auto_tag_taxonomy(request: ApplyTaxonomyRequest, db: Session = Depends(get_db)):
-    """Apply a reviewed taxonomy draft in one transaction."""
-    from services import taxonomy_service
-    return taxonomy_service.apply_draft(
-        db,
-        request.draft_id,
-        [tag.model_dump() for tag in request.tags],
-    )
-
-
-class OrganizeFoldersRequest(BaseModel):
-    provider_config: dict | None = None
-    language: str | None = None
-
-
-class ApplyFoldersRequest(BaseModel):
-    draft_id: str
-    folder_keys: list[str] | None = None
-
-
-@router.post("/organize-folders", dependencies=[Depends(ai_policy.require_ai)])
-async def start_organize_folders(request: OrganizeFoldersRequest):
-    """Let the local model build a new folder structure and move bookmarks into it."""
-    from services import folder_organize_service
-    return await folder_organize_service.start(request.provider_config, request.language)
-
-
-@router.get("/organize-folders/status")
-async def organize_folders_status():
-    from services import folder_organize_service
-    return folder_organize_service.get_status()
-
-
-@router.post("/organize-folders/cancel")
-async def cancel_organize_folders():
-    from services import folder_organize_service
-    return folder_organize_service.cancel()
-
-
-@router.post("/organize-folders/apply")
-def apply_organize_folders(request: ApplyFoldersRequest, db: Session = Depends(get_db)):
-    from services import folder_organize_service
-    try:
-        return folder_organize_service.apply_draft(db, request.draft_id, request.folder_keys)
-    except KeyError:
-        raise HTTPException(status_code=404, detail="Folder draft not found")
-
-
-@router.delete("/organize-folders/draft/{draft_id}", status_code=204)
-def discard_organize_folders(draft_id: str):
-    from services import folder_organize_service
-    folder_organize_service.discard_draft(draft_id)
-
-
-@router.delete("/auto-tag-batch/draft/{draft_id}")
-def discard_auto_tag_taxonomy(draft_id: str):
-    from services import auto_tag_batch_service
-    auto_tag_batch_service.discard_draft(draft_id)
-    return {"status": "discarded"}
+# Background jobs (/check-links, /refresh-metadata, /auto-tag-batch,
+# /organize-folders). Their static paths must be registered before the
+# /{bookmark_id} routes below; include_router copies routes in call order.
+router.include_router(bookmark_jobs.router)
 
 
 @router.get("/ids", response_model=list[str])
@@ -286,25 +130,14 @@ def list_bookmark_ids(
     q: str | None = None,
     db: Session = Depends(get_db),
 ):
-    from models.tag import Tag as TagModel, BookmarkTag
-    query = db.query(Bookmark.id).filter(Bookmark.deleted_at.is_(None))
-    if collection_id:
-        query = query.filter(Bookmark.collection_id == collection_id)
-    if dead_only:
-        query = query.filter(Bookmark.is_dead == True)
-    if unread_only:
-        query = query.filter(Bookmark.is_read == False)
-    if tag:
-        query = (query
-                 .join(BookmarkTag, BookmarkTag.bookmark_id == Bookmark.id)
-                 .join(TagModel, TagModel.id == BookmarkTag.tag_id)
-                 .filter(TagModel.name == tag))
-    if q:
-        from services.search_service import search_bookmarks
-        matches = search_bookmarks(db, q, limit=250_000)
-        matching = {bookmark.id for bookmark in matches}
-        return [row.id for row in query.all() if row.id in matching]
-    return [row.id for row in query.all()]
+    return bookmark_query_service.list_bookmark_ids(
+        db,
+        collection_id=collection_id,
+        tag=tag,
+        dead_only=dead_only,
+        unread_only=unread_only,
+        q=q,
+    )
 
 
 @router.get("", response_model=list[BookmarkSummaryOut])
@@ -334,7 +167,7 @@ def list_bookmarks(
 
 
 @router.post("", response_model=BookmarkOut, status_code=201)
-async def create_bookmark(
+def create_bookmark(
     data: BookmarkCreate,
     background_tasks: BackgroundTasks,
     response: Response,
@@ -443,38 +276,58 @@ def purge_trash(data: TrashIdsRequest, db: Session = Depends(get_db)):
 _metadata_fetch_slots = asyncio.Semaphore(3)
 
 
+def _begin_metadata_fetch(db: Session, bookmark_id: str) -> str:
+    bm = bookmark_service.get_bookmark(db, bookmark_id)
+    if not bm:
+        raise HTTPException(404, "Bookmark not found")
+    url = bm.url
+    bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "running", db=db)
+    db.close()
+    return url
+
+
+def _finish_metadata_fetch(db: Session, bookmark_id: str, url: str, meta: dict) -> BookmarkOut:
+    # Reload after network I/O: a bookmark may have been edited/deleted.
+    bm = bookmark_service.get_bookmark(db, bookmark_id)
+    if not bm:
+        raise HTTPException(404, "Bookmark not found")
+    if bm.url != url:
+        raise HTTPException(409, "Bookmark URL changed during metadata fetch")
+    bm = bookmark_service.update_bookmark_metadata(db, bm, meta)
+    bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "ready", db=db)
+    db.refresh(bm)
+    return _enrich(bm)
+
+
+def _fail_metadata_fetch(db: Session, bookmark_id: str, error: str, rollback: bool) -> None:
+    if rollback:
+        db.rollback()
+    bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "failed", error, db=db)
+
+
 @router.post("/{bookmark_id}/fetch-meta", response_model=BookmarkOut)
 async def fetch_meta(bookmark_id: str, db: Session = Depends(get_db)):
+    # Database sections run in the threadpool (anyio lets them finish even
+    # when the request is cancelled); only the website fetch runs on the loop.
     async with _metadata_fetch_slots:
-        bm = bookmark_service.get_bookmark(db, bookmark_id)
-        if not bm:
-            raise HTTPException(404, "Bookmark not found")
-        url = bm.url
-        bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "running", db=db)
-        db.close()
+        url = await run_in_threadpool(_begin_metadata_fetch, db, bookmark_id)
         try:
             meta = await metadata_service.fetch_metadata(url)
-            # Reload after network I/O: a bookmark may have been edited/deleted.
-            bm = bookmark_service.get_bookmark(db, bookmark_id)
-            if not bm:
-                raise HTTPException(404, "Bookmark not found")
-            if bm.url != url:
-                raise HTTPException(409, "Bookmark URL changed during metadata fetch")
-            bm = bookmark_service.update_bookmark_metadata(db, bm, meta)
-            bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "ready", db=db)
-            db.refresh(bm)
-            return _enrich(bm)
+            return await run_in_threadpool(_finish_metadata_fetch, db, bookmark_id, url, meta)
         except HTTPException:
             raise
         except asyncio.CancelledError:
-            bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "failed", "Metadata request cancelled", db=db)
+            await run_in_threadpool(
+                _fail_metadata_fetch, db, bookmark_id, "Metadata request cancelled", False
+            )
             raise
         except Exception:
-            db.rollback()
-            bookmark_enrichment_service.record_stage(bookmark_id, "metadata", "failed", "Metadata fetch failed", db=db)
+            await run_in_threadpool(
+                _fail_metadata_fetch, db, bookmark_id, "Metadata fetch failed", True
+            )
             raise
         finally:
-            db.close()
+            await run_in_threadpool(db.close)
 
 
 @router.post("/{bookmark_id}/analysis/retry", response_model=BookmarkOut)
@@ -494,7 +347,7 @@ def add_bookmark_note(bookmark_id: str, data: BookmarkNoteCreate, db: Session = 
     bm = bookmark_service.get_bookmark(db, bookmark_id)
     if not bm:
         raise HTTPException(404, "Bookmark not found")
-    
+
     note = bookmark_service.add_note(db, bookmark_id, data.content, data.source)
     return note
 
@@ -506,199 +359,8 @@ def delete_bookmark_note(bookmark_id: str, note_id: str, db: Session = Depends(g
         raise HTTPException(404, "Note not found")
 
 
-class ReaderResponse(BaseModel):
-    content: str
-
-
-def _reader_failure(errors: list[str | None]) -> tuple[int, str, str]:
-    details = [str(error).strip() for error in errors if error and str(error).strip()]
-    combined = " | ".join(details)
-    lowered = combined.casefold()
-    diagnostic = f"Reader: {combined or 'No readable page text found'}"[:2_000]
-
-    if "timeout" in lowered or "timed out" in lowered:
-        return 504, "The page did not respond in time. Try again.", diagnostic
-    if "ssl" in lowered or "certificate" in lowered:
-        return 422, "The page's security certificate could not be verified.", diagnostic
-    if any(code in lowered for code in ("http 401", "http 403", "status 401", "status 403")):
-        return 422, "The page blocked access to its content.", diagnostic
-    if "unsupported content type" in lowered:
-        return 422, "This type of page cannot be opened in Reader.", diagnostic
-    if "safety limit" in lowered or "too large" in lowered:
-        return 413, "The page is too large to process safely.", diagnostic
-    return 422, "No readable content could be extracted from this page.", diagnostic
-
-
-@router.get("/{bookmark_id}/reader", response_model=ReaderResponse)
-async def get_reader_content(bookmark_id: str, db: Session = Depends(get_db)):
-    bm = bookmark_service.get_bookmark(db, bookmark_id)
-    if not bm:
-        raise HTTPException(404, "Bookmark not found")
-
-    # Reader text is durable local data. Re-fetching the website on every tab
-    # open made previously successful articles fail later when a site added a
-    # login wall, bot protection, or was temporarily unavailable.
-    cached_content = (bm.scraped_content or "").strip()
-    if cached_content:
-        if bm.reader_status != "ready":
-            bookmark_enrichment_service.record_stage(
-                bookmark_id, "reader", "ready", db=db
-            )
-        if bm.index_status != "ready":
-            bookmark_enrichment_service.schedule_index(bookmark_id, cached_content)
-        return ReaderResponse(content=cached_content)
-
-    bookmark_enrichment_service.record_stage(bookmark_id, "reader", "running", db=db)
-    scrape_error = None
-    rendered_error = None
-    try:
-        scrape_result = await scraper_service.extract_content(bm.url)
-        content = (scrape_result.get("content") or "").strip()
-        scrape_error = scrape_result.get("error")
-    except Exception as exc:
-        content = ""
-        scrape_error = str(exc)
-
-    # Vite/React and similar sites often ship an empty <div id="root"> in the
-    # HTML and render all visible text with JavaScript. Chromium is already
-    # bundled for Design; use it only for this explicit Reader request.
-    if not content:
-        try:
-            rendered = await scraper_service.extract_rendered_content(bm.url)
-            content = (rendered.get("content") or "").strip()
-            rendered_error = rendered.get("error")
-        except Exception as exc:
-            rendered_error = str(exc)
-
-    if content:
-        stored = bookmark_service.store_scraped_content(db, bookmark_id, content)
-        bookmark_enrichment_service.record_stage(
-            bookmark_id,
-            "reader",
-            "ready" if stored else "failed",
-            None if stored else "Reader: Extracted text could not be stored",
-            db=db,
-        )
-        bookmark_enrichment_service.schedule_index(bookmark_id, content)
-    else:
-        status_code, message, diagnostic = _reader_failure(
-            [scrape_error, rendered_error]
-        )
-        bookmark_enrichment_service.record_stage(
-            bookmark_id,
-            "reader",
-            "failed",
-            diagnostic,
-            db=db,
-        )
-        raise HTTPException(status_code=status_code, detail=message)
-
-    return ReaderResponse(content=content)
-
-
-class ReaderCleanupRequest(BaseModel):
-    provider_config: dict | None = {"provider": "ollama", "model": "llama3"}
-
-
-class ReaderTranslateRequest(BaseModel):
-    provider_config: dict | None = {"provider": "ollama", "model": "llama3"}
-    target_language: str = "de"
-    content: str | None = Field(default=None, max_length=20_000)
-
-
-@router.post("/{bookmark_id}/reader/cleanup", dependencies=[Depends(ai_policy.require_ai)], response_model=ReaderResponse)
-async def cleanup_reader_content(
-    bookmark_id: str, request: ReaderCleanupRequest, db: Session = Depends(get_db)
-):
-    """Optional, opt-in: ask the local LLM to tidy the extracted text into clean
-    prose. The original cached content is NOT modified — this only returns a
-    nicer rendering for display."""
-    from services.llm_service import LLMService
-
-    bm = bookmark_service.get_bookmark(db, bookmark_id)
-    if not bm:
-        raise HTTPException(404, "Bookmark not found")
-
-    content = bm.scraped_content
-    if not content:
-        scrape_result = await scraper_service.extract_content(bm.url)
-        content = scrape_result.get("content", "")
-        if not content:
-            rendered = await scraper_service.extract_rendered_content(bm.url)
-            content = rendered.get("content", "")
-        if content:
-            stored = bookmark_service.store_scraped_content(db, bookmark_id, content)
-            bookmark_enrichment_service.record_stage(
-                bookmark_id,
-                "reader",
-                "ready" if stored else "failed",
-                None if stored else "Reader: Extracted text could not be stored",
-                db=db,
-            )
-            bookmark_enrichment_service.schedule_index(bookmark_id, content)
-    if not content:
-        raise HTTPException(422, "No readable content to clean up")
-
-    prompt = (
-        "Turn the extracted article text below into clean, readable Markdown. "
-        "Fix broken line breaks and spacing, preserve meaningful headings, "
-        "paragraphs, quotations, and lists. Remove navigation breadcrumbs, "
-        "duplicated metadata, schema.org field labels, and repeated summaries. "
-        "Do not invent facts or summarize the article. Return only the cleaned "
-        "article text in its original language."
-    )
-    try:
-        cleaned = await LLMService.ask_llm(
-            prompt=prompt, context=content[:15000],
-            provider_config=request.provider_config or {"provider": "ollama", "model": "llama3"},
-            title=bm.title or "", url=bm.url or "",
-            think=False,
-        )
-    except Exception:
-        # Provider errors may contain URLs, local paths or response bodies.
-        logger.exception("Reader cleanup LLM request failed for bookmark %s", bookmark_id)
-        raise HTTPException(502, "LLM cleanup failed. Check the AI settings and try again.")
-
-    return ReaderResponse(content=cleaned or content)
-
-
-@router.post("/{bookmark_id}/reader/translate", dependencies=[Depends(ai_policy.require_ai)], response_model=ReaderResponse)
-async def translate_reader_content(
-    bookmark_id: str, request: ReaderTranslateRequest, db: Session = Depends(get_db)
-):
-    """Translate the current Reader text while preserving its Markdown layout."""
-    from services.llm_service import LLMService
-
-    bm = bookmark_service.get_bookmark(db, bookmark_id)
-    if not bm:
-        raise HTTPException(404, "Bookmark not found")
-
-    content = (request.content or bm.scraped_content or "").strip()
-    if not content:
-        raise HTTPException(422, "No readable content to translate")
-
-    language = request.target_language if request.target_language in {"de", "en"} else "de"
-    language_name = "German" if language == "de" else "English"
-    prompt = (
-        f"Translate the Reader text below into {language_name}. Preserve its "
-        "Markdown headings, paragraphs, lists, quotations, names, links, numbers, "
-        "and meaning. Do not summarize or add commentary. Return only the translation."
-    )
-    try:
-        translated = await LLMService.ask_llm(
-            prompt=prompt,
-            context=content[:15_000],
-            provider_config=request.provider_config or {"provider": "ollama", "model": "llama3"},
-            title=bm.title or "",
-            url=bm.url or "",
-            think=False,
-            language=language,
-        )
-    except Exception:
-        logger.exception("Reader translation LLM request failed for bookmark %s", bookmark_id)
-        raise HTTPException(502, "LLM translation failed. Check the AI settings and try again.")
-
-    return ReaderResponse(content=translated or content)
+# /{bookmark_id}/reader, /reader/cleanup and /reader/translate.
+router.include_router(reader.router)
 
 
 @router.post("/{bookmark_id}/auto-tag", dependencies=[Depends(ai_policy.require_ai)], response_model=BookmarkOut)
@@ -709,4 +371,5 @@ async def auto_tag_bookmark(bookmark_id: str, request: AutoTagRequest, db: Sessi
         provider_config=request.provider_config,
         language=request.language,
     )
-    return _enrich(bm)
+    # Serializing loads tags and reads the design snapshot summary from disk.
+    return await run_in_threadpool(_enrich, bm)

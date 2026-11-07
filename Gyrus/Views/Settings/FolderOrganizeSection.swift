@@ -1,9 +1,7 @@
 import SwiftUI
 
 struct FolderOrganizeSection: View {
-    private var uiState: UIStateStore { AppStore.shared.uiStateStore }
-
-    private var status: FolderOrganizeStatus? { uiState.folderOrganizeStatus }
+    private var status: FolderOrganizeStatus? { AppStore.shared.jobs.folderOrganizeStatus }
     private var running: Bool { status?.running == true }
 
     var body: some View {
@@ -45,11 +43,11 @@ struct FolderOrganizeSection: View {
     }
 
     private func start() async {
-        await AppStore.shared.startFolderOrganize()
+        await AppStore.shared.jobs.startFolderOrganize()
     }
 
     private func stop() async {
-        await AppStore.shared.cancelFolderOrganize()
+        await AppStore.shared.jobs.cancelFolderOrganize()
     }
 }
 

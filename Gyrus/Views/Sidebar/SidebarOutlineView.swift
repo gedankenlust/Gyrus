@@ -418,7 +418,7 @@ struct SidebarOutlineView: NSViewRepresentable {
             if (item as? SidebarNode)?.id == "__trash__" {
                 let ids = Set(str.split(separator: "\n").map(String.init))
                 Task { @MainActor in
-                    await AppStore.shared.trashBookmarks(ids: ids)
+                    await AppStore.shared.trash.trashBookmarks(ids: ids)
                     self.reload()
                 }
                 return true

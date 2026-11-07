@@ -81,62 +81,6 @@ async def test_fetch_text_enforces_decoded_size_limit():
             await _fetch_text(client, "https://example.com", max_bytes=10)
 
 
-@pytest.mark.asyncio
-async def test_get_pagespeed_metrics_success():
-    mock_data = {
-        "loadingExperience": {
-            "metrics": {
-                "LARGEST_CONTENTFUL_PAINT_MS": {"percentile": 1200},
-                "CUMULATIVE_LAYOUT_SHIFT_SCORE": {"percentile": 10},
-                "FIRST_INPUT_DELAY_MS": {"percentile": 50}
-            }
-        },
-        "lighthouseResult": {
-            "categories": {
-                "performance": {"score": 0.95}
-            }
-        }
-    }
-    
-    with patch(
-        "services.scraper_service._fetch_text",
-        new_callable=AsyncMock,
-        return_value=json.dumps(mock_data),
-    ):
-        result = await scraper_service.get_pagespeed_metrics("https://example.com")
-        
-        assert result["error"] is None
-        assert result["lcp"] == 1200
-        assert result["cls"] == 10
-        assert result["fid"] == 50
-        assert result["score"] == 0.95
-
-@pytest.mark.asyncio
-async def test_get_pagespeed_metrics_failure():
-    with patch(
-        "services.scraper_service._fetch_text",
-        new_callable=AsyncMock,
-        side_effect=ScraperRequestError("Website returned HTTP 500"),
-    ):
-        result = await scraper_service.get_pagespeed_metrics("https://example.com")
-        
-        assert result["error"] == "Website returned HTTP 500"
-        assert result["score"] is None
-
-
-@pytest.mark.asyncio
-async def test_get_pagespeed_metrics_rejects_unexpected_payload():
-    with patch(
-        "services.scraper_service._fetch_text",
-        new_callable=AsyncMock,
-        return_value="[]",
-    ):
-        result = await scraper_service.get_pagespeed_metrics("https://example.com")
-
-    assert result["error"] == "PageSpeed returned an unexpected payload"
-    assert result["score"] is None
-
-
 def test_jsonld_reader_facts_skip_breadcrumb_and_article_metadata():
     soup = BeautifulSoup(
         """

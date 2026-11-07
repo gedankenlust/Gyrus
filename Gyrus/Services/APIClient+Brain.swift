@@ -98,10 +98,8 @@ extension APIClient {
             let embedding_models: [String]
             let error: String?
         }
-        var comps = URLComponents(url: base.appending(path: "/api/brain/available-models"),
-                                  resolvingAgainstBaseURL: false)!
-        comps.queryItems = [URLQueryItem(name: "url", value: ollamaURL)]
-        let r: Response = try await get(comps.url!)
+        let r: Response = try await get(base.appending(path: "/api/brain/available-models"),
+                                        query: [URLQueryItem(name: "url", value: ollamaURL)])
         return (r.text_models, r.embedding_models)
     }
 
