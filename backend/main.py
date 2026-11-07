@@ -61,6 +61,16 @@ async def lifespan(app: FastAPI):
     # Routine daily safety net (independent of migrations).
     run_daily_backup()
     command.upgrade(cfg, "head")
+    # Libraries from before the vectors got their own file still hold the old
+    # table. Hand it over once; a failure only costs semantic search until the
+    # next start, never the library.
+    try:
+        from database import engine, VECTOR_DB_PATH
+        from services import vector_relocation
+        if vector_relocation.has_legacy_table(engine):
+            await asyncio.to_thread(vector_relocation.relocate_in_child, DB_PATH, VECTOR_DB_PATH)
+    except Exception as exc:
+        logger.warning("Moving the semantic-search vectors failed: %s", exc)
     # Resume only work that was already queued or interrupted. The migration
     # marks untouched legacy bookmarks as not_requested, so upgrades never
     # trigger an unexpected full-library crawl.

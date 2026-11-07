@@ -68,7 +68,7 @@ async def semantic_search_status():
     from services import vector_store
     from services.embedding_service import current_model, current_base_url
 
-    # The vector table shares the SQLite file and its busy timeout.
+    # The vector database may wait on its busy timeout; keep it off the loop.
     indexed = await run_in_threadpool(vector_store.count)
     if not ai_policy.enabled():
         return {"available": False, "indexed": indexed, "message": "AI is disabled.", **_progress()}

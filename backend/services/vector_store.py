@@ -1,8 +1,19 @@
 """SQLite-vec vector store for semantic search.
 
-Wraps the bookmarks_vec virtual table (created here on first use) via
-apsw — the only Python SQLite adapter that can load extensions on macOS without
-a special build flag.  All other DB operations continue to use SQLAlchemy.
+The vectors live in their own database file (database.VECTOR_DB_PATH), opened
+only here and only through apsw, the one Python SQLite adapter that can load
+extensions on every Mac build. The library itself (gyrus.db) is opened only by
+Python's sqlite3 through SQLAlchemy.
+
+Two SQLite libraries must never open the same file in one process. POSIX locks
+do not tell them apart, so a closing apsw connection once took itself for the
+last user of gyrus.db and deleted the -wal and -shm files that sqlite3 was still
+writing to. And sqlite-vec keeps one global pointer to the library that loaded
+it last, so it may be loaded into apsw only.
+
+What stays in gyrus.db is a plain flag table, gyrus_vector_config, which a
+library replacement clears in its own transaction (invalidate_for_replacement).
+The model the vectors belong to is stored next to them in vector_config.
 
 Intentionally simple:
   upsert(bookmark_id, vector)  — store / replace a vector
@@ -21,6 +32,11 @@ _conn = None
 _lock = threading.RLock()
 _invalid = False
 
+_LIBRARY_STATE_TABLE = (
+    "CREATE TABLE IF NOT EXISTS gyrus_vector_config "
+    "(id INTEGER PRIMARY KEY, model_key TEXT, valid INTEGER NOT NULL)"
+)
+
 
 def serialized(function):
     @functools.wraps(function)
@@ -30,33 +46,61 @@ def serialized(function):
     return call
 
 
-def _config(conn):
-    conn.execute("CREATE TABLE IF NOT EXISTS gyrus_vector_config (id INTEGER PRIMARY KEY, model_key TEXT, valid INTEGER NOT NULL)")
-    return conn.execute("SELECT model_key, valid FROM gyrus_vector_config WHERE id=1").fetchone()
-
-
-def _set_config(conn, key, valid=True):
-    _config(conn)
-    conn.execute("INSERT OR REPLACE INTO gyrus_vector_config VALUES (1, ?, ?)", (key, int(valid)))
-
+# --- State kept in the library database (sqlite3 / SQLAlchemy only) --------
 
 def invalidate_for_replacement(db):
     """Invalidate derived state in the same transaction as a library replacement."""
     from sqlalchemy import text
-    db.execute(text("CREATE TABLE IF NOT EXISTS gyrus_vector_config (id INTEGER PRIMARY KEY, model_key TEXT, valid INTEGER NOT NULL)"))
+    db.execute(text(_LIBRARY_STATE_TABLE))
     db.execute(text("INSERT OR REPLACE INTO gyrus_vector_config VALUES (1, NULL, 0)"))
+
+
+def _library_valid() -> bool:
+    """False while a library replacement has invalidated the vectors."""
+    from sqlalchemy import text
+    from sqlalchemy.exc import OperationalError
+    from database import engine
+    try:
+        with engine.connect() as connection:
+            row = connection.execute(text("SELECT valid FROM gyrus_vector_config WHERE id=1")).fetchone()
+    except OperationalError:
+        # No table yet: nothing has ever invalidated the vectors.
+        return True
+    return row is None or bool(row[0])
+
+
+def _mark_library_valid() -> None:
+    """Called after the vectors were rebuilt or cleared, outside _lock: it may
+    wait for the library's write lock, which a request holding that lock could
+    otherwise hold against a vector delete it is waiting for."""
+    from sqlalchemy import text
+    from database import engine
+    with engine.begin() as connection:
+        connection.execute(text(_LIBRARY_STATE_TABLE))
+        connection.execute(text("INSERT OR REPLACE INTO gyrus_vector_config VALUES (1, NULL, 1)"))
+
+
+# --- The vector database (apsw only) ---------------------------------------
+
+def _vector_key(conn):
+    conn.execute("CREATE TABLE IF NOT EXISTS vector_config (id INTEGER PRIMARY KEY, model_key TEXT)")
+    row = conn.execute("SELECT model_key FROM vector_config WHERE id=1").fetchone()
+    return row[0] if row else None
+
+
+def _set_vector_key(conn, key):
+    conn.execute("CREATE TABLE IF NOT EXISTS vector_config (id INTEGER PRIMARY KEY, model_key TEXT)")
+    conn.execute("INSERT OR REPLACE INTO vector_config VALUES (1, ?)", (key,))
 
 
 @serialized
 def matches_configuration(key):
-    conn = _get_conn()
-    row = _config(conn)
-    if _invalid or (row and not row[1]):
+    if _invalid or not _library_valid():
         return False
-    if not row or row[0] is None:
+    stored = _vector_key(_get_conn())
+    if stored is None:
         return count() == 0
-    return row[0] == key
-
+    return stored == key
 
 
 @serialized
@@ -67,15 +111,15 @@ def _get_conn():
 
     import apsw
     import sqlite_vec
-    from database import DB_PATH
+    from database import VECTOR_DB_PATH
 
-    conn = apsw.Connection(str(DB_PATH))
+    VECTOR_DB_PATH.touch(mode=0o600, exist_ok=True)
+    VECTOR_DB_PATH.chmod(0o600)
+    conn = apsw.Connection(str(VECTOR_DB_PATH))
     conn.setbusytimeout(5000)
     conn.enableloadextension(True)
     sqlite_vec.load(conn)
     conn.enableloadextension(False)
-    # Created here, not by a migration: sqlite-vec must only ever be loaded
-    # into this one SQLite library (see the c4d5e6f7a8b9 migration).
     conn.execute(
         "CREATE VIRTUAL TABLE IF NOT EXISTS bookmarks_vec "
         "USING vec0(bookmark_id TEXT PRIMARY KEY, embedding FLOAT[768])"
@@ -84,7 +128,6 @@ def _get_conn():
     return conn
 
 
-@serialized
 def reset_table(dim: int, model_key: str | None = None) -> None:
     """Drop and recreate bookmarks_vec for a given embedding dimension.
 
@@ -97,12 +140,18 @@ def reset_table(dim: int, model_key: str | None = None) -> None:
     dim = int(dim)
     if dim <= 0:
         raise ValueError(f"Invalid embedding dimension: {dim}")
+    _rebuild(dim, model_key)
+    _mark_library_valid()
+
+
+@serialized
+def _rebuild(dim: int, model_key: str | None) -> None:
     global _invalid
     conn = _get_conn()
     with conn:
         conn.execute("DROP TABLE IF EXISTS bookmarks_vec")
         conn.execute(f"CREATE VIRTUAL TABLE bookmarks_vec USING vec0(bookmark_id TEXT PRIMARY KEY, embedding FLOAT[{dim}])")
-        _set_config(conn, model_key)
+        _set_vector_key(conn, model_key)
     _invalid = False
 
 
@@ -118,7 +167,9 @@ def upsert(bookmark_id: str, vector: list[float], *, model_key: str | None = Non
             if not matches_configuration(model_key):
                 return False
             if count() == 0:
-                reset_table(len(vector), model_key)
+                # The library flag was just found valid; only the vectors
+                # need rebuilding, without taking the library's write lock.
+                _rebuild(len(vector), model_key)
         vec_json = json.dumps(vector)
         with conn:
             conn.execute("DELETE FROM bookmarks_vec WHERE bookmark_id = ?", (bookmark_id,))
@@ -162,15 +213,16 @@ def delete_many(bookmark_ids: list[str]) -> None:
         logger.warning("vector_store.delete_many failed: %s", e)
 
 
-@serialized
 def clear(*, strict: bool = False) -> None:
     """Remove every embedding, including stale rows without a bookmark."""
     global _invalid
     try:
-        conn = _get_conn()
-        with conn:
-            conn.execute("DELETE FROM bookmarks_vec")
-            _set_config(conn, None)
+        with _lock:
+            conn = _get_conn()
+            with conn:
+                conn.execute("DELETE FROM bookmarks_vec")
+                _set_vector_key(conn, None)
+        _mark_library_valid()
         _invalid = False
     except Exception as e:
         _invalid = True
@@ -266,15 +318,16 @@ def count() -> int:
         return 0
 
 
-@serialized
 def replace_all(rows, dimension, model_key):
     """Commit a fully computed replacement atomically; rollback retains old vectors."""
     global _invalid
-    conn = _get_conn()
-    with conn:
-        conn.execute("DROP TABLE IF EXISTS bookmarks_vec")
-        conn.execute(f"CREATE VIRTUAL TABLE bookmarks_vec USING vec0(bookmark_id TEXT PRIMARY KEY, embedding FLOAT[{int(dimension)}])")
-        for ident, vector in rows:
-            conn.execute("INSERT INTO bookmarks_vec VALUES (?, ?)", (ident, json.dumps(vector)))
-        _set_config(conn, model_key)
-    _invalid = False
+    with _lock:
+        conn = _get_conn()
+        with conn:
+            conn.execute("DROP TABLE IF EXISTS bookmarks_vec")
+            conn.execute(f"CREATE VIRTUAL TABLE bookmarks_vec USING vec0(bookmark_id TEXT PRIMARY KEY, embedding FLOAT[{int(dimension)}])")
+            for ident, vector in rows:
+                conn.execute("INSERT INTO bookmarks_vec VALUES (?, ?)", (ident, json.dumps(vector)))
+            _set_vector_key(conn, model_key)
+        _invalid = False
+    _mark_library_valid()

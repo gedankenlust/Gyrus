@@ -10,6 +10,9 @@ for directory in (DATA_DIR, DATA_DIR / "favicons", DATA_DIR / "og_images", DATA_
     directory.chmod(0o700)
 
 DB_PATH = DATA_DIR / "db" / "gyrus.db"
+# Semantic-search vectors live in a file of their own: only services.vector_store
+# opens it, through apsw, so two SQLite libraries never share one database file.
+VECTOR_DB_PATH = DATA_DIR / "db" / "vectors.db"
 BUSY_TIMEOUT_MS = 10_000
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
