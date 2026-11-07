@@ -1,31 +1,68 @@
 import SwiftUI
 
+/// The areas of the Website section.
+enum DesignWebsiteArea: String, CaseIterable, Identifiable {
+    case content
+    case pages
+    case files
+    case stack
+
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .content: "Content"
+        case .pages: "Pages & menus"
+        case .files: "Files"
+        case .stack: "Stack"
+        }
+    }
+}
+
 struct DesignWebsiteBrowser: View {
     let viewport: APIClient.VisualViewportDTO
     let structure: APIClient.VisualSiteStructureDTO?
     let navigation: [APIClient.VisualNavigationGroupDTO]
-    @State private var section = "Content"
+    /// Owned by the tab so the overview's technology block can open Stack.
+    @Binding var area: DesignWebsiteArea
     @State private var query = ""
     @State private var assetKind = "Images"
     @State private var pageKind = "Pages"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Picker("Website area", selection: $section) {
-                Text("Content").tag("Content")
-                Text("Pages & menus").tag("Pages & menus")
-                Text("Files").tag("Files")
+            Picker("Website area", selection: $area) {
+                ForEach(DesignWebsiteArea.allCases) { Text($0.title).tag($0) }
             }.pickerStyle(.segmented).labelsHidden()
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    switch section {
-                    case "Pages & menus": pages
-                    case "Files": files
-                    default: content
+                    switch area {
+                    case .content: content
+                    case .pages: pages
+                    case .files: files
+                    case .stack: stack
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(.bottom, 16)
-            }.id(section)
-        }.onChange(of: section) { _, _ in query = "" }
+            }.id(area)
+        }.onChange(of: area) { _, _ in query = "" }
+    }
+
+    @ViewBuilder
+    private var stack: some View {
+        Text("Frameworks, platforms and services recognized from the page's markup, scripts and headers. Hover a card for the evidence.")
+            .font(.callout).foregroundStyle(.secondary)
+        if let technologies = viewport.technologies {
+            if technologies.isEmpty {
+                Text("No technology signatures detected.").font(.caption).foregroundStyle(.secondary)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
+                    ForEach(technologies) { TechnologyCard(technology: $0) }
+                }
+            }
+        } else {
+            Label("Reinspect this page to detect its technology stack.", systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption).foregroundStyle(.secondary)
+        }
     }
 
     private var content: some View {

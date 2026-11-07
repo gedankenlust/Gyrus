@@ -3,6 +3,7 @@ from PIL import Image
 import json
 
 from services import visual_snapshot_service
+from services.visual_snapshot import browser, capture, persistence
 from services.visual_snapshot_service import (
     MAX_SCREENSHOT_PIXELS,
     MAX_TECHNOLOGY_SCRIPT_BYTES,
@@ -246,7 +247,7 @@ def test_dominant_colors_prioritize_design_colors_over_page_chrome(tmp_path):
 
 
 def test_snapshot_summary_marks_old_desktop_ratio_for_reinspection(tmp_path, monkeypatch):
-    monkeypatch.setattr(visual_snapshot_service, "SNAPSHOT_DIR", tmp_path)
+    monkeypatch.setattr(persistence, "SNAPSHOT_DIR", tmp_path)
     bookmark_dir = tmp_path / "bookmark-1"
     bookmark_dir.mkdir()
     snapshot = {
@@ -270,7 +271,7 @@ def test_snapshot_summary_marks_old_desktop_ratio_for_reinspection(tmp_path, mon
 
 
 def test_snapshot_runs_are_listed_newest_first_and_pruned(tmp_path, monkeypatch):
-    monkeypatch.setattr(visual_snapshot_service, "SNAPSHOT_DIR", tmp_path)
+    monkeypatch.setattr(persistence, "SNAPSHOT_DIR", tmp_path)
     runs_dir = tmp_path / "bookmark-1" / "runs"
     for index in range(10):
         run_id = f"20260713T1200{index:02d}Z-run"
@@ -314,7 +315,7 @@ def test_issue_evidence_is_cropped_into_run_directory(tmp_path):
 
 
 def test_discard_snapshot_run(tmp_path, monkeypatch):
-    monkeypatch.setattr(visual_snapshot_service, "SNAPSHOT_DIR", tmp_path)
+    monkeypatch.setattr(persistence, "SNAPSHOT_DIR", tmp_path)
     run_dir = tmp_path / "bookmark-1" / "runs" / "run-1"
     run_dir.mkdir(parents=True)
 
@@ -414,8 +415,11 @@ def fake_capture(tmp_path, monkeypatch):
     from services.site_structure_service import site_structure_service
 
     behaviour = {"events": [], "pages": []}
-    monkeypatch.setattr(visual_snapshot_service, "SNAPSHOT_DIR", tmp_path)
-    monkeypatch.setattr(visual_snapshot_service, "validate_outbound_url", AsyncMock())
+    monkeypatch.setattr(persistence, "SNAPSHOT_DIR", tmp_path)
+    # Both the pre-flight check in capture and the request guard in browser
+    # bound the name at import, so each needs its own patch.
+    monkeypatch.setattr(capture, "validate_outbound_url", AsyncMock())
+    monkeypatch.setattr(browser, "validate_outbound_url", AsyncMock())
     monkeypatch.setattr("playwright.async_api.async_playwright", _fake_playwright(behaviour))
     monkeypatch.setattr(site_structure_service, "data_for_url", AsyncMock(return_value={}))
     monkeypatch.setattr(site_structure_service, "snapshot_payload", lambda data: {"pages": []})
@@ -425,7 +429,7 @@ def fake_capture(tmp_path, monkeypatch):
         page.menus_open = True  # exploring hovers and clicks menus open
         return [{"label": "Main", "items": []}]
 
-    monkeypatch.setattr(visual_snapshot_service, "_capture_rendered_navigation", navigation)
+    monkeypatch.setattr(capture, "capture_rendered_navigation", navigation)
     return behaviour
 
 
@@ -468,7 +472,7 @@ async def test_failed_capture_keeps_current_snapshot_and_is_listed(fake_capture)
 
 @pytest.mark.asyncio
 async def test_failed_runs_never_prune_the_current_snapshot_run(fake_capture, monkeypatch):
-    monkeypatch.setattr(visual_snapshot_service, "MAX_SNAPSHOT_RUNS", 2)
+    monkeypatch.setattr(persistence, "MAX_SNAPSHOT_RUNS", 2)
     good = await visual_snapshot_service.capture_snapshot("bm", "https://design.example/")
     fake_capture["goto_error"] = "offline"
     for _ in range(3):
@@ -498,7 +502,7 @@ async def test_failed_capture_job_reports_an_error(fake_capture):
 
 @pytest.mark.asyncio
 async def test_hanging_page_script_cannot_block_the_capture(fake_capture, monkeypatch):
-    monkeypatch.setattr(visual_snapshot_service, "EVALUATE_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(browser, "EVALUATE_TIMEOUT_SECONDS", 0.01)
     fake_capture["hang_evaluate"] = True
 
     snapshot = await asyncio.wait_for(
@@ -514,7 +518,7 @@ async def test_navigation_failure_keeps_the_captured_viewport(fake_capture, monk
     async def broken(page):
         raise RuntimeError("menu exploded")
 
-    monkeypatch.setattr(visual_snapshot_service, "_capture_rendered_navigation", broken)
+    monkeypatch.setattr(capture, "capture_rendered_navigation", broken)
     snapshot = await visual_snapshot_service.capture_snapshot("bm", "https://design.example/")
     assert snapshot["status"] == "completed"
     assert snapshot["navigation"] == []

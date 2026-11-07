@@ -50,8 +50,7 @@ func classifyComponents(_ samples: [APIClient.VisualElementSampleDTO], limit: In
         ComponentGroup(
             title: title,
             icon: icon,
-            variants: members.groupedVariants(limit: limit),
-            instanceCount: members.count
+            variants: members.groupedVariants(limit: limit)
         )
     }
 

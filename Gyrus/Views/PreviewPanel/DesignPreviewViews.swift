@@ -134,7 +134,7 @@ struct ViewportComparisonStrip: View {
                 ForEach(viewports, id: \.name) { viewport in
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 5) {
-                            Image(systemName: viewportComparisonIcon(viewport.name))
+                            Image(systemName: designViewportIcon(viewport.name))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                             Text(verbatim: viewport.name.capitalized)
@@ -161,15 +161,6 @@ struct ViewportComparisonStrip: View {
                 }
             }
             .padding(.vertical, 2)
-        }
-    }
-
-    private func viewportComparisonIcon(_ name: String) -> String {
-        switch name {
-        case "desktop": "desktopcomputer"
-        case "tablet": "ipad"
-        case "mobile": "iphone"
-        default: "rectangle"
         }
     }
 }
@@ -251,7 +242,7 @@ struct ViewportFrameHeader: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: viewportFrameIcon(viewport.name))
+            Image(systemName: designViewportIcon(viewport.name))
                 .foregroundStyle(.secondary)
             Text("\(viewport.name.capitalized) \(viewport.width)x\(viewport.height)")
                 .font(.caption.bold())
@@ -259,15 +250,6 @@ struct ViewportFrameHeader: View {
             Text(trailing)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
-        }
-    }
-
-    func viewportFrameIcon(_ name: String) -> String {
-        switch name {
-        case "desktop": "desktopcomputer"
-        case "tablet": "ipad"
-        case "mobile": "iphone"
-        default: "rectangle"
         }
     }
 }

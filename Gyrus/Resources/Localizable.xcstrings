@@ -15442,6 +15442,1250 @@
           }
         }
       }
+    },
+    "%@ on %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ auf %2$@"
+          }
+        }
+      }
+    },
+    "%lld characters": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Zeichen"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Zeichen"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld of 100": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld von 100"
+          }
+        }
+      }
+    },
+    "%lld of high severity": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld mit hoher Schwere"
+          }
+        }
+      }
+    },
+    "%lld sizes, %@–%@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld Größen, %2$@–%3$@"
+          }
+        }
+      }
+    },
+    "A canonical link tells search engines which address is the original.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Canonical-Link sagt Suchmaschinen, welche Adresse das Original ist."
+          }
+        }
+      }
+    },
+    "A placeholder is not a label. Connect a <label> or set aria-label.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein Platzhalter ist kein Label. Verknüpfe ein <label> oder setze aria-label."
+          }
+        }
+      }
+    },
+    "Affected elements, requests or messages": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Betroffene Elemente, Anfragen oder Meldungen"
+          }
+        }
+      }
+    },
+    "Aim for 50–160 characters; this one has %lld.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ziel sind 50–160 Zeichen; diese hat %lld."
+          }
+        }
+      }
+    },
+    "At least 24 px, or 18.66 px bold: WCAG allows a lower contrast here.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mindestens 24 px oder 18,66 px fett: Hier erlaubt WCAG einen geringeren Kontrast."
+          }
+        }
+      }
+    },
+    "Background assumed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hintergrund angenommen"
+          }
+        }
+      }
+    },
+    "Body text below WCAG AA contrast": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fließtext unter dem WCAG-AA-Kontrast"
+          }
+        }
+      }
+    },
+    "Breakpoints": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Breakpoints"
+          }
+        }
+      }
+    },
+    "Buttons without an accessible name": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buttons ohne zugänglichen Namen"
+          }
+        }
+      }
+    },
+    "CSS Custom Properties": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CSS-Variablen"
+          }
+        }
+      }
+    },
+    "Checked at %@, %lld × %lld.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geprüft bei %1$@, %2$lld × %3$lld."
+          }
+        }
+      }
+    },
+    "Color %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farbe %@"
+          }
+        }
+      }
+    },
+    "Colors: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Farben: %@"
+          }
+        }
+      }
+    },
+    "Contrast": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontrast"
+          }
+        }
+      }
+    },
+    "Contrast failures": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontrastfehler"
+          }
+        }
+      }
+    },
+    "Copied tokens as %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tokens als %@ kopiert."
+          }
+        }
+      }
+    },
+    "Copy CSS declaration": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CSS-Deklaration kopieren"
+          }
+        }
+      }
+    },
+    "Copy as %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Als %@ kopieren"
+          }
+        }
+      }
+    },
+    "Copy or save the tokens as CSS, JSON or a Tailwind theme": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tokens als CSS, JSON oder Tailwind-Theme kopieren oder sichern"
+          }
+        }
+      }
+    },
+    "Copy value": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wert kopieren"
+          }
+        }
+      }
+    },
+    "Corner Radius": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eckenradius"
+          }
+        }
+      }
+    },
+    "Critical": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kritisch"
+          }
+        }
+      }
+    },
+    "Declared by the site": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von der Website deklariert"
+          }
+        }
+      }
+    },
+    "Declared by the site as a CSS custom property": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Von der Website als CSS-Variable deklariert"
+          }
+        }
+      }
+    },
+    "Describe meaningful images; mark decorative ones with alt=\"\".": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beschreibe aussagekräftige Bilder; markiere dekorative mit alt=\"\"."
+          }
+        }
+      }
+    },
+    "Design Tokens JSON": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Design-Tokens-JSON"
+          }
+        }
+      }
+    },
+    "Design score": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Design-Score"
+          }
+        }
+      }
+    },
+    "Design score %lld of 100. %lld critical, %lld warnings, %lld notices.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Design-Score %1$lld von 100. %2$lld kritisch, %3$lld Warnungen, %4$lld Hinweise."
+          }
+        }
+      }
+    },
+    "Design tokens saved.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Design-Tokens gesichert."
+          }
+        }
+      }
+    },
+    "Every sampled pair meets WCAG AA.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jedes gemessene Paar erfüllt WCAG AA."
+          }
+        }
+      }
+    },
+    "Evidence": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Belege"
+          }
+        }
+      }
+    },
+    "Export Tokens": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tokens exportieren"
+          }
+        }
+      }
+    },
+    "Export every captured viewport as a PDF": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle aufgenommenen Viewports als PDF exportieren"
+          }
+        }
+      }
+    },
+    "Failed requests": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fehlgeschlagene Anfragen"
+          }
+        }
+      }
+    },
+    "Fails": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nicht bestanden"
+          }
+        }
+      }
+    },
+    "Font Families": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schriftfamilien"
+          }
+        }
+      }
+    },
+    "Font Sizes": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schriftgrößen"
+          }
+        }
+      }
+    },
+    "Font Weights": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schriftstärken"
+          }
+        }
+      }
+    },
+    "Form fields without a label": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formularfelder ohne Label"
+          }
+        }
+      }
+    },
+    "Frameworks, platforms and services recognized from the page's markup, scripts and headers. Hover a card for the evidence.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frameworks, Plattformen und Dienste, erkannt an Markup, Skripten und Headern der Seite. Zeige auf eine Karte, um die Belege zu sehen."
+          }
+        }
+      }
+    },
+    "Headings jump a level, which breaks the outline screen reader users navigate by.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Überschriften überspringen eine Ebene. Das stört die Gliederung, mit der Screenreader-Nutzer navigieren."
+          }
+        }
+      }
+    },
+    "Heavy resources slow the first visit, especially on mobile.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Große Ressourcen verlangsamen den ersten Besuch, besonders mobil."
+          }
+        }
+      }
+    },
+    "Images without alt text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilder ohne Alternativtext"
+          }
+        }
+      }
+    },
+    "JavaScript errors": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JavaScript-Fehler"
+          }
+        }
+      }
+    },
+    "Large downloads": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Große Downloads"
+          }
+        }
+      }
+    },
+    "Large or bold text needs a contrast of at least 3:1. Worst pair: %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Großer oder fetter Text braucht einen Kontrast von mindestens 3:1. Schlechtestes Paar: %@."
+          }
+        }
+      }
+    },
+    "Large text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Großer Text"
+          }
+        }
+      }
+    },
+    "Large text below WCAG AA contrast": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Großer Text unter dem WCAG-AA-Kontrast"
+          }
+        }
+      }
+    },
+    "Largest text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Größter Text"
+          }
+        }
+      }
+    },
+    "Layout issues": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Layoutprobleme"
+          }
+        }
+      }
+    },
+    "Layout issues at this width": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Layoutprobleme bei dieser Breite"
+          }
+        }
+      }
+    },
+    "Long page title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Langer Seitentitel"
+          }
+        }
+      }
+    },
+    "Meta description length": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Länge der Meta-Beschreibung"
+          }
+        }
+      }
+    },
+    "Missing meta description": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Meta-Beschreibung fehlt"
+          }
+        }
+      }
+    },
+    "Missing page title": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seitentitel fehlt"
+          }
+        }
+      }
+    },
+    "More than one <h1> makes the main topic ambiguous.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mehr als ein <h1> macht das Hauptthema unklar."
+          }
+        }
+      }
+    },
+    "Network data was not captured.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Netzwerkdaten wurden nicht aufgezeichnet."
+          }
+        }
+      }
+    },
+    "Network requests": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Netzwerkanfragen"
+          }
+        }
+      }
+    },
+    "No Open Graph tags": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Open-Graph-Tags"
+          }
+        }
+      }
+    },
+    "No accessibility problems were captured.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Barrierefreiheitsprobleme gefunden."
+          }
+        }
+      }
+    },
+    "No canonical URL": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Canonical-URL"
+          }
+        }
+      }
+    },
+    "No document language": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Dokumentsprache"
+          }
+        }
+      }
+    },
+    "No failed or unusually large requests.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine fehlgeschlagenen oder ungewöhnlich großen Anfragen."
+          }
+        }
+      }
+    },
+    "No fonts captured.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Schriften erfasst."
+          }
+        }
+      }
+    },
+    "No problems found in this viewport.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In diesem Viewport wurden keine Probleme gefunden."
+          }
+        }
+      }
+    },
+    "No sampled text to measure.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein gemessener Text vorhanden."
+          }
+        }
+      }
+    },
+    "No tokens could be extracted from this viewport.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aus diesem Viewport ließen sich keine Tokens ableiten."
+          }
+        }
+      }
+    },
+    "No top-level heading": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Hauptüberschrift"
+          }
+        }
+      }
+    },
+    "Notice": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hinweis"
+          }
+        }
+      }
+    },
+    "Page asks not to be indexed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seite möchte nicht indexiert werden"
+          }
+        }
+      }
+    },
+    "Pairs marked “background assumed” had no sampled element painting behind them, so white was assumed. Their ratio is an estimate.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bei Paaren mit „Hintergrund angenommen“ lag kein gemessenes Element dahinter, daher wurde Weiß angenommen. Ihr Verhältnis ist eine Schätzung."
+          }
+        }
+      }
+    },
+    "Passing pairs": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bestandene Paare"
+          }
+        }
+      }
+    },
+    "Reinspect this page to run accessibility checks.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untersuche die Seite erneut, um die Barrierefreiheit zu prüfen."
+          }
+        }
+      }
+    },
+    "Resources that returned an error or never loaded.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ressourcen, die einen Fehler lieferten oder nie geladen wurden."
+          }
+        }
+      }
+    },
+    "Responsive": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Responsive"
+          }
+        }
+      }
+    },
+    "SEO": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SEO"
+          }
+        }
+      }
+    },
+    "Sampled elements": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gemessene Elemente"
+          }
+        }
+      }
+    },
+    "Sampled elements using this pair": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gemessene Elemente mit diesem Paar"
+          }
+        }
+      }
+    },
+    "Sampled elements using this value": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gemessene Elemente mit diesem Wert"
+          }
+        }
+      }
+    },
+    "Save…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sichern …"
+          }
+        }
+      }
+    },
+    "Score": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Score"
+          }
+        }
+      }
+    },
+    "Screen readers announce these only as “button”. Add text or an aria-label.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screenreader lesen diese nur als „Taste“ vor. Füge Text oder ein aria-label hinzu."
+          }
+        }
+      }
+    },
+    "Search results and browser tabs show the <title>.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchergebnisse und Browser-Tabs zeigen den <title>."
+          }
+        }
+      }
+    },
+    "Search results cut titles off after about 60 characters; this one has %lld.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchergebnisse kürzen Titel nach etwa 60 Zeichen; dieser hat %lld."
+          }
+        }
+      }
+    },
+    "Set <html lang> so screen readers and translators pick the right language.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Setze <html lang>, damit Screenreader und Übersetzer die richtige Sprache wählen."
+          }
+        }
+      }
+    },
+    "Several top-level headings": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mehrere Hauptüberschriften"
+          }
+        }
+      }
+    },
+    "Shared links show no preview image or title in chats and social apps.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geteilte Links zeigen in Chats und sozialen Apps kein Vorschaubild und keinen Titel."
+          }
+        }
+      }
+    },
+    "Show all colors": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alle Farben zeigen"
+          }
+        }
+      }
+    },
+    "Show the audit": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audit zeigen"
+          }
+        }
+      }
+    },
+    "Show the issues of this viewport": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Probleme dieses Viewports zeigen"
+          }
+        }
+      }
+    },
+    "Show the technology stack": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Technologie-Stack zeigen"
+          }
+        }
+      }
+    },
+    "Show the type scale": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typo-Skala zeigen"
+          }
+        }
+      }
+    },
+    "Showing the first 80 of %lld messages. The copied report contains all of them.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die ersten 80 von %lld Meldungen werden gezeigt. Der kopierte Bericht enthält alle."
+          }
+        }
+      }
+    },
+    "Side by side": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nebeneinander"
+          }
+        }
+      }
+    },
+    "Size": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Größe"
+          }
+        }
+      }
+    },
+    "Skipped heading levels": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Übersprungene Überschriftenebenen"
+          }
+        }
+      }
+    },
+    "Smallest text": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kleinster Text"
+          }
+        }
+      }
+    },
+    "Spacing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abstände"
+          }
+        }
+      }
+    },
+    "Stack": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stack"
+          }
+        }
+      }
+    },
+    "Starts at 100 and loses points per finding. A guide for comparing pages, not a standard.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beginnt bei 100 und verliert pro Befund Punkte. Eine Orientierung zum Vergleichen von Seiten, kein Standard."
+          }
+        }
+      }
+    },
+    "Styles": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stile"
+          }
+        }
+      }
+    },
+    "Styles area": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stilbereich"
+          }
+        }
+      }
+    },
+    "Tailwind Theme": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tailwind-Theme"
+          }
+        }
+      }
+    },
+    "Technologies": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Technologien"
+          }
+        }
+      }
+    },
+    "Technologies: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Technologien: %@"
+          }
+        }
+      }
+    },
+    "Text and background pairs from the sampled elements, rated against WCAG 2.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text-Hintergrund-Paare der gemessenen Elemente, bewertet nach WCAG 2."
+          }
+        }
+      }
+    },
+    "Text under 24 px needs a contrast of at least 4.5:1. Worst pair: %@.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text unter 24 px braucht einen Kontrast von mindestens 4,5:1. Schlechtestes Paar: %@."
+          }
+        }
+      }
+    },
+    "The page has no <h1> that names its content.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Seite hat kein <h1>, das ihren Inhalt benennt."
+          }
+        }
+      }
+    },
+    "The page logged errors to the console while loading.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Seite hat beim Laden Fehler in die Konsole geschrieben."
+          }
+        }
+      }
+    },
+    "The robots meta tag contains noindex.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das robots-Meta-Tag enthält noindex."
+          }
+        }
+      }
+    },
+    "Tokens": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tokens"
+          }
+        }
+      }
+    },
+    "Typography: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Typografie: %@"
+          }
+        }
+      }
+    },
+    "Used by %lld sampled elements": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Von %lld gemessenen Element verwendet"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Von %lld gemessenen Elementen verwendet"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Values the page repeats, named as tokens. Site-declared colors keep their own names.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Werte, die die Seite wiederholt, als benannte Tokens. Von der Website deklarierte Farben behalten ihre Namen."
+          }
+        }
+      }
+    },
+    "WCAG rating: %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WCAG-Bewertung: %@"
+          }
+        }
+      }
+    },
+    "Warning": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warnung"
+          }
+        }
+      }
+    },
+    "Without one, search engines pick a snippet from the page.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ohne sie wählen Suchmaschinen selbst einen Ausschnitt der Seite."
+          }
+        }
+      }
     }
   },
   "version": "1.1"
