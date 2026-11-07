@@ -1,6 +1,11 @@
 import Foundation
 import Observation
 
+enum PendingPurge: Equatable {
+    case all
+    case ids(Set<String>)
+}
+
 @MainActor
 @Observable
 final class UIStateStore {
@@ -20,6 +25,8 @@ final class UIStateStore {
     // Batch selection for confirmations
     var pendingBatchDelete: Set<String>? = nil
     var pendingBatchOpen: Set<String>? = nil
+    /// A permanent delete from the Trash awaiting confirmation.
+    var pendingPurge: PendingPurge? = nil
     /// Bookmark ids awaiting a "New Tag" dialog. Presented from a stable parent
     /// (ContentView) because a sheet inside a context menu never shows.
     var newTagForIds: Set<String>? = nil
@@ -71,7 +78,9 @@ final class UIStateStore {
 
     // MARK: - Toasts
 
-    func showError(_ message: String, respectingResumeGrace: Bool = true) {
+    /// User actions report their errors immediately. Only background work
+    /// opts into the resume grace, where transient failures are expected.
+    func showError(_ message: String, respectingResumeGrace: Bool = false) {
         // Don't alarm the user with transient failures right after resume.
         if respectingResumeGrace && Date() < suppressErrorsUntil { return }
         errorMessage = message

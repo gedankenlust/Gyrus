@@ -156,6 +156,8 @@ struct BookmarkDetailView: View {
     @State private var editTitle    = ""
     @State private var editURL      = ""
     @State private var editDesc     = ""
+    @State private var editError: String?
+    @State private var isSavingEdit = false
     @State private var editCollectionId: String? = nil
     @State private var editTagIds: Set<String> = []
     @State private var isAutoTagging = false
@@ -187,7 +189,11 @@ struct BookmarkDetailView: View {
                 
                 switch selectedTab {
                 case .page: pageView
-                case .design: VisualSnapshotTabView(bookmark: bookmark)
+                case .design:
+                    // One identity per bookmark: switching bookmarks must not
+                    // keep the previous site's design (or its capture job)
+                    // on screen when loading the new one fails.
+                    VisualSnapshotTabView(bookmark: bookmark).id(bookmark.id)
                 case .brain: AIBrainTabView(bookmark: bookmark)
                 case .notes: notesMode
                 }
@@ -646,6 +652,7 @@ struct BookmarkDetailView: View {
                 editDesc  = bookmark.description ?? ""
                 editCollectionId = bookmark.collectionId
                 editTagIds = Set(bookmark.tags.map { $0.id })
+                editError = nil
                 isEditing = true
             } label: {
                 Image(systemName: "pencil").font(.caption)
@@ -770,10 +777,20 @@ struct BookmarkDetailView: View {
                 HStack {
                     Text("Edit").font(.title3.bold())
                     Spacer()
-                    Button("Cancel") { isEditing = false }
+                    Button("Cancel") { isEditing = false; editError = nil }
                         .buttonStyle(.bordered)
+                        .keyboardShortcut(.cancelAction)
                     Button("Save") { Task { await saveEdit() } }
                         .buttonStyle(.borderedProminent)
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(isSavingEdit)
+                }
+
+                if let editError {
+                    Label(editError, systemImage: "exclamationmark.triangle.fill")
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -859,8 +876,17 @@ struct BookmarkDetailView: View {
         update.description = editDesc.isEmpty ? nil : editDesc
         update.collectionId = editCollectionId
         update.tagIds = Array(editTagIds)
-        try? await bookmarkStore.updateBookmark(bookmark, update: update)
-        isEditing = false
+        isSavingEdit = true
+        defer { isSavingEdit = false }
+        do {
+            try await bookmarkStore.updateBookmark(bookmark, update: update)
+            editError = nil
+            isEditing = false
+        } catch {
+            // Stay in edit mode: leaving it would throw the user's changes away
+            // without saying why (invalid URL, duplicate, backend busy).
+            editError = error.localizedDescription
+        }
     }
 
     /// Clear the dead-link flag (false positives — e.g. a site that blocks our
@@ -873,9 +899,15 @@ struct BookmarkDetailView: View {
             : [bookmark.id]
         var update = BookmarkUpdate()
         update.isDead = false
+        var firstError: Error?
         for id in ids {
-            _ = try? await APIClient.shared.updateBookmark(id: id, body: update)
+            do {
+                _ = try await APIClient.shared.updateBookmark(id: id, body: update)
+            } catch {
+                firstError = firstError ?? error
+            }
         }
+        if let firstError { AppStore.shared.surfaceError(firstError) }
         await AppStore.shared.loadAll()
         // The cleared bookmarks just left the Dead Links view — drop the now-stale
         // selection so the detail panel doesn't keep showing the old "dead" state.

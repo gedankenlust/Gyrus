@@ -93,6 +93,14 @@ final class BookmarkStore {
         let showTrash: Bool
         let query: String
         var semantic: Bool
+
+        /// Same folder/tag/filter/search, ignoring the semantic fallback flag
+        /// the fetch itself may flip.
+        func showsSameView(as other: LoadContext) -> Bool {
+            collectionId == other.collectionId && tagName == other.tagName
+                && showDeadOnly == other.showDeadOnly && unreadOnly == other.unreadOnly
+                && showTrash == other.showTrash && query == other.query
+        }
     }
     private var loadContext = LoadContext(
         collectionId: nil,
@@ -119,6 +127,16 @@ final class BookmarkStore {
             showTrash: showTrash,
             query: query, semantic: semanticSearchEnabled
         )
+        let changesView = !context.showsSameView(as: loadContext)
+        // A selection made in another view must never be acted on here: ⌘⌫ or
+        // "Open" would hit bookmarks the user can no longer see. Clear it now
+        // and keep only what the new view actually shows once it has loaded.
+        let carriedSelection = changesView ? selectedIds : []
+        let carriedBookmark = changesView ? selectedBookmark : nil
+        if changesView {
+            selectedIds = []
+            selectedBookmark = nil
+        }
         loadContext = context
         loadGeneration += 1
         let generation = loadGeneration
@@ -128,19 +146,36 @@ final class BookmarkStore {
         hasMore = false
         isLoadingMore = false
         loadMoreError = nil
-        let page = try await fetchPage(
-            offset: 0,
-            collectionId: context.collectionId,
-            tagName: context.tagName,
-            showDeadOnly: context.showDeadOnly,
-            unreadOnly: context.unreadOnly,
-            showTrash: context.showTrash,
-            query: context.query, semantic: context.semantic, generation: generation
-        )
+        let page: [Bookmark]
+        do {
+            page = try await fetchPage(
+                offset: 0,
+                collectionId: context.collectionId,
+                tagName: context.tagName,
+                showDeadOnly: context.showDeadOnly,
+                unreadOnly: context.unreadOnly,
+                showTrash: context.showTrash,
+                query: context.query, semantic: context.semantic, generation: generation
+            )
+        } catch {
+            // Rows of the previous view under the new sidebar selection would
+            // let actions run on the wrong bookmarks. Show an empty list instead.
+            if generation == loadGeneration, changesView, !Self.isCancellation(error) {
+                bookmarks = []
+            }
+            throw error
+        }
         guard generation == loadGeneration else { return }
 
         // Exclude pending deletions
         bookmarks = page.filter { !pendingDeletionIds.contains($0.id) }
+        if changesView {
+            let visible = Set(bookmarks.map(\.id))
+            selectedIds = carriedSelection.intersection(visible)
+            if let carried = carriedBookmark, visible.contains(carried.id) {
+                selectedBookmark = bookmarks.first { $0.id == carried.id }
+            }
+        }
 
         currentOffset = page.count
         hasMore = page.count == pageSize
@@ -159,6 +194,53 @@ final class BookmarkStore {
                 totalBookmarkCount = max(0, total - pendingDeletionIds.count)
             }
         }
+    }
+
+    /// Refetch the rows already loaded for the current view without resetting
+    /// pagination. A background status refresh must not throw the user back to
+    /// the first page and drop an in-flight "load more".
+    func refreshLoadedRows() async throws {
+        guard !isLoadingMore else { return }
+        let context = loadContext
+        let generation = loadGeneration
+        let startOffset = currentOffset
+        let target = max(startOffset, pageSize)
+        var rows: [Bookmark] = []
+        var offset = 0
+        var lastPageCount = 0
+        while offset < target {
+            let page = try await fetchPage(
+                offset: offset,
+                collectionId: context.collectionId,
+                tagName: context.tagName,
+                showDeadOnly: context.showDeadOnly,
+                unreadOnly: context.unreadOnly,
+                showTrash: context.showTrash,
+                query: context.query, semantic: context.semantic, generation: generation
+            )
+            guard generation == loadGeneration else { return }
+            rows.append(contentsOf: page)
+            lastPageCount = page.count
+            offset += page.count
+            if page.count < pageSize { break }
+        }
+        // A load-more that ran meanwhile already extended the list; keep it.
+        guard generation == loadGeneration, !isLoadingMore, currentOffset == startOffset else { return }
+        var seen = Set<String>()
+        bookmarks = rows.filter { !pendingDeletionIds.contains($0.id) && seen.insert($0.id).inserted }
+        currentOffset = offset
+        hasMore = lastPageCount == pageSize
+        if let selected = selectedBookmark,
+           let fresh = bookmarks.first(where: { $0.id == selected.id }) {
+            selectedBookmark = fresh
+        }
+    }
+
+    static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        if case APIError.networkError(let inner) = error { return isCancellation(inner) }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
     }
 
     func loadDetails(id: String) async throws {

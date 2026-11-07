@@ -30,11 +30,9 @@ struct AddBookmarkView: View {
                     HStack {
                         TextField("https://example.com", text: $url)
                             .textFieldStyle(.roundedBorder)
-                            .onChange(of: url) { autoFillTitle() }
                         Button {
                             if let clip = NSPasteboard.general.string(forType: .string) {
                                 url = clip.trimmingCharacters(in: .whitespacesAndNewlines)
-                                autoFillTitle()
                             }
                         } label: {
                             Image(systemName: "doc.on.clipboard")
@@ -90,11 +88,6 @@ struct AddBookmarkView: View {
         .frame(width: 440)
     }
 
-    private func autoFillTitle() {
-        guard title.isEmpty, let host = URL(string: url)?.host else { return }
-        title = host
-    }
-
     private func save() async {
         let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedURL.isEmpty else { return }
@@ -111,7 +104,8 @@ struct AddBookmarkView: View {
 
         do {
             let body = BookmarkCreate(
-                title: title.isEmpty ? trimmedURL : title,
+                // Empty lets the backend use the page's own title, as Quick Add does.
+                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                 url: trimmedURL,
                 description: nil,
                 notes: nil,
@@ -128,7 +122,7 @@ struct AddBookmarkView: View {
             bookmarkStore.selectedBookmark = newBookmark
             
             isPresented = false
-        } catch APIError.serverError(409) {
+        } catch APIError.duplicate {
             errorMsg = String(localized: "This URL is already in your collection.")
         } catch {
             errorMsg = error.localizedDescription

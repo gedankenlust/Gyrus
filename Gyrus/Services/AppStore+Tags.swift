@@ -50,15 +50,19 @@ extension AppStore {
     /// recreates the tag and re-attaches them via the /tags/restore endpoint.
     func deleteTags(_ tags: [Tag]) async {
         guard !tags.isEmpty else { return }
-        uiStateStore.cancelUndoTimer()
-        uiStateStore.undoGeneration += 1
 
         // Snapshot associations BEFORE deleting (covers bookmarks not currently
-        // loaded, which a frontend-only undo would silently miss).
+        // loaded, which a frontend-only undo would silently miss). Without a
+        // snapshot, Undo would recreate an empty tag, so don't delete at all.
         var snapshots: [(name: String, color: String?, ids: [String])] = []
         for t in tags {
-            let ids = (try? await api.bookmarkIds(tag: t.name)) ?? []
-            snapshots.append((t.name, t.color, ids))
+            do {
+                let ids = try await api.bookmarkIds(tag: t.name)
+                snapshots.append((t.name, t.color, ids))
+            } catch {
+                surfaceError(error)
+                return
+            }
         }
 
         let ids = tags.map(\.id)
@@ -81,6 +85,10 @@ extension AppStore {
             return
         }
 
+        // Replace a pending undo only now that there is a new one to offer;
+        // a failed delete must not leave an earlier toast without its timer.
+        uiStateStore.cancelUndoTimer()
+        uiStateStore.undoGeneration += 1
         uiStateStore.undoMessage = tags.count == 1
             ? AppSettings.shared.localized("Deleted tag “\(tags[0].name)”")
             : AppSettings.shared.localized("Deleted \(tags.count) tags")

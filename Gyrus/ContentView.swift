@@ -24,6 +24,17 @@ struct ContentView: View {
         return String(localized: "Open \(n) bookmarks at once?")
     }
 
+    private var purgeConfirmTitle: String {
+        switch uiStateStore.pendingPurge {
+        case .all:
+            return String(localized: "Empty the Trash?")
+        case .ids(let ids):
+            return String(localized: "Permanently delete \(ids.count) bookmarks?")
+        case nil:
+            return ""
+        }
+    }
+
     private var deleteConfirmTitle: String {
         let n = uiStateStore.pendingBatchDelete?.count ?? 0
         return String(localized: "Delete \(n) bookmarks?")
@@ -164,6 +175,23 @@ struct ContentView: View {
         } message: {
             Text("This moves \(uiStateStore.pendingBatchDelete?.count ?? 0) bookmarks to Trash for 30 days. You can undo for 5 seconds.")
         }
+        .confirmationDialog(
+            purgeConfirmTitle,
+            isPresented: Binding(
+                get: { uiStateStore.pendingPurge != nil },
+                set: { if !$0 { appStore.cancelPendingPurge() } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(uiStateStore.pendingPurge == .all ? "Empty Trash" : "Delete Permanently", role: .destructive) {
+                appStore.confirmPendingPurge()
+            }
+            Button("Cancel", role: .cancel) {
+                appStore.cancelPendingPurge()
+            }
+        } message: {
+            Text("You can't undo this action.")
+        }
         .alert(
             "Automatic Organization Failed",
             isPresented: Binding(
@@ -242,48 +270,21 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .showCommandPalette)) { _ in showCommandPalette = true }
         .onReceive(NotificationCenter.default.publisher(for: .showAddBookmark)) { _ in showAddBookmark = true }
         .background(
+            // Esc has no menu item, so it stays a window shortcut. While typing
+            // it belongs to the field (clearing search, ending an edit).
             Group {
-                Button("") { showCommandPalette.toggle() }
-                    .keyboardShortcut("k", modifiers: .command)
-                    .opacity(0)
-                Button("") { showAddBookmark = true }
-                    .keyboardShortcut("n", modifiers: .command)
-                    .opacity(0)
-                Button("") {
-                    Task { await appStore.selectAllInCurrentView() }
-                }
-                .keyboardShortcut("a", modifiers: .command)
-                .opacity(0)
-                Button("") {
-                    guard !bookmarkStore.selectedIds.isEmpty else { return }
-                    appStore.requestOpenInBrowser(ids: bookmarkStore.selectedIds)
-                }
-                .keyboardShortcut("o", modifiers: .command)
-                .opacity(0)
-                Button("") {
-                    guard !bookmarkStore.selectedIds.isEmpty else { return }
-                    appStore.requestDeleteSelected()
-                }
-                .keyboardShortcut(.delete, modifiers: .command)
-                .opacity(0)
-                Button("") {
-                    // ⌘Z runs the pending undo (same action as the undo toast),
-                    // valid during the undo window after a delete/move.
-                    if let undo = uiStateStore.undoAction {
-                        undo()
-                        uiStateStore.undoMessage = nil
-                        uiStateStore.undoAction = nil
-                    }
-                }
-                .keyboardShortcut("z", modifiers: .command)
-                .opacity(0)
                 if !showCommandPalette {
                     Button("") {
-                        bookmarkStore.selectedIds.removeAll()
-                        bookmarkStore.selectedBookmark = nil
+                        if let window = NSApp.keyWindow, LibraryCommandRouting.isEditingText(in: window) {
+                            LibraryCommandRouting.forward(#selector(NSResponder.cancelOperation(_:)))
+                        } else {
+                            bookmarkStore.selectedIds.removeAll()
+                            bookmarkStore.selectedBookmark = nil
+                        }
                     }
                     .keyboardShortcut(.escape, modifiers: [])
                     .opacity(0)
+                    .accessibilityHidden(true)
                 }
             }
         )

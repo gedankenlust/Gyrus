@@ -491,3 +491,99 @@ final class StabilizationTests: XCTestCase {
         XCTAssertTrue(chat.errors.isEmpty)
     }
 }
+
+// MARK: - Phase 1: selection, stale rows, in-place refresh
+
+extension StabilizationTests {
+    private func query(_ request: URLRequest, _ name: String) -> String? {
+        URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
+            .queryItems?.first { $0.name == name }?.value
+    }
+
+    func testChangingViewKeepsOnlySelectionVisibleThere() async throws {
+        let folderA = try encoded([bookmark("a-1"), bookmark("shared")])
+        let folderB = try encoded([bookmark("shared"), bookmark("b-1")])
+        let store = BookmarkStore(api: client { request in
+            (200, self.query(request, "collection_id") == "B" ? folderB : folderA)
+        }, draftStorage: nil)
+        try await store.loadBookmarks(collectionId: "A", refreshCount: false)
+        store.selectedIds = ["a-1", "shared"]
+        store.selectedBookmark = store.bookmarks.first { $0.id == "a-1" }
+
+        try await store.loadBookmarks(collectionId: "B", refreshCount: false)
+
+        // ⌘⌫ after switching folders must never reach the hidden "a-1".
+        XCTAssertEqual(store.selectedIds, ["shared"])
+        XCTAssertNil(store.selectedBookmark)
+    }
+
+    func testReloadingTheSameViewKeepsSelection() async throws {
+        let rows = try encoded([bookmark("a-1"), bookmark("a-2")])
+        let store = BookmarkStore(api: client { _ in (200, rows) }, draftStorage: nil)
+        try await store.loadBookmarks(collectionId: "A", refreshCount: false)
+        store.selectedIds = ["a-1", "a-2"]
+        try await store.loadBookmarks(collectionId: "A", refreshCount: false)
+        XCTAssertEqual(store.selectedIds, ["a-1", "a-2"])
+    }
+
+    func testFailedLoadOfNewViewDoesNotLeavePreviousRows() async throws {
+        let folderA = try encoded([bookmark("a-1")])
+        let store = BookmarkStore(api: client { request in
+            self.query(request, "collection_id") == "B" ? (500, Data()) : (200, folderA)
+        }, draftStorage: nil)
+        try await store.loadBookmarks(collectionId: "A", refreshCount: false)
+        store.selectedIds = ["a-1"]
+        do {
+            try await store.loadBookmarks(collectionId: "B", refreshCount: false)
+            XCTFail("Expected failure")
+        } catch {}
+        XCTAssertTrue(store.bookmarks.isEmpty)
+        XCTAssertTrue(store.selectedIds.isEmpty)
+    }
+
+    func testRefreshLoadedRowsKeepsPaginationAndScrollDepth() async throws {
+        let first = try encoded((0..<100).map { bookmark("b-\($0)") })
+        let second = try encoded((100..<150).map { bookmark("b-\($0)") })
+        var offsets: [String] = []
+        let store = BookmarkStore(api: client { request in
+            let offset = self.query(request, "offset") ?? "0"
+            offsets.append(offset)
+            return (200, offset == "0" ? first : second)
+        }, draftStorage: nil)
+        try await store.loadBookmarks(refreshCount: false)
+        try await store.loadMoreBookmarks()
+        XCTAssertEqual(store.bookmarks.count, 150)
+        offsets.removeAll()
+
+        try await store.refreshLoadedRows()
+
+        XCTAssertEqual(store.bookmarks.count, 150)
+        XCTAssertEqual(store.currentOffset, 150)
+        XCTAssertFalse(store.hasMore)
+        XCTAssertEqual(offsets, ["0", "100"])
+    }
+}
+
+// MARK: - Backend process identity
+
+final class BackendProcessRecordTests: XCTestCase {
+    func testRoundTripsThroughThePidFileFormat() throws {
+        let record = BackendProcessRecord(pid: 4242, startSeconds: 1_700_000_000, startMicroseconds: 123,
+                                          executable: "/Applications/Gyrus.app/Contents/Resources/backend/python-runtime/bin/python3")
+        XCTAssertEqual(BackendProcessRecord(serialized: record.serialized), record)
+    }
+
+    func testLegacyPidOnlyFileIsNotARecord() {
+        XCTAssertNil(BackendProcessRecord(serialized: "4242\n"))
+        XCTAssertNil(BackendProcessRecord(serialized: ""))
+    }
+
+    func testLiveRecordOfThisProcessIsAliveAndARecycledPidIsNot() throws {
+        let live = try XCTUnwrap(BackendProcessRecord.live(pid: getpid()))
+        XCTAssertTrue(live.isAlive)
+        // Same pid, different start time: what a recycled pid looks like.
+        let recycled = BackendProcessRecord(pid: live.pid, startSeconds: live.startSeconds - 60,
+                                            startMicroseconds: live.startMicroseconds, executable: live.executable)
+        XCTAssertFalse(recycled.isAlive)
+    }
+}
