@@ -1,7 +1,8 @@
 """The headless Chromium session used for one design inspection.
 
 Everything here talks to Playwright. The timeouts are module-level lookups
-at call time (not default arguments) so tests and the façade can tune them.
+at call time (not default arguments) so tests can tune them by patching
+this module (e.g. ``browser.EVALUATE_TIMEOUT_SECONDS``).
 """
 
 import asyncio

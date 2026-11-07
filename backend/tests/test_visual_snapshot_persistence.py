@@ -12,9 +12,9 @@ from services.visual_snapshot import persistence
 
 @pytest.fixture
 def snapshot_dir(tmp_path, monkeypatch):
-    # Patched on the façade, as callers always have; the forwarding must
-    # carry it into the persistence layer.
-    monkeypatch.setattr(visual_snapshot_service, "SNAPSHOT_DIR", tmp_path)
+    # Patched where it is read: the façade only re-exports a copy, so a
+    # patch there would leave the persistence layer on the real directory.
+    monkeypatch.setattr(persistence, "SNAPSHOT_DIR", tmp_path)
     return tmp_path
 
 
@@ -32,15 +32,16 @@ def _run(run_id: str, viewports: int) -> dict:
     return snapshot
 
 
-def test_facade_patches_reach_the_persistence_layer_and_are_undone(tmp_path, monkeypatch):
-    original = persistence.SNAPSHOT_DIR
+def test_layer_patches_reach_the_facade_functions_and_are_undone(tmp_path, monkeypatch):
+    # The façade re-exports the persistence functions themselves, so they read
+    # SNAPSHOT_DIR from the persistence module at call time.
+    original = visual_snapshot_service.snapshot_path("bm")
 
-    monkeypatch.setattr(visual_snapshot_service, "SNAPSHOT_DIR", tmp_path)
-    assert persistence.SNAPSHOT_DIR == tmp_path
+    monkeypatch.setattr(persistence, "SNAPSHOT_DIR", tmp_path)
     assert visual_snapshot_service.snapshot_path("bm") == tmp_path / "bm" / "visual_snapshot.json"
 
     monkeypatch.undo()
-    assert persistence.SNAPSHOT_DIR == original
+    assert visual_snapshot_service.snapshot_path("bm") == original
 
 
 def test_zero_viewport_run_is_recorded_but_never_replaces_the_current_snapshot(snapshot_dir):
@@ -84,7 +85,7 @@ def test_pruning_never_removes_the_run_the_current_snapshot_references(snapshot_
 
 def test_max_snapshot_runs_is_read_when_pruning(snapshot_dir, monkeypatch):
     # It used to be bound as a default argument, so changing it had no effect.
-    monkeypatch.setattr(visual_snapshot_service, "MAX_SNAPSHOT_RUNS", 2)
+    monkeypatch.setattr(persistence, "MAX_SNAPSHOT_RUNS", 2)
     for hour in range(10, 14):
         persistence.store_run("bm", _run(f"20261107T{hour}0000000000Z-ok", viewports=1))
 
@@ -112,7 +113,7 @@ def test_store_run_writes_atomically_and_a_failed_write_keeps_the_old_snapshot(s
     written = []
     real_write = persistence.atomic_write_text
     monkeypatch.setattr(
-        visual_snapshot_service,
+        persistence,
         "atomic_write_text",
         lambda path, text: (written.append(path), real_write(path, text)),
     )

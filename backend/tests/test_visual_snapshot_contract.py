@@ -17,6 +17,7 @@ import pytest
 from PIL import Image
 
 from services import visual_snapshot_job_service, visual_snapshot_service
+from services.visual_snapshot import browser, capture, persistence
 from services.visual_snapshot.extraction import VISUAL_EXTRACTOR_JS
 
 SWIFT_DTOS = Path(__file__).resolve().parents[2] / "Gyrus" / "Models" / "VisualSnapshotDTOs.swift"
@@ -252,8 +253,11 @@ def fixture_capture(tmp_path, monkeypatch):
     from services.site_structure_service import site_structure_service
 
     failing: set[str] = set()
-    monkeypatch.setattr(visual_snapshot_service, "SNAPSHOT_DIR", tmp_path)
-    monkeypatch.setattr(visual_snapshot_service, "validate_outbound_url", AsyncMock())
+    monkeypatch.setattr(persistence, "SNAPSHOT_DIR", tmp_path)
+    # Both the pre-flight check in capture and the request guard in browser
+    # bound the name at import, so each needs its own patch.
+    monkeypatch.setattr(capture, "validate_outbound_url", AsyncMock())
+    monkeypatch.setattr(browser, "validate_outbound_url", AsyncMock())
     monkeypatch.setattr("playwright.async_api.async_playwright", _fake_playwright(failing))
     # The real snapshot_payload runs on a fixture crawl.
     monkeypatch.setattr(site_structure_service, "data_for_url", AsyncMock(return_value=CRAWL_FIXTURE))
@@ -261,7 +265,7 @@ def fixture_capture(tmp_path, monkeypatch):
     async def navigation(_page):
         return copy.deepcopy(NAVIGATION_FIXTURE)
 
-    monkeypatch.setattr(visual_snapshot_service, "_capture_rendered_navigation", navigation)
+    monkeypatch.setattr(capture, "capture_rendered_navigation", navigation)
     return failing
 
 
