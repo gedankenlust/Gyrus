@@ -18,25 +18,39 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-def upgrade() -> None:
-    # sqlite-vec requires the extension to be loaded. Apple's Python builds
-    # don't expose enable_load_extension on sqlite3.Connection, so we open a
-    # second apsw connection to the same file just for this DDL statement.
-    import apsw
-    import sqlite_vec
-    from database import DB_PATH
+CREATE_TABLE = """
+    CREATE VIRTUAL TABLE IF NOT EXISTS bookmarks_vec
+    USING vec0(
+        bookmark_id TEXT PRIMARY KEY,
+        embedding   FLOAT[768]
+    )
+"""
 
-    conn = apsw.Connection(str(DB_PATH))
-    conn.enableloadextension(True)
-    sqlite_vec.load(conn)
-    conn.enableloadextension(False)
-    conn.execute("""
-        CREATE VIRTUAL TABLE IF NOT EXISTS bookmarks_vec
-        USING vec0(
-            bookmark_id TEXT PRIMARY KEY,
-            embedding   FLOAT[768]
-        )
-    """)
+
+def upgrade() -> None:
+    # Only ever the migration's own connection. This used to open a second
+    # SQLite library (apsw) on the file and drop it: POSIX locks do not
+    # separate two libraries in one process, so when the garbage collector
+    # closed that connection it took itself for the last one and deleted the
+    # -wal and -shm files the app's connections were still writing to. On a
+    # fresh database everything written afterwards, this migration's version
+    # stamp included, was lost when the backend stopped, so the migrations ran
+    # again on every launch and the library never kept anything.
+    raw = op.get_bind().connection.driver_connection
+    if not hasattr(raw, "enable_load_extension"):
+        # Apple's and python.org's builds (development venvs) cannot load
+        # extensions; services.vector_store creates the table through its own
+        # long-lived apsw connection the first time it is used.
+        return
+
+    import sqlite_vec
+
+    raw.enable_load_extension(True)
+    try:
+        sqlite_vec.load(raw)
+    finally:
+        raw.enable_load_extension(False)
+    op.execute(CREATE_TABLE)
 
 
 def downgrade() -> None:

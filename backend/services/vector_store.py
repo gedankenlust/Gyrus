@@ -74,6 +74,12 @@ def _get_conn():
     conn.enableloadextension(True)
     sqlite_vec.load(conn)
     conn.enableloadextension(False)
+    # The migration can only create this table when the interpreter's sqlite3
+    # loads extensions; development venvs get it here on first use instead.
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS bookmarks_vec "
+        "USING vec0(bookmark_id TEXT PRIMARY KEY, embedding FLOAT[768])"
+    )
     _conn = conn
     return conn
 
