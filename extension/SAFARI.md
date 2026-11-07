@@ -20,6 +20,10 @@ and copies it to `/Applications/GyrusSaver.app`. Open that app once. Safari
 asks to enable the extension. After that, the toolbar button saves the active
 tab the same way as in Chrome, Brave, Arc, or Edge.
 
+To remove it: Safari → Settings → Extensions → Gyrus Saver → Uninstall, then
+move `/Applications/GyrusSaver.app` to the Trash. The unsigned-extensions
+switch can be turned off again after that.
+
 Safari assigns its own extension id (`safari-web-extension://…`). The local
 backend accepts that scheme for pairing and for saving a bookmark, and still
 refuses backup, notes, and AI from it. No extra account setting is required.
