@@ -12,8 +12,14 @@ from services import bookmark_service, bookmark_response_service
 
 @pytest.mark.asyncio
 async def test_slow_favicons_leave_single_db_connection_free_for_pagination(tmp_path, monkeypatch):
+    # One connection for everything. While the websites hang, none may be
+    # checked out (asserted directly below), so pagination gets it at once;
+    # a regression that held it would make the listing time out. The timeout
+    # itself is generous: after the release three finishing fetches queue for
+    # that one connection, and on a busy CI runner 0.1 s was not always
+    # enough for one of them to commit.
     engine = create_engine(f"sqlite:///{tmp_path/'scroll.db'}", pool_size=1,
-                           max_overflow=0, pool_timeout=0.1,
+                           max_overflow=0, pool_timeout=5,
                            connect_args={'check_same_thread':False})
     Base.metadata.create_all(engine)
     sessions = sessionmaker(bind=engine)

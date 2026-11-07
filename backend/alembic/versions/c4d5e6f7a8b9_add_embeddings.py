@@ -19,9 +19,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Intentionally empty: services.vector_store creates the table through its
-    # own long-lived apsw connection the first time it is used, and nothing
-    # else reads it.
+    # Intentionally empty: the vectors now live in a file of their own
+    # (database.VECTOR_DB_PATH), which services.vector_store creates on first
+    # use. Older libraries that still hold the table here hand it over at
+    # startup through services.vector_relocation.
     #
     # The migration must not reach sqlite-vec itself. It first opened a second
     # SQLite library (apsw) on the file and dropped it: POSIX locks do not
