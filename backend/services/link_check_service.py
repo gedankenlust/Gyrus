@@ -13,8 +13,18 @@ from urllib.parse import urlparse
 from database import SessionLocal
 from models.bookmark import Bookmark
 from services.background_job import BackgroundJob
-from services.outbound_url_security import OutboundURLBlocked, strict_public_request_guard
-from services.safe_egress_proxy import SafeEgressProxy
+from services.outbound_url_security import (
+    OutboundHostUnresolvable,
+    OutboundURLBlocked,
+    strict_public_request_guard,
+)
+from services.safe_egress_proxy import (
+    SafeEgressProxy,
+    is_blocked_proxy_error,
+    is_blocked_response,
+    is_unreachable_proxy_error,
+    is_unreachable_response,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -67,13 +77,70 @@ def _caused_by_ssl_error(exc: BaseException) -> bool:
     return False
 
 
+# Outcomes of a single probe that need the retry loop to decide.
+_UNREACHABLE = "unreachable"  # host missing / connection refused
+_TRANSIENT = "transient"      # timeout or other network hiccup
+
+
+async def _probe(client: httpx.AsyncClient, url: str):
+    """One attempt: True/False/None are final, the sentinels are retried."""
+    try:
+        # HEAD first to save bandwidth
+        r = await client.head(url, follow_redirects=True, timeout=TIMEOUT)
+        if is_unreachable_response(r):
+            return _UNREACHABLE
+        if is_blocked_response(r):
+            return None
+        if r.status_code in (404, 410):
+            return True
+        # Some servers don't support HEAD; if we got a non-2xx/3xx, fall back to GET
+        if r.status_code >= 400 and r.status_code not in (401, 403, 429):
+            # We only need the status. Streaming and closing immediately
+            # avoids downloading a full archive/video/page into memory.
+            async with client.stream(
+                "GET", url, follow_redirects=True, timeout=TIMEOUT
+            ) as response:
+                if is_unreachable_response(response):
+                    return _UNREACHABLE
+                if is_blocked_response(response):
+                    return None
+                if response.status_code in (404, 410):
+                    return True
+        return False  # got a response → the link is alive
+    except OutboundHostUnresolvable:
+        # The request guard resolves every hop itself; NXDOMAIN surfaces here
+        # before the proxy is ever contacted.
+        return _UNREACHABLE
+    except OutboundURLBlocked as exc:
+        logger.warning("Link check skipped blocked URL %s: %s", url, exc)
+        return None
+    except httpx.ConnectError as exc:
+        if _caused_by_ssl_error(exc):
+            logger.info("TLS validation failed for %s; keeping prior status", url)
+            return None
+        return _UNREACHABLE
+    except httpx.ProxyError as exc:
+        # https goes through CONNECT; the proxy's refusal arrives as
+        # ProxyError("<status> <reason>").
+        if is_unreachable_proxy_error(exc):
+            return _UNREACHABLE
+        if is_blocked_proxy_error(exc):
+            logger.warning("Link check skipped blocked URL %s", url)
+            return None
+        return _TRANSIENT
+    except httpx.RequestError:
+        return _TRANSIENT
+
+
 async def _check_url(client: httpx.AsyncClient, url: str) -> bool | None:
     """Returns True only when the URL is reliably dead.
 
-    Dead means a definitive 404/410, or a connection failure (DNS /
-    refused) that persists across every retry. Timeouts and other
-    transient network errors return None after retries, leaving the
-    bookmark's previous status unchanged.
+    Dead means a definitive 404/410, or a connection failure (the host no
+    longer resolves, or every address refuses the connection — reported by
+    the safe egress proxy as "unreachable") that persists across every
+    retry. Timeouts and other transient network errors return None after
+    retries, leaving the bookmark's previous status unchanged. Destinations
+    blocked by the outbound policy also return None.
     Marking dead on a single timeout produces different results on every
     run and causes healthy bookmarks to be flagged and deleted.
     """
@@ -82,39 +149,19 @@ async def _check_url(client: httpx.AsyncClient, url: str) -> bool | None:
     if is_local_host(url):
         return False
     for attempt in range(RETRIES):
-        try:
-            # HEAD first to save bandwidth
-            r = await client.head(url, follow_redirects=True, timeout=TIMEOUT)
-            if r.status_code in (404, 410):
+        outcome = await _probe(client, url)
+        last = attempt == RETRIES - 1
+        if outcome is _UNREACHABLE:
+            # Can be transient under load. Only dead if it never connects.
+            if last:
                 return True
-            # Some servers don't support HEAD; if we got a non-2xx/3xx, fall back to GET
-            if r.status_code >= 400 and r.status_code not in (401, 403, 429):
-                # We only need the status. Streaming and closing immediately
-                # avoids downloading a full archive/video/page into memory.
-                async with client.stream(
-                    "GET", url, follow_redirects=True, timeout=TIMEOUT
-                ) as response:
-                    if response.status_code in (404, 410):
-                        return True
-            return False  # got a response → the link is alive
-        except httpx.ConnectError as exc:
-            # DNS failure / connection refused — can be transient under load.
-            # Retry; only count as dead if it never connects.
-            if _caused_by_ssl_error(exc):
-                logger.info("TLS validation failed for %s; keeping prior status", url)
+        elif outcome is _TRANSIENT:
+            # A slow server is not a dead link.
+            if last:
                 return None
-            if attempt == RETRIES - 1:
-                return True
-            await asyncio.sleep(RETRY_DELAY)
-        except httpx.RequestError:
-            # Timeout or other transient network error — retry, but never
-            # mark dead on this alone. A slow server is not a dead link.
-            if attempt == RETRIES - 1:
-                return None
-            await asyncio.sleep(RETRY_DELAY)
-        except OutboundURLBlocked as exc:
-            logger.warning("Link check skipped blocked URL %s: %s", url, exc)
-            return None
+        else:
+            return outcome
+        await asyncio.sleep(RETRY_DELAY)
     return None
 
 
@@ -163,6 +210,16 @@ def _persist_results(results: list[tuple[str, bool]]) -> None:
         db.close()
 
 
+def _make_client(proxy_url: str) -> httpx.AsyncClient:
+    """The link checker's client: every hop guarded, all traffic via the proxy."""
+    return httpx.AsyncClient(
+        headers={"User-Agent": "Gyrus/1.0 LinkCheck"},
+        event_hooks={"request": [strict_public_request_guard]},
+        proxy=proxy_url,
+        trust_env=False,
+    )
+
+
 async def _run_check(job: BackgroundJob) -> None:
     # Snapshot id+url off the event loop and close the session immediately.
     rows = await asyncio.to_thread(_load_rows)
@@ -175,12 +232,7 @@ async def _run_check(job: BackgroundJob) -> None:
         maxsize=CONCURRENCY * 2
     )
 
-    async with SafeEgressProxy() as proxy, httpx.AsyncClient(
-        headers={"User-Agent": "Gyrus/1.0 LinkCheck"},
-        event_hooks={"request": [strict_public_request_guard]},
-        proxy=proxy.url,
-        trust_env=False,
-    ) as client:
+    async with SafeEgressProxy() as proxy, _make_client(proxy.url) as client:
         async def worker() -> None:
             while True:
                 item = await queue.get()

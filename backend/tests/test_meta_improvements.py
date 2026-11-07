@@ -114,7 +114,7 @@ async def test_actual_chunked_body_limit_prevents_handler(headers):
     messages = []
     async def receive(): return next(chunks)
     async def send(message): messages.append(message)
-    await RequestSizeMiddleware(app, lambda: 100)({'type': 'http', 'headers': headers}, receive, send)
+    await RequestSizeMiddleware(app, lambda _path: 100)({'type': 'http', 'headers': headers}, receive, send)
     assert messages[0]['status'] == 413
     assert not called
 
@@ -122,7 +122,7 @@ async def test_actual_chunked_body_limit_prevents_handler(headers):
 def test_body_below_limit_replays_exactly():
     from services.request_limits import RequestSizeMiddleware
     app = FastAPI()
-    app.add_middleware(RequestSizeMiddleware, limit=lambda: 200000)
+    app.add_middleware(RequestSizeMiddleware, limit=lambda _path: 200000)
     @app.post('/')
     async def read(request: Request):
         return {'body': (await request.body()).decode()}

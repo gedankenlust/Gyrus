@@ -97,7 +97,7 @@ def test_factory_reset(client):
     
     resp = client.post("/api/data/factory-reset")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    assert resp.json() == {"status": "ok", "brain_files_cleared": True}
     
     assert not test_favicon.exists()
     assert not test_file.exists()
@@ -182,7 +182,8 @@ def test_backup_restore_roundtrip(client, db):
     restored_model = db.get(Bookmark, bm["id"])
     assert restored_model.is_read is True
     assert restored_model.scraped_content == "Durable reader text"
-    assert restored_model.metadata_status == "ready"
+    # Icon/preview files are not in a backup, so metadata is fetched again.
+    assert restored_model.metadata_status == "pending"
     assert restored_model.reader_status == "ready"
     assert restored_model.index_status == "pending"
     assert restored_model.analysis_error == "Previous transient error"

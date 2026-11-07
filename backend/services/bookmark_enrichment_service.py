@@ -119,7 +119,7 @@ def record_stage(
     db.commit()
 
 
-def _prepare_attempt(bookmark_id: str) -> tuple[str, str, str, str] | None:
+def _prepare_attempt(bookmark_id: str) -> tuple[str, str, str, str, str] | None:
     db = SessionLocal()
     try:
         bookmark = db.query(Bookmark).filter(Bookmark.id == bookmark_id).first()
@@ -134,6 +134,7 @@ def _prepare_attempt(bookmark_id: str) -> tuple[str, str, str, str] | None:
             bookmark.title,
             (bookmark.scraped_content or "").strip(),
             bookmark.metadata_status,
+            bookmark.reader_status,
         )
     finally:
         db.close()
@@ -186,7 +187,7 @@ async def enrich_bookmark(bookmark_id: str, *, include_design_snapshot: bool = F
             prepared = _prepare_attempt(bookmark_id)
             if prepared is None:
                 return
-            url, title, content, metadata_status = prepared
+            url, title, content, metadata_status, reader_status = prepared
 
             if metadata_status != "ready":
                 _set_stage(bookmark_id, "metadata", "running")
@@ -206,6 +207,12 @@ async def enrich_bookmark(bookmark_id: str, *, include_design_snapshot: bool = F
 
             if content:
                 _set_stage(bookmark_id, "reader", "ready")
+            elif reader_status not in ("pending", "running"):
+                # Reader extraction was never queued (legacy/restored rows are
+                # "not_requested") or already failed and awaits an explicit
+                # retry. A metadata-only requeue, e.g. after a backup restore,
+                # must not turn into a crawl of every page in the library.
+                pass
             else:
                 _set_stage(bookmark_id, "reader", "running")
                 try:
@@ -273,26 +280,22 @@ def resume_pending() -> int:
     """Resume jobs interrupted by an app/backend shutdown."""
     db = SessionLocal()
     try:
+        active = Bookmark.deleted_at.is_(None)
         bookmarks_to_resume = db.query(Bookmark.id).filter(
-            Bookmark.deleted_at.is_(None),
+            active,
             (Bookmark.metadata_status.in_(("pending", "running")))
             | (Bookmark.reader_status.in_(("pending", "running")))
             | (Bookmark.index_status.in_(("pending", "running"))),
         ).all()
         ids = [row[0] for row in bookmarks_to_resume]
 
-        if ids:
-            db.query(Bookmark).filter(
-                Bookmark.id.in_(ids), Bookmark.metadata_status == "running"
-            ).update({Bookmark.metadata_status: "pending"}, synchronize_session=False)
-
-            db.query(Bookmark).filter(
-                Bookmark.id.in_(ids), Bookmark.reader_status == "running"
-            ).update({Bookmark.reader_status: "pending"}, synchronize_session=False)
-
-            db.query(Bookmark).filter(
-                Bookmark.id.in_(ids), Bookmark.index_status == "running"
-            ).update({Bookmark.index_status: "pending"}, synchronize_session=False)
+        # Set-based resets: the same rows as `ids` (active + running), but
+        # without binding every id. A restored or imported library can queue
+        # tens of thousands of rows, beyond SQLite's 32,766-parameter limit.
+        for column in (Bookmark.metadata_status, Bookmark.reader_status, Bookmark.index_status):
+            db.query(Bookmark).filter(active, column == "running").update(
+                {column: "pending"}, synchronize_session=False
+            )
 
         db.commit()
     finally:

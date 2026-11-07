@@ -8,6 +8,7 @@ before the first move. Existing folders are left in place.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import time
 from collections import Counter, defaultdict
@@ -20,6 +21,8 @@ from models.collection import Collection
 from services.background_job import BackgroundJob
 from services.bookmark_service import move_bookmarks
 from services.tagging_pacer import TaggingPacer
+
+logger = logging.getLogger(__name__)
 
 MAX_TOPS = 16
 MAX_CHILDREN = 4
@@ -416,12 +419,13 @@ async def _run(provider_config: dict | None, language: str | None) -> None:
     by_link = link_folders(bookmarks)
     try:
         structure, elapsed = await _propose(library_digest(bookmarks, collections), config, language)
-    except Exception as error:
+    except Exception:
         if not by_link:
+            logger.exception("Folder organization could not get a folder structure")
             job.state["phase"] = "error"
             job.state["message"] = _text(
                 language,
-                str(error),
+                "The local model did not answer in time. Nothing was moved. Start sorting again; the model stays loaded now.",
                 "Ollama hat zu lange gebraucht. Es wurde nichts verschoben. Starte die Sortierung noch einmal, das Modell bleibt jetzt geladen.",
             )
             return
@@ -499,9 +503,17 @@ async def _run(provider_config: dict | None, language: str | None) -> None:
         await asyncio.to_thread(_backup)
         with SessionLocal() as db:
             result = place_bookmarks(db, assigned)
-    except Exception as error:
+    except Exception:
+        # Backup/move errors can include ~/.gyrus paths or SQL text; the
+        # status message is shown in the app, so keep it fixed.
+        logger.exception("Folder organization could not move bookmarks")
         job.state["phase"] = "error"
-        job.state["message"] = str(error)
+        job.state["message"] = _text(
+            language,
+            # Moves commit in chunks, so do not promise that nothing changed.
+            "Moving the bookmarks into the new folders failed.",
+            "Das Verschieben der Lesezeichen in die neuen Ordner ist fehlgeschlagen.",
+        )
         return
     job.state["moving"] = result["moved"]
     job.state["created"] = result["created"]

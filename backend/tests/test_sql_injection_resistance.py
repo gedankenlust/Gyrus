@@ -88,6 +88,7 @@ def test_sql_like_list_parameters_do_not_change_the_database(client, params):
 
     response = client.get("/api/bookmarks", params=params)
 
-    assert response.status_code == 200
+    # sort_by/order are an allowlist (422); free-text filters are bound safely.
+    assert response.status_code == (422 if params.keys() & {"sort_by", "order"} else 200)
     bookmark_ids = {item["id"] for item in client.get("/api/bookmarks").json()}
     assert baseline.json()["id"] in bookmark_ids

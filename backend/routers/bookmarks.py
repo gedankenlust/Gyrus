@@ -1,5 +1,7 @@
 import asyncio
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+import logging
+from typing import Literal
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
@@ -24,6 +26,13 @@ from services import bookmark_response_service
 from services.scraper_service import scraper_service
 
 router = APIRouter(prefix="/api/bookmarks", tags=["bookmarks"])
+logger = logging.getLogger(__name__)
+
+# The sorts bookmark_service.get_bookmarks implements (_SORT_COLUMNS plus
+# "tag" and "favicon"). Unknown values used to fall back silently to
+# created_at, hiding client bugs; now they are a 422.
+SortField = Literal["created_at", "updated_at", "title", "url", "tag", "favicon"]
+SortOrder = Literal["asc", "desc"]
 
 
 class AutoTagRequest(BaseModel):
@@ -306,8 +315,8 @@ def list_bookmarks(
     unread_only: bool = False,
     limit: int = Query(default=100, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
-    sort_by: str = "created_at",
-    order: str = "desc",
+    sort_by: SortField = "created_at",
+    order: SortOrder = "desc",
     db: Session = Depends(get_db),
 ):
     bms = bookmark_service.get_bookmarks(
@@ -328,13 +337,18 @@ def list_bookmarks(
 async def create_bookmark(
     data: BookmarkCreate,
     background_tasks: BackgroundTasks,
+    response: Response,
     db: Session = Depends(get_db),
 ):
     try:
-        bm = bookmark_service.create_bookmark(db, data)
+        bm, restored = bookmark_service.create_or_restore_bookmark(db, data)
     except IntegrityError:
         db.rollback()
         raise HTTPException(409, "Bookmark with this URL already exists")
+    if restored:
+        # Still a successful create for clients; this lets the app say
+        # "restored from Trash" instead of "saved".
+        response.headers["X-Gyrus-Restored-From-Trash"] = "true"
     # Every entry path gets the same lightweight enrichment contract. The
     # background task only queues durable work and returns immediately.
     background_tasks.add_task(bookmark_enrichment_service.schedule_enrichment, bm.id)
@@ -367,7 +381,9 @@ def delete_bookmark(bookmark_id: str, db: Session = Depends(get_db)):
 
 
 class BulkDeleteRequest(BaseModel):
-    ids: list[str]
+    # The service chunks the id list below SQLite's parameter limit; this cap
+    # only bounds the request (matches the largest restorable library).
+    ids: list[str] = Field(max_length=250_000)
 
 
 @router.post("/delete-batch", status_code=204)
@@ -466,6 +482,9 @@ def retry_analysis(bookmark_id: str, db: Session = Depends(get_db)):
     if not bookmark_enrichment_service.retry(bookmark_id):
         raise HTTPException(404, "Bookmark not found")
     bm = bookmark_service.get_bookmark(db, bookmark_id)
+    # It may have been trashed or purged between the retry and this read.
+    if bm is None:
+        raise HTTPException(404, "Bookmark not found")
     db.refresh(bm)
     return _enrich(bm)
 
@@ -635,8 +654,10 @@ async def cleanup_reader_content(
             title=bm.title or "", url=bm.url or "",
             think=False,
         )
-    except Exception as e:
-        raise HTTPException(502, f"LLM cleanup failed: {e}")
+    except Exception:
+        # Provider errors may contain URLs, local paths or response bodies.
+        logger.exception("Reader cleanup LLM request failed for bookmark %s", bookmark_id)
+        raise HTTPException(502, "LLM cleanup failed. Check the AI settings and try again.")
 
     return ReaderResponse(content=cleaned or content)
 
@@ -673,8 +694,9 @@ async def translate_reader_content(
             think=False,
             language=language,
         )
-    except Exception as e:
-        raise HTTPException(502, f"LLM translation failed: {e}")
+    except Exception:
+        logger.exception("Reader translation LLM request failed for bookmark %s", bookmark_id)
+        raise HTTPException(502, "LLM translation failed. Check the AI settings and try again.")
 
     return ReaderResponse(content=translated or content)
 

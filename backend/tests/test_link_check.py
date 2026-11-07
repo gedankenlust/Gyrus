@@ -147,3 +147,125 @@ async def test_transient_timeout_recovers(monkeypatch):
         # First attempt times out, retry succeeds → alive.
         assert await _check_url(c, "https://flaky.example.com/") is False
     assert calls["n"] == 2
+
+
+# --- Real guard + safe egress proxy path -----------------------------------
+# MockTransport bypasses the proxy entirely, which is how dead hosts used to
+# look alive: the proxy answered 403 "Destination blocked" for a host that no
+# longer resolved or refused connections. These tests go through the actual
+# request guard, SafeEgressProxy and httpx proxy handling.
+
+import asyncio
+import socket
+
+from services.outbound_url_security import OutboundHostUnresolvable, OutboundURLBlocked
+from services.safe_egress_proxy import SafeEgressProxy
+
+PUBLIC_ADDRESS = "93.184.216.34"
+
+
+def _unused_local_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def _resolve_to(address: str):
+    def getaddrinfo(host, port, *args, **kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, port))]
+    return getaddrinfo
+
+
+def _nxdomain(errno: int = socket.EAI_NONAME):
+    def getaddrinfo(*args, **kwargs):
+        raise socket.gaierror(errno, "nodename nor servname provided, or not known")
+    return getaddrinfo
+
+
+def _redirect_upstream(monkeypatch, port: int) -> list:
+    """Keep the public address in DNS/policy, but dial a local port instead."""
+    dialed = []
+
+    async def connect(address, _port):
+        dialed.append(address)
+        return await asyncio.open_connection("127.0.0.1", port)
+
+    monkeypatch.setattr(SafeEgressProxy, "_connect", staticmethod(connect))
+    return dialed
+
+
+async def _check_through_proxy(url: str):
+    async with SafeEgressProxy() as proxy, link_check_service._make_client(proxy.url) as client:
+        return await _check_url(client, url)
+
+
+def test_unresolvable_host_is_a_blocked_subclass():
+    # Scraper/metadata callers catch OutboundURLBlocked and keep working.
+    assert issubclass(OutboundHostUnresolvable, OutboundURLBlocked)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("url", ["https://gone.example/", "http://gone.example/"])
+async def test_nxdomain_is_dead_through_guard_and_proxy(monkeypatch, url):
+    monkeypatch.setattr(link_check_service, "RETRY_DELAY", 0)
+    monkeypatch.setattr(socket, "getaddrinfo", _nxdomain())
+    assert await _check_through_proxy(url) is True
+
+
+@pytest.mark.asyncio
+async def test_temporary_dns_failure_keeps_previous_status(monkeypatch):
+    monkeypatch.setattr(link_check_service, "RETRY_DELAY", 0)
+    monkeypatch.setattr(socket, "getaddrinfo", _nxdomain(socket.EAI_AGAIN))
+    assert await _check_through_proxy("https://flaky-dns.example/") is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("url", ["https://refused.example/", "http://refused.example/"])
+async def test_refused_connection_is_dead_through_proxy(monkeypatch, url):
+    # https: CONNECT gets 502 -> httpx.ProxyError; http: a 502 response with
+    # X-Gyrus-Egress: unreachable (this used to be a 403 -> "alive").
+    monkeypatch.setattr(link_check_service, "RETRY_DELAY", 0)
+    monkeypatch.setattr(socket, "getaddrinfo", _resolve_to(PUBLIC_ADDRESS))
+    dialed = _redirect_upstream(monkeypatch, _unused_local_port())
+    assert await _check_through_proxy(url) is True
+    assert dialed and set(dialed) == {PUBLIC_ADDRESS}
+
+
+@pytest.mark.asyncio
+async def test_reachable_plain_http_site_is_alive_through_proxy(monkeypatch):
+    async def upstream(reader, writer):
+        await reader.readuntil(b"\r\n\r\n")
+        writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+        await writer.drain()
+        writer.close()
+
+    server = await asyncio.start_server(upstream, "127.0.0.1", 0)
+    monkeypatch.setattr(socket, "getaddrinfo", _resolve_to(PUBLIC_ADDRESS))
+    _redirect_upstream(monkeypatch, server.sockets[0].getsockname()[1])
+    try:
+        assert await _check_through_proxy("http://alive.example/") is False
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("url", ["https://rebound.example/", "http://rebound.example/"])
+async def test_policy_blocked_destination_keeps_previous_status(monkeypatch, url):
+    monkeypatch.setattr(link_check_service, "RETRY_DELAY", 0)
+    monkeypatch.setattr(socket, "getaddrinfo", _resolve_to("10.0.0.1"))
+    assert await _check_through_proxy(url) is None
+
+
+@pytest.mark.asyncio
+async def test_proxy_blocked_after_guard_passed_keeps_previous_status(monkeypatch):
+    # DNS changes between the guard's lookup and the proxy's (rebinding): the
+    # proxy's own policy refusal is labelled "blocked", never "alive"/"dead".
+    monkeypatch.setattr(link_check_service, "RETRY_DELAY", 0)
+    answers = iter([PUBLIC_ADDRESS, "10.0.0.1"] * 10)
+
+    def rebinding(host, port, *args, **kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (next(answers), port))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", rebinding)
+    assert await _check_through_proxy("http://rebind.example/") is None

@@ -22,6 +22,7 @@ from services.site_structure_service import site_structure_service
 
 import logging
 logger = logging.getLogger(__name__)
+LLM_FAILURE_MESSAGE = "LLM Error: the language model request failed. Check the AI settings and try again."
 
 router = APIRouter(prefix="/api/brain", tags=["brain"])
 
@@ -442,12 +443,14 @@ async def chat_with_bookmark(request: ChatRequest, db: Session = Depends(get_db)
         )
         # Clear, user-facing reason (Ollama down, model missing, cloud n/a).
         raise HTTPException(status_code=503, detail=str(e))
-    except Exception as e:
-        detail = f"LLM Error: {str(e)}"
+    except Exception:
+        # Provider exceptions can carry URLs, local file paths or raw response
+        # bodies; log them, but show and persist only a fixed message.
+        logger.exception("Brain chat LLM request failed for bookmark %s", bookmark.id)
         brain_chat_service.add_message(
-            db, bookmark.id, "assistant", detail, model=model, status="error"
+            db, bookmark.id, "assistant", LLM_FAILURE_MESSAGE, model=model, status="error"
         )
-        raise HTTPException(status_code=500, detail=detail)
+        raise HTTPException(status_code=500, detail=LLM_FAILURE_MESSAGE)
 
     _save_assistant_reply(db, bookmark, request.prompt, response_text, model)
 
@@ -515,12 +518,13 @@ async def chat_with_bookmark_stream(request: ChatRequest, db: Session = Depends(
                 except Exception as e:
                     logger.warning(f"Failed to append stopped interaction: {e}")
             raise
-        except Exception as e:
+        except Exception:
+            logger.exception("Brain chat stream failed for bookmark %s", bookmark.id)
             brain_chat_service.add_message(
-                db, bookmark.id, "assistant", str(e), model=model, status="error"
+                db, bookmark.id, "assistant", LLM_FAILURE_MESSAGE, model=model, status="error"
             )
             saved = True
-            yield f"\n\n[GYRUS-ERROR] {e}"
+            yield f"\n\n[GYRUS-ERROR] {LLM_FAILURE_MESSAGE}"
             return
 
         # Persist the completed answer (best-effort) once streaming finishes.
@@ -582,8 +586,9 @@ async def summarize_bookmark(bookmark_id: str, request: SummarizeRequest = Summa
         )
     except LLMUnavailableError as e:
         raise HTTPException(status_code=503, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"LLM Error: {str(e)}")
+    except Exception:
+        logger.exception("Summarize LLM request failed for bookmark %s", bookmark_id)
+        raise HTTPException(status_code=500, detail=LLM_FAILURE_MESSAGE)
 
     if summary and summary.strip():
         from services import bookmark_service
