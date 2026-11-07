@@ -118,21 +118,40 @@ struct ComponentThumbnail: View {
     let screenshotPath: String
     let viewportWidth: Int
 
-    @State private var image: NSImage?
-    @State private var isLoading = true
+    private enum Content {
+        case loading
+        case image(NSImage)
+        /// The element lies outside the captured screenshot, which stops at a
+        /// height limit on very long pages.
+        case outsideCapture
+        /// The crop is one flat color: the page had not drawn this area.
+        case notDrawn
+        /// The screenshot itself could not be loaded.
+        case unavailable
+    }
+
+    @State private var content = Content.loading
 
     var boxWidth: CGFloat = 92
     var boxHeight: CGFloat = 58
 
     var body: some View {
         ZStack {
-            if let image {
+            switch content {
+            case .loading:
+                ProgressView().scaleEffect(0.4)
+            case .image(let image):
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-            } else if isLoading {
-                ProgressView().scaleEffect(0.4)
-            } else {
+                    // Small elements at most double size: an icon blown up to
+                    // fill the card is only blur.
+                    .frame(maxWidth: image.size.width * 2, maxHeight: image.size.height * 2)
+            case .outsideCapture:
+                placeholder("arrow.down.to.line", String(localized: "Below the captured screenshot"))
+            case .notDrawn:
+                placeholder("eye.slash", String(localized: "Not visible in the screenshot"))
+            case .unavailable:
                 Image(systemName: "rectangle.dashed")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
@@ -146,16 +165,39 @@ struct ComponentThumbnail: View {
                 .stroke(.secondary.opacity(0.22), lineWidth: 1)
         )
         .task(id: "\(screenshotPath)|\(sample.id)") {
-            image = nil
-            isLoading = true
-            defer { isLoading = false }
-            guard let full = await SnapshotImageStore.shared.image(atPath: screenshotPath) else { return }
-            image = SnapshotImageStore.shared.crop(
+            content = .loading
+            guard let full = await SnapshotImageStore.shared.image(atPath: screenshotPath) else {
+                content = .unavailable
+                return
+            }
+            guard let image = SnapshotImageStore.shared.crop(
                 full,
                 x: sample.x, y: sample.y, width: sample.width, height: sample.height,
-                viewportWidth: viewportWidth
-            )
+                viewportWidth: viewportWidth,
+                boxAspect: boxWidth / boxHeight
+            ) else {
+                content = .outsideCapture
+                return
+            }
+            content = SnapshotImageStore.isBlank(image) ? .notDrawn : .image(image)
         }
+    }
+
+    private func placeholder(_ systemImage: String, _ explanation: String) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: systemImage)
+                .font(.caption)
+            if boxHeight >= 80 {
+                Text(explanation)
+                    .font(.caption2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 6)
+            }
+        }
+        .foregroundStyle(Color.black.opacity(0.45))
+        .help(explanation)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(explanation)
     }
 }
 

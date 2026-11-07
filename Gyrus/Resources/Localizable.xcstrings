@@ -1198,6 +1198,22 @@
         }
       }
     },
+    "Below the captured screenshot": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unterhalb des erfassten Screenshots"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Below the captured screenshot"
+          }
+        }
+      }
+    },
     "Bookmark added.": {
       "localizations": {
         "de": {
@@ -6356,6 +6372,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Not selected"
+          }
+        }
+      }
+    },
+    "Not visible in the screenshot": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Im Screenshot nicht sichtbar"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not visible in the screenshot"
           }
         }
       }

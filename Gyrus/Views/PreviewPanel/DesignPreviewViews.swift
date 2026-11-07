@@ -43,23 +43,15 @@ struct SnapshotSection<Content: View>: View {
 struct SnapshotViewportFrame: View {
     let viewport: APIClient.VisualViewportDTO
 
-    private var previewSize: CGSize {
-        reviewPreviewSize(for: viewport)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ViewportFrameHeader(viewport: viewport, trailing: "Snapshot")
 
-            ViewportScreenshotImage(viewport: viewport)
-                .frame(width: previewSize.width, height: previewSize.height)
-                .background(.white)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(.secondary.opacity(0.25), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+            ViewportPreviewBox(maximum: reviewPreviewSize(for: viewport)) { size in
+                ViewportScreenshotImage(viewport: viewport)
+                    .frame(width: size.width, height: size.height)
+                    .background(.white)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
@@ -69,26 +61,18 @@ struct LiveViewportFrame: View {
     let url: URL?
     let viewport: APIClient.VisualViewportDTO
 
-    private var previewSize: CGSize {
-        reviewPreviewSize(for: viewport)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ViewportFrameHeader(viewport: viewport, trailing: "Live")
 
             if let url {
-                let scale = reviewPreviewScale(for: viewport)
-                LiveViewportWebView(url: url, viewport: viewport)
-                    .frame(width: CGFloat(viewport.width), height: CGFloat(viewport.height))
-                    .scaleEffect(scale, anchor: .topLeading)
-                    .frame(width: previewSize.width, height: previewSize.height, alignment: .topLeading)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(.secondary.opacity(0.25), lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+                ViewportPreviewBox(maximum: reviewPreviewSize(for: viewport)) { size in
+                    // Laid out at the real viewport size and scaled down, so the
+                    // page sees the breakpoint it was captured at.
+                    LiveViewportWebView(url: url, viewport: viewport)
+                        .frame(width: CGFloat(viewport.width), height: CGFloat(viewport.height))
+                        .scaleEffect(size.width / CGFloat(max(viewport.width, 1)), anchor: .topLeading)
+                }
             } else {
                 Text("Invalid URL.")
                     .font(.caption)
@@ -96,6 +80,34 @@ struct LiveViewportFrame: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+}
+
+/// A frame in the viewport's proportions: `maximum` where the inspector has
+/// the room, narrower where it does not.
+///
+/// The desktop preview used to be a fixed 620 points wide. A fixed width is a
+/// minimum width, so the inspector column grew whenever the overview was open
+/// and shrank again in every other section.
+struct ViewportPreviewBox<Content: View>: View {
+    let maximum: CGSize
+    @ViewBuilder let content: (CGSize) -> Content
+
+    var body: some View {
+        Color.clear
+            .aspectRatio(maximum.width / max(maximum.height, 1), contentMode: .fit)
+            .frame(maxWidth: maximum.width)
+            .overlay(alignment: .topLeading) {
+                GeometryReader { proxy in
+                    content(proxy.size)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(.secondary.opacity(0.25), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
     }
 }
 
