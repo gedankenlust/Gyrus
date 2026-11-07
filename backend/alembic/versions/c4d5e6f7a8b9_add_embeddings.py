@@ -18,39 +18,22 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-CREATE_TABLE = """
-    CREATE VIRTUAL TABLE IF NOT EXISTS bookmarks_vec
-    USING vec0(
-        bookmark_id TEXT PRIMARY KEY,
-        embedding   FLOAT[768]
-    )
-"""
-
-
 def upgrade() -> None:
-    # Only ever the migration's own connection. This used to open a second
-    # SQLite library (apsw) on the file and drop it: POSIX locks do not
+    # Intentionally empty: services.vector_store creates the table through its
+    # own long-lived apsw connection the first time it is used, and nothing
+    # else reads it.
+    #
+    # The migration must not reach sqlite-vec itself. It first opened a second
+    # SQLite library (apsw) on the file and dropped it: POSIX locks do not
     # separate two libraries in one process, so when the garbage collector
     # closed that connection it took itself for the last one and deleted the
     # -wal and -shm files the app's connections were still writing to. On a
     # fresh database everything written afterwards, this migration's version
-    # stamp included, was lost when the backend stopped, so the migrations ran
-    # again on every launch and the library never kept anything.
-    raw = op.get_bind().connection.driver_connection
-    if not hasattr(raw, "enable_load_extension"):
-        # Apple's and python.org's builds (development venvs) cannot load
-        # extensions; services.vector_store creates the table through its own
-        # long-lived apsw connection the first time it is used.
-        return
-
-    import sqlite_vec
-
-    raw.enable_load_extension(True)
-    try:
-        sqlite_vec.load(raw)
-    finally:
-        raw.enable_load_extension(False)
-    op.execute(CREATE_TABLE)
+    # stamp included, was lost when the backend stopped. Loading the extension
+    # into Python's sqlite3 instead is no better: sqlite-vec keeps one global
+    # pointer to the SQLite library that loaded it last, so the vector store's
+    # apsw connection then calls into the wrong library and crashes.
+    pass
 
 
 def downgrade() -> None:
