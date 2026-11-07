@@ -6,8 +6,8 @@ final class UIStateStoreTests: XCTestCase {
 
     var store: UIStateStore!
 
-    override func setUp() {
-        super.setUp()
+    override func setUp() async throws {
+        try await super.setUp()
         store = UIStateStore()
     }
 

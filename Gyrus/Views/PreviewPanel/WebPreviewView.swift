@@ -2,6 +2,7 @@ import SwiftUI
 import WebKit
 
 enum WebPreviewSecurityPolicy {
+    @MainActor
     static func configuration() -> WKWebViewConfiguration {
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
@@ -74,6 +75,7 @@ struct WebLoadError: Equatable {
     let isRetryable: Bool
 }
 
+@MainActor
 @Observable
 final class WebController {
     // Not observed: set while SwiftUI builds/updates the NSView, where
@@ -126,6 +128,7 @@ struct WebPreviewView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(controller, initialURL: url) }
 
+    @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate {
         let ctrl: WebController
         var currentURL: URL
@@ -142,7 +145,7 @@ struct WebPreviewView: NSViewRepresentable {
         func webView(
             _ webView: WKWebView,
             decidePolicyFor navigationAction: WKNavigationAction,
-            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+            decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
         ) {
             guard let target = navigationAction.request.url else {
                 decisionHandler(.cancel)

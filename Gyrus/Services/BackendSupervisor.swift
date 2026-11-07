@@ -192,7 +192,7 @@ final class BackendSupervisor: @unchecked Sendable {
         var buffer = [CChar](repeating: 0, count: 4096)
         let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
         guard length > 0 else { return false }
-        return layout.isBackendExecutable(String(cString: buffer))
+        return layout.isBackendExecutable(String(nulTerminated: buffer))
     }
 
     // MARK: - Setup
@@ -398,5 +398,13 @@ final class BackendSupervisor: @unchecked Sendable {
         let setupLog = layout.setupLogFile
         try? Data().write(to: setupLog, options: .atomic)
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: setupLog.path)
+    }
+}
+
+extension String {
+    /// Decodes a C string buffer filled by a libproc call, stopping at the
+    /// first NUL. Replaces the deprecated `String(cString:)` for arrays.
+    init(nulTerminated buffer: [CChar]) {
+        self.init(decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }
 }

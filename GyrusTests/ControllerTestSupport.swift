@@ -4,10 +4,36 @@ import XCTest
 // Shared fixtures for the controller suites (TrashControllerTests,
 // LibraryControllerTests).
 
+/// State shared between a URLProtocol stub and the test that configures it.
+/// URLSession calls the stub on its own loading thread while the test writes
+/// from the main actor, so every access goes through a lock.
+final class LockedStubState<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: Value
+
+    init(_ value: Value) { storage = value }
+
+    var value: Value {
+        get { lock.lock(); defer { lock.unlock() }; return storage }
+        set { lock.lock(); defer { lock.unlock() }; storage = newValue }
+    }
+
+    func mutate(_ body: (inout Value) -> Void) {
+        lock.lock(); defer { lock.unlock() }
+        body(&storage)
+    }
+}
+
+typealias StubHandler = @Sendable (URLRequest) throws -> (Int, Data)
+
 /// Answers every request of a test's APIClient. Separate from the stub in
 /// StabilizationTests so the two suites never share a handler.
 final class ControllerURLProtocol: URLProtocol {
-    static var handler: ((URLRequest) throws -> (Int, Data))?
+    private static let state = LockedStubState<StubHandler?>(nil)
+    static var handler: StubHandler? {
+        get { state.value }
+        set { state.value = newValue }
+    }
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
@@ -76,7 +102,7 @@ final class HealthAnswers: @unchecked Sendable {
 }
 
 /// An APIClient whose requests all go to `handler`.
-func stubbedClient(_ handler: @escaping (URLRequest) throws -> (Int, Data)) -> APIClient {
+func stubbedClient(_ handler: @escaping StubHandler) -> APIClient {
     ControllerURLProtocol.handler = handler
     let config = URLSessionConfiguration.ephemeral
     config.protocolClasses = [ControllerURLProtocol.self]

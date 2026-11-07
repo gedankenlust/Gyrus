@@ -99,6 +99,7 @@ struct SidebarOutlineView: NSViewRepresentable {
 
     // MARK: - Coordinator
 
+    @MainActor
     final class Coordinator: NSObject, NSOutlineViewDataSource, NSOutlineViewDelegate {
         var parent: SidebarOutlineView
         weak var outlineView: NSOutlineView?

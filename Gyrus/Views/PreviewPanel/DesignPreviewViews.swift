@@ -284,6 +284,7 @@ struct LiveViewportWebView: NSViewRepresentable {
         return request
     }
 
+    @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate {
         var currentURL: URL
 
@@ -298,7 +299,7 @@ struct LiveViewportWebView: NSViewRepresentable {
         func webView(
             _ webView: WKWebView,
             decidePolicyFor navigationAction: WKNavigationAction,
-            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+            decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
         ) {
             guard let target = navigationAction.request.url else {
                 decisionHandler(.cancel)

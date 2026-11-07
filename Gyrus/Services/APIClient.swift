@@ -13,13 +13,16 @@ import Foundation
 //   APIClient+Data.swift         import/export, backup, resets, file URLs
 // Response models shared across stores live in Models/APIResponses.swift.
 
-private let _iso8601WithFractionalSeconds: ISO8601DateFormatter = {
+// ISO8601DateFormatter is documented as thread-safe but not marked Sendable.
+// These two are configured once here and afterwards only read from, so sharing
+// them across the decoder's concurrent calls is safe.
+nonisolated(unsafe) private let _iso8601WithFractionalSeconds: ISO8601DateFormatter = {
     let f = ISO8601DateFormatter()
     f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     return f
 }()
 
-private let _iso8601InternetDateTime: ISO8601DateFormatter = {
+nonisolated(unsafe) private let _iso8601InternetDateTime: ISO8601DateFormatter = {
     let f = ISO8601DateFormatter()
     f.formatOptions = [.withInternetDateTime]
     return f
@@ -58,7 +61,9 @@ struct ProviderPayload: Encodable {
     }
 }
 
-final class APIClient {
+/// Sendable because every stored property is an immutable `let` of a Sendable
+/// type, so stores on the main actor can hand it to their network calls.
+final class APIClient: Sendable {
     static let shared = APIClient()
 
     /// Generous timeout for local-LLM calls — a cold Ollama model can take a

@@ -9,14 +9,25 @@ private final class PipelineURLProtocol: URLProtocol {
         case failure(Error)
     }
 
-    static var reply: (URLRequest) -> Reply = { _ in .response(status: 200, body: Data("{}".utf8)) }
-    static var recorded: [URLRequest] = []
+    private static let replyState = LockedStubState<@Sendable (URLRequest) -> Reply>(
+        { _ in .response(status: 200, body: Data("{}".utf8)) }
+    )
+    private static let recordedState = LockedStubState<[URLRequest]>([])
+
+    static var reply: @Sendable (URLRequest) -> Reply {
+        get { replyState.value }
+        set { replyState.value = newValue }
+    }
+    static var recorded: [URLRequest] {
+        get { recordedState.value }
+        set { recordedState.value = newValue }
+    }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        Self.recorded.append(request)
+        Self.recordedState.mutate { $0.append(request) }
         switch Self.reply(request) {
         case .response(let status, let body):
             let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil,

@@ -93,7 +93,9 @@ final class GyrusApplicationDelegate: NSObject, NSApplicationDelegate {
 
 @MainActor
 private final class MainWindowDelegateProxy: NSObject, NSWindowDelegate {
-    private weak var forwardedDelegate: NSWindowDelegate?
+    // Set once in init. AppKit asks responds(to:) and forwardingTarget(for:)
+    // on the main thread only, but those NSObject overrides are nonisolated.
+    nonisolated(unsafe) private weak var forwardedDelegate: NSWindowDelegate?
 
     init(forwardingTo delegate: NSWindowDelegate?) {
         forwardedDelegate = delegate

@@ -20,7 +20,7 @@ os.makedirs(PROJ_DIR, exist_ok=True)
 
 BUNDLE_ID = "com.gyrus.app"
 PRODUCT_NAME = "Gyrus"
-SWIFT_VERSION = "5.9"
+SWIFT_VERSION = "6.0"
 # Sonoma, not the newest macOS: nothing in the app needs a later API (the
 # highest requirements are @Observable and SettingsLink, both macOS 14), and the
 # bundled runtimes are fine here too (python-runtime minos 11.0, Playwright

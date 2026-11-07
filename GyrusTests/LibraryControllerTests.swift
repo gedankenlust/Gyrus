@@ -126,7 +126,7 @@ final class LibraryControllerTests: XCTestCase {
 
     private func makeJobs(
         aiConfig: AIBrainConfig = AIBrainConfig(),
-        _ handler: @escaping (URLRequest) throws -> (Int, Data)
+        _ handler: @escaping StubHandler
     ) -> (BackgroundJobs, BookmarkStore, UIStateStore, LibraryRecorder) {
         let api = stubbedClient(handler)
         let bookmarks = BookmarkStore(api: api, draftStorage: nil)

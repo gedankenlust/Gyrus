@@ -4,6 +4,7 @@ import Carbon
 /// Registers system-wide hotkeys via Carbon. Supports multiple independent
 /// hotkeys, each identified by a stable id, so the search shortcut and the
 /// quick-add shortcut can coexist.
+@MainActor
 final class GlobalHotkey {
     static let shared = GlobalHotkey()
 
@@ -89,12 +90,16 @@ final class GlobalHotkey {
                 &hotKeyID
             )
 
-            if status == noErr,
-               hotKeyID.signature == GlobalHotkey.shared.signature,
-               let reg = GlobalHotkey.shared.registrations[hotKeyID.id] {
+            // Carbon delivers hotkey events through the application event
+            // target, which is serviced by the main run loop.
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                guard status == noErr,
+                      hotKeyID.signature == GlobalHotkey.shared.signature,
+                      let reg = GlobalHotkey.shared.registrations[hotKeyID.id] else { return false }
                 reg.onTrigger()
-                return noErr
+                return true
             }
+            if handled { return noErr }
 
             return CallNextEventHandler(nextHandler, theEvent)
         }, 1, [eventType], nil, &eventHandlerRef)

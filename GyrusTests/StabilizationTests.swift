@@ -73,7 +73,11 @@ final class SidebarExpansionTests: XCTestCase {
 }
 
 private final class ReviewURLProtocol: URLProtocol {
-    static var handler: ((URLRequest) throws -> (Int, Data))?
+    private static let state = LockedStubState<StubHandler?>(nil)
+    static var handler: StubHandler? {
+        get { state.value }
+        set { state.value = newValue }
+    }
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
@@ -113,10 +117,10 @@ final class StabilizationTests: XCTestCase {
     func testFailedPageCanBeRetriedWithoutLosingBookmarksOrOffset() async throws {
         let first = try encoded((0..<100).map { bookmark("b-\($0)") })
         let last = try encoded([bookmark("b-100")])
-        var fail = true
+        let fail = LockedStubState(true)
         let store = BookmarkStore(api: client { request in
             let offset = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!.first { $0.name == "offset" }!.value!
-            return offset == "0" ? (200, first) : (fail ? (500, Data()) : (200, last))
+            return offset == "0" ? (200, first) : (fail.value ? (500, Data()) : (200, last))
         }, draftStorage: nil)
         try await store.loadBookmarks(refreshCount: false)
         do {
@@ -128,14 +132,14 @@ final class StabilizationTests: XCTestCase {
         XCTAssertFalse(store.isLoadingMore)
         XCTAssertNotNil(store.loadMoreError)
         XCTAssertFalse(store.shouldPrefetch(near: "b-99"))
-        fail = false
+        fail.value = false
         try await store.loadMoreBookmarks()
         XCTAssertNil(store.loadMoreError)
         XCTAssertEqual(store.bookmarks.count, 101)
         XCTAssertFalse(store.hasMore)
     }
 
-    private func client(_ handler: @escaping (URLRequest) throws -> (Int, Data)) -> APIClient {
+    private func client(_ handler: @escaping StubHandler) -> APIClient {
         ReviewURLProtocol.handler = handler
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [ReviewURLProtocol.self]
@@ -155,7 +159,7 @@ final class StabilizationTests: XCTestCase {
         return try encoder.encode(value)
     }
 
-    private func body(_ request: URLRequest) throws -> [String: Any] {
+    private nonisolated static func body(_ request: URLRequest) throws -> [String: Any] {
         var data = request.httpBody ?? Data()
         if let stream = request.httpBodyStream {
             stream.open()
@@ -171,11 +175,11 @@ final class StabilizationTests: XCTestCase {
     }
 
     func testNoteFailurePreservesDraftAndRetryClearsOnlySavedText() async throws {
-        var fail = true
+        let fail = LockedStubState(true)
         let note = BookmarkNote(id: "note-1", content: "Keep this draft", source: "user", createdAt: Date(), updatedAt: Date())
         let data = try encoded(note)
         let api = client { _ in
-            fail ? (500, Data(#"{"detail":"Save unavailable"}"#.utf8)) : (200, data)
+            fail.value ? (500, Data(#"{"detail":"Save unavailable"}"#.utf8)) : (200, data)
         }
         let store = BookmarkStore(api: api)
         let bm = bookmark()
@@ -187,7 +191,7 @@ final class StabilizationTests: XCTestCase {
         XCTAssertEqual(store.noteDrafts[bm.id], note.content)
         XCTAssertNotNil(store.noteErrors[bm.id])
         XCTAssertTrue(store.savingNoteIds.isEmpty)
-        fail = false
+        fail.value = false
         await store.saveNoteDraft(for: bm)
         XCTAssertNil(store.noteDrafts[bm.id])
         XCTAssertNil(store.noteErrors[bm.id])
@@ -199,10 +203,10 @@ final class StabilizationTests: XCTestCase {
         let ids = Set((0..<4094).map { "b-\($0)" })
         let tagged = (0..<4094).filter { $0.isMultiple(of: 2) }.map { "b-\($0)" }
         let response = try encoded(tagged + ["not-selected"])
-        let api = client { [self] request in
+        let api = client { request in
             XCTAssertEqual(request.httpMethod, "POST")
             XCTAssertEqual(request.url?.path, "/api/bookmarks/tagged-ids")
-            XCTAssertEqual(Set(try XCTUnwrap(body(request)["bookmark_ids"] as? [String])), ids)
+            XCTAssertEqual(Set(try XCTUnwrap(Self.body(request)["bookmark_ids"] as? [String])), ids)
             return (200, response)
         }
         let store = BookmarkStore(api: api, draftStorage: nil)
@@ -218,20 +222,20 @@ final class StabilizationTests: XCTestCase {
     }
 
     func testDeselectTaggedHandlesNoneAllAndBackendFailure() async throws {
-        var response = (200, Data("[]".utf8))
-        let store = BookmarkStore(api: client { _ in response }, draftStorage: nil)
+        let response = LockedStubState((200, Data("[]".utf8)))
+        let store = BookmarkStore(api: client { _ in response.value }, draftStorage: nil)
         store.selectedIds = ["b"]
         let none = try await store.deselectTaggedBookmarks()
         XCTAssertEqual(none, 0)
         XCTAssertEqual(store.selectedIds, ["b"])
-        response = (500, Data(#"{"detail":"Unavailable"}"#.utf8))
+        response.value = (500, Data(#"{"detail":"Unavailable"}"#.utf8))
         do {
             _ = try await store.deselectTaggedBookmarks()
             XCTFail("Expected backend failure")
         } catch {}
         XCTAssertEqual(store.selectedIds, ["b"])
         XCTAssertFalse(store.isFilteringSelection)
-        response = (200, Data(#"["b"]"#.utf8))
+        response.value = (200, Data(#"["b"]"#.utf8))
         let all = try await store.deselectTaggedBookmarks()
         XCTAssertEqual(all, 1)
         XCTAssertTrue(store.selectedIds.isEmpty)
@@ -266,16 +270,16 @@ final class StabilizationTests: XCTestCase {
     func testSemanticFallbackContinuesKeywordPagination() async throws {
         let first = try encoded((0..<100).map { bookmark("b-\($0)") })
         let second = try encoded([bookmark("b-100")])
-        var semanticCalls = 0
-        var offsets: [String] = []
+        let semanticCalls = LockedStubState(0)
+        let offsets = LockedStubState<[String]>([])
         let api = client { request in
             if request.url!.path == "/api/search/semantic" {
-                semanticCalls += 1
+                semanticCalls.mutate { $0 += 1 }
                 return (200, Data("[]".utf8))
             }
             XCTAssertEqual(request.url!.path, "/api/search")
             let offset = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!.first { $0.name == "offset" }!.value!
-            offsets.append(offset)
+            offsets.mutate { $0.append(offset) }
             return (200, offset == "0" ? first : second)
         }
         let store = BookmarkStore(api: api)
@@ -286,8 +290,8 @@ final class StabilizationTests: XCTestCase {
         try await store.loadMoreBookmarks()
         XCTAssertEqual(store.bookmarks.count, 101)
         XCTAssertFalse(store.hasMore)
-        XCTAssertEqual(semanticCalls, 1)
-        XCTAssertEqual(offsets, ["0", "100"])
+        XCTAssertEqual(semanticCalls.value, 1)
+        XCTAssertEqual(offsets.value, ["0", "100"])
     }
 
     func testSemanticSelectAllUsesSemanticResults() async throws {
@@ -305,8 +309,8 @@ final class StabilizationTests: XCTestCase {
 
     func testDroppedURLGetsValidTitleAndFolder() async throws {
         let response = try encoded(bookmark())
-        let api = client { [self] request in
-            let json = try body(request)
+        let api = client { request in
+            let json = try Self.body(request)
             XCTAssertEqual(json["title"] as? String, "example.com")
             XCTAssertEqual(json["collection_id"] as? String, "folder-1")
             return (200, response)
@@ -316,9 +320,9 @@ final class StabilizationTests: XCTestCase {
 
     func testTagAssignmentIncludesUnloadedSelectionWithoutReplacingOtherTags() async throws {
         let results = try encoded([Bookmark]())
-        let api = client { [self] request in
+        let api = client { request in
             XCTAssertEqual(request.url!.path, "/api/tags/assign")
-            let json = try body(request)
+            let json = try Self.body(request)
             XCTAssertEqual(Set(json["bookmark_ids"] as! [String]), ["loaded", "unloaded"])
             XCTAssertEqual(json["add_tag_ids"] as? [String], ["new-tag"])
             XCTAssertEqual(json["remove_tag_ids"] as? [String], [])
@@ -349,8 +353,8 @@ final class StabilizationTests: XCTestCase {
     }
 
     func testAIMasterSwitchIsSentSeparatelyAndDisablesMirror() async throws {
-        let api = client { [self] request in
-            let json = try body(request)
+        let api = client { request in
+            let json = try Self.body(request)
             XCTAssertEqual(json["ai_enabled"] as? Bool, false)
             XCTAssertEqual(json["is_enabled"] as? Bool, false)
             return (200, Data(#"{"status":"ok","root_dir":"/tmp/brain","is_enabled":false}"#.utf8))
@@ -370,15 +374,15 @@ final class StabilizationTests: XCTestCase {
     }
 
     func testReadinessRequiresMatchingSessionAndService() async throws {
-        var service = "unrelated"
+        let service = LockedStubState("unrelated")
         let api = client { request in
             XCTAssertEqual(request.url?.path, "/api/ready")
             XCTAssertEqual(request.value(forHTTPHeaderField: "X-Gyrus-Token"), BackendLauncher.apiToken)
-            return (200, Data("{\"status\":\"ok\",\"service\":\"\(service)\"}".utf8))
+            return (200, Data("{\"status\":\"ok\",\"service\":\"\(service.value)\"}".utf8))
         }
         let unrelated = try await api.health()
         XCTAssertFalse(unrelated)
-        service = "gyrus"
+        service.value = "gyrus"
         let ready = try await api.health()
         XCTAssertTrue(ready)
     }
@@ -426,16 +430,16 @@ final class StabilizationTests: XCTestCase {
     }
 
     func testConfigFailureIsVisibleAndSameValueCanBeRetried() async {
-        var fail = true
+        let fail = LockedStubState(true)
         let sync = AIConfigSync { _ in
-            if fail { throw APIError.serverError(503) }
+            if fail.value { throw APIError.serverError(503) }
         }
         let config = AIBrainConfig()
         let failed = await sync.synchronize(config)
         XCTAssertFalse(failed)
         XCTAssertNotNil(sync.error)
         XCTAssertNil(sync.confirmed)
-        fail = false
+        fail.value = false
         let retried = await sync.synchronize(config)
         XCTAssertTrue(retried)
         XCTAssertNil(sync.error)
@@ -466,12 +470,12 @@ final class StabilizationTests: XCTestCase {
     }
 
     func testChatClearFailureKeepsConversationAndOffersRetry() async throws {
-        var fail = true
+        let fail = LockedStubState(true)
         let deleted = expectation(description: "Delete attempted")
         let api = client { request in
             if request.httpMethod == "DELETE" {
                 deleted.fulfill()
-                return fail ? (503, Data(#"{"detail":"Try later"}"#.utf8)) : (204, Data())
+                return fail.value ? (503, Data(#"{"detail":"Try later"}"#.utf8)) : (204, Data())
             }
             return (200, Data(#"[{"id":"message","bookmark_id":"a","role":"user","content":"Remember me","status":"complete","created_at":"2026-09-06T12:00:00Z","updated_at":"2026-09-06T12:00:00Z"}]"#.utf8))
         }
@@ -485,7 +489,7 @@ final class StabilizationTests: XCTestCase {
         XCTAssertFalse(chat.clearing.contains("a"))
         XCTAssertEqual(chat.messages(for: "a").first?.text, "Remember me")
         XCTAssertNotNil(chat.errors["a"])
-        fail = false
+        fail.value = false
         chat.resetLocalState()
         XCTAssertTrue(chat.messages(for: "a").isEmpty)
         XCTAssertTrue(chat.errors.isEmpty)
@@ -495,7 +499,7 @@ final class StabilizationTests: XCTestCase {
 // MARK: - Phase 1: selection, stale rows, in-place refresh
 
 extension StabilizationTests {
-    private func query(_ request: URLRequest, _ name: String) -> String? {
+    private nonisolated static func query(_ request: URLRequest, _ name: String) -> String? {
         URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
             .queryItems?.first { $0.name == name }?.value
     }
@@ -504,7 +508,7 @@ extension StabilizationTests {
         let folderA = try encoded([bookmark("a-1"), bookmark("shared")])
         let folderB = try encoded([bookmark("shared"), bookmark("b-1")])
         let store = BookmarkStore(api: client { request in
-            (200, self.query(request, "collection_id") == "B" ? folderB : folderA)
+            (200, Self.query(request, "collection_id") == "B" ? folderB : folderA)
         }, draftStorage: nil)
         try await store.loadBookmarks(collectionId: "A", refreshCount: false)
         store.selectedIds = ["a-1", "shared"]
@@ -529,7 +533,7 @@ extension StabilizationTests {
     func testFailedLoadOfNewViewDoesNotLeavePreviousRows() async throws {
         let folderA = try encoded([bookmark("a-1")])
         let store = BookmarkStore(api: client { request in
-            self.query(request, "collection_id") == "B" ? (500, Data()) : (200, folderA)
+            Self.query(request, "collection_id") == "B" ? (500, Data()) : (200, folderA)
         }, draftStorage: nil)
         try await store.loadBookmarks(collectionId: "A", refreshCount: false)
         store.selectedIds = ["a-1"]
@@ -544,23 +548,23 @@ extension StabilizationTests {
     func testRefreshLoadedRowsKeepsPaginationAndScrollDepth() async throws {
         let first = try encoded((0..<100).map { bookmark("b-\($0)") })
         let second = try encoded((100..<150).map { bookmark("b-\($0)") })
-        var offsets: [String] = []
+        let offsets = LockedStubState<[String]>([])
         let store = BookmarkStore(api: client { request in
-            let offset = self.query(request, "offset") ?? "0"
-            offsets.append(offset)
+            let offset = Self.query(request, "offset") ?? "0"
+            offsets.mutate { $0.append(offset) }
             return (200, offset == "0" ? first : second)
         }, draftStorage: nil)
         try await store.loadBookmarks(refreshCount: false)
         try await store.loadMoreBookmarks()
         XCTAssertEqual(store.bookmarks.count, 150)
-        offsets.removeAll()
+        offsets.value.removeAll()
 
         try await store.refreshLoadedRows()
 
         XCTAssertEqual(store.bookmarks.count, 150)
         XCTAssertEqual(store.currentOffset, 150)
         XCTAssertFalse(store.hasMore)
-        XCTAssertEqual(offsets, ["0", "100"])
+        XCTAssertEqual(offsets.value, ["0", "100"])
     }
 }
 
